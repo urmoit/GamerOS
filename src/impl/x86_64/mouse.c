@@ -1,6 +1,6 @@
 #include "mouse.h"
 #include "x86_64/port.h"
-#include "vga_graphics.h"
+#include "graphics.h" // Changed from vga_graphics.h
 
 // PS/2 Mouse Commands
 #define MOUSE_CMD_RESET 0xFF
@@ -21,14 +21,14 @@ void mouse_draw_cursor() {
     
     // Draw simple arrow cursor
     for (int i = 0; i < 8; i++) {
-        vga_put_pixel(mouse_x + i, mouse_y, 0x0F);  // White
-        vga_put_pixel(mouse_x, mouse_y + i, 0x0F);  // White
+        put_pixel(mouse_x + i, mouse_y, 0x0F);  // White
+        put_pixel(mouse_x, mouse_y + i, 0x0F);  // White
     }
     
     // Draw cursor border (black outline)
     for (int i = 0; i < 8; i++) {
-        vga_put_pixel(mouse_x + i - 1, mouse_y - 1, 0x00);  // Black
-        vga_put_pixel(mouse_x - 1, mouse_y + i - 1, 0x00);  // Black
+        put_pixel(mouse_x + i - 1, mouse_y - 1, 0x00);  // Black
+        put_pixel(mouse_x - 1, mouse_y + i - 1, 0x00);  // Black
     }
 }
 
@@ -47,10 +47,11 @@ void mouse_move(int delta_x, int delta_y) {
     mouse_y += delta_y;
     
     // Keep cursor within screen bounds
+    // These values should be dynamic based on framebuffer info
     if (mouse_x < 0) mouse_x = 0;
-    if (mouse_x >= 320) mouse_x = 319;
+    if (mouse_x >= 320) mouse_x = 319; // TODO: Use actual screen width
     if (mouse_y < 0) mouse_y = 0;
-    if (mouse_y >= 200) mouse_y = 199;
+    if (mouse_y >= 200) mouse_y = 199; // TODO: Use actual screen height
     
     mouse_draw_cursor();
 }
@@ -62,10 +63,11 @@ void mouse_set_position(int x, int y) {
     mouse_y = y;
     
     // Keep cursor within screen bounds
+    // These values should be dynamic based on framebuffer info
     if (mouse_x < 0) mouse_x = 0;
-    if (mouse_x >= 320) mouse_x = 319;
+    if (mouse_x >= 320) mouse_x = 319; // TODO: Use actual screen width
     if (mouse_y < 0) mouse_y = 0;
-    if (mouse_y >= 200) mouse_y = 199;
+    if (mouse_y >= 200) mouse_y = 199; // TODO: Use actual screen height
     
     mouse_draw_cursor();
 }
@@ -97,8 +99,9 @@ void mouse_hide() {
 }
 
 // Simple mouse click detection for Windows 11 elements
+// These values should be dynamic based on framebuffer info
 int mouse_is_over_start_button() {
-    return (mouse_x >= 5 && mouse_x <= 65 && mouse_y >= 175 && mouse_y <= 195);
+    return (mouse_x >= 5 && mouse_x <= 65 && mouse_y >= 175 && mouse_y <= 195); // TODO: Use actual screen height
 }
 
 int mouse_is_over_window(int x, int y, int width, int height) {

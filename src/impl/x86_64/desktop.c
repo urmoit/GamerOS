@@ -1,17 +1,6 @@
 #include "desktop.h"
-#include "vga_graphics.h"
+#include "graphics.h"
 #include "mouse.h"
-
-// Windows 11 Color Constants (from vga_graphics.c)
-#define W11_LIGHT_GRAY 0x07
-#define W11_BORDER_COLOR 0x08
-#define W11_BLACK 0x00
-#define W11_WINDOW_COLOR 0x0F
-#define W11_TITLE_COLOR 0x01
-#define W11_WHITE 0x0F
-#define W11_GREEN 0x02
-#define W11_BLUE 0x01
-#define W11_YELLOW 0x0E
 
 // Desktop state
 static int desktop_initialized = 0;
@@ -30,8 +19,8 @@ static Window windows[10];  // Support up to 10 windows
 void desktop_init() {
     if (desktop_initialized) return;
     
-    // Set VGA graphics mode
-    vga_set_mode_13h();
+    // Initialize graphics
+    graphics_init();
     
     // Initialize desktop
     w11_draw_desktop();
@@ -84,13 +73,13 @@ void desktop_handle_click() {
 
 void w11_draw_start_menu() {
     // Draw start menu background
-    vga_draw_rectangle(5, 140, 200, 30, W11_LIGHT_GRAY);
-    vga_draw_border(5, 140, 200, 30, W11_BORDER_COLOR);
+    draw_rectangle(5, 140, 200, 30, 0xD3D3D3);
+    draw_border(5, 140, 200, 30, 0x808080);
     
     // Draw start menu items
-    vga_draw_string(10, 150, "File Explorer", W11_BLACK);
-    vga_draw_string(10, 160, "Settings", W11_BLACK);
-    vga_draw_string(10, 170, "Power", W11_BLACK);
+    draw_string(10, 150, "File Explorer", 0x000000);
+    draw_string(10, 160, "Settings", 0x000000);
+    draw_string(10, 170, "Power", 0x000000);
 }
 
 int desktop_create_window(int x, int y, int width, int height, const char* title) {
@@ -136,18 +125,18 @@ void desktop_move_window(int window_id, int new_x, int new_y) {
 // Windows 11 specific functions
 void w11_show_welcome() {
     // Draw Windows 11 welcome screen
-    vga_draw_rectangle(50, 50, 220, 100, W11_WINDOW_COLOR);
-    vga_draw_border(50, 50, 220, 100, W11_BORDER_COLOR);
+    draw_rectangle(50, 50, 220, 100, 0xFFFFFF);
+    draw_border(50, 50, 220, 100, 0x808080);
     
     // Title bar
-    vga_draw_rectangle(51, 51, 218, 20, W11_TITLE_COLOR);
-    vga_draw_string(60, 60, "Welcome to Gameros", W11_WHITE);
+    draw_rectangle(51, 51, 218, 20, 0x0000FF);
+    draw_string(60, 60, "Welcome to Gameros", 0xFFFFFF);
     
     // Content
-    vga_draw_string(60, 80, "Your custom Windows 11-like OS", W11_BLACK);
-    vga_draw_string(60, 90, "Click Start to begin", W11_BLACK);
-    vga_draw_string(60, 100, "Move mouse to interact", W11_BLACK);
-    vga_draw_string(60, 110, "Press any key to continue", W11_BLACK);
+    draw_string(60, 80, "Your custom Windows 11-like OS", 0x000000);
+    draw_string(60, 90, "Click Start to begin", 0x000000);
+    draw_string(60, 100, "Move mouse to interact", 0x000000);
+    draw_string(60, 110, "Press any key to continue", 0x000000);
 }
 
 void w11_draw_system_tray() {
@@ -156,14 +145,14 @@ void w11_draw_system_tray() {
     int tray_y = 175;
     
     // Battery icon
-    vga_draw_rectangle(tray_x, tray_y + 5, 15, 10, W11_GREEN);
-    vga_draw_border(tray_x, tray_y + 5, 15, 10, W11_BORDER_COLOR);
+    draw_rectangle(tray_x, tray_y + 5, 15, 10, 0x00FF00);
+    draw_border(tray_x, tray_y + 5, 15, 10, 0x808080);
     
     // Network icon
-    vga_draw_rectangle(tray_x + 20, tray_y + 5, 15, 10, W11_BLUE);
-    vga_draw_border(tray_x + 20, tray_y + 5, 15, 10, W11_BORDER_COLOR);
+    draw_rectangle(tray_x + 20, tray_y + 5, 15, 10, 0x0000FF);
+    draw_border(tray_x + 20, tray_y + 5, 15, 10, 0x808080);
     
     // Volume icon
-    vga_draw_rectangle(tray_x + 40, tray_y + 5, 15, 10, W11_YELLOW);
-    vga_draw_border(tray_x + 40, tray_y + 5, 15, 10, W11_BORDER_COLOR);
+    draw_rectangle(tray_x + 40, tray_y + 5, 15, 10, 0xFFFF00);
+    draw_border(tray_x + 40, tray_y + 5, 15, 10, 0x808080);
 }

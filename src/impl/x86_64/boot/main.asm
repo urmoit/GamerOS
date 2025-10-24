@@ -1,5 +1,6 @@
 global start
 extern long_mode_start
+extern framebuffer_info
 
 section .text
 bits 32
@@ -7,6 +8,7 @@ start:
 	mov esp, stack_top
 
 	call check_multiboot
+	call parse_multiboot_framebuffer
 	call check_cpuid
 	call check_long_mode
 
@@ -25,6 +27,34 @@ check_multiboot:
 .no_multiboot:
 	mov al, "M"
 	jmp error
+
+parse_multiboot_framebuffer:
+    mov esi, ebx ; esi now points to the multiboot info structure
+    add esi, 8 ; skip total_size and reserved fields
+
+.loop:
+    mov eax, [esi] ; eax = tag type
+    cmp eax, 0 ; end of tags?
+    je .done
+
+    cmp eax, 8 ; framebuffer tag?
+    je .framebuffer_tag
+
+    add esi, [esi+4] ; move to next tag
+    and esi, ~7 ; align to 8 bytes
+    jmp .loop
+
+.framebuffer_tag:
+    ; esi points to the framebuffer tag
+    ; copy the framebuffer info to the framebuffer_info struct
+    mov ecx, 24 ; size of framebuffer info (addr, width, height, pitch, bpp)
+    mov edi, framebuffer_info
+    add esi, 8 ; skip tag type, size
+    rep movsb
+    ret
+
+.done:
+    ret
 
 check_cpuid:
 	pushfd
@@ -125,6 +155,9 @@ page_table_l2:
 stack_bottom:
 	resb 4096 * 4
 stack_top:
+
+framebuffer_info:
+    resb 24
 
 section .rodata
 gdt64:
