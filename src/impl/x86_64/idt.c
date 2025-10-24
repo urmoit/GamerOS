@@ -3,6 +3,7 @@
 #include "x86_64/gdt.h"
 #include "x86_64/idt.h"
 #include "x86_64/pic.h"
+#include "print.h"
 
 #define IDT_IRQ0_TIMER 0x20
 #define IDT_IRQ1_KEYBOARD 0x21
@@ -50,7 +51,15 @@ void idt_set_entry(uint8_t vector, uint64_t isr_addr, uint16_t selector, uint8_t
 	};
 }
 
+extern void idt_handler_default_wrapped();
 extern void idt_handler_keyboard_wrapped();
+
+#include "print.h"
+
+void idt_handler_default() {
+	print_str("DEFAULT INTERRUPT");
+	pic_eoi_master();
+}
 
 void idt_handler_keyboard() {
 	if (idt_handler_keyboard_user != NULL) {
@@ -65,6 +74,10 @@ void idt_init() {
 	
 	idt_ptr.limit = (sizeof(struct IdtEntry) * 256) - 1;
 	idt_ptr.base = (uint64_t) &idt;
+	
+	for (int i = 0; i < 256; i++) {
+		idt_set_entry(i, (uint64_t) idt_handler_default_wrapped, GDT_SELECTOR_CS_KERNEL, IDT_ENTRY_TYPE_INTERRUPT);
+	}
 	
 	idt_set_entry(IDT_IRQ1_KEYBOARD, (uint64_t) idt_handler_keyboard_wrapped, GDT_SELECTOR_CS_KERNEL, IDT_ENTRY_TYPE_INTERRUPT);
 	

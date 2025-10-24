@@ -1,3 +1,4 @@
+extern idt_handler_default
 extern idt_handler_keyboard
 global idt_load
 
@@ -48,4 +49,5 @@ idt_load:
 		iretq
 %endmacro
 
+WRAPPED_HANDLER idt_handler_default
 WRAPPED_HANDLER idt_handler_keyboard
