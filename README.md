@@ -12,14 +12,60 @@
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chosentechies/GamerOS)
 [![Version](https://img.shields.io/badge/version-1.0-blue.svg)](https://github.com/chosentechies/GamerOS)
-[![Build](https://img.shields.io/badge/build-0.0.0.1200-orange.svg)](https://github.com/chosentechies/GamerOS)
+[![Build](https://img.shields.io/badge/build-0.0.0.1350-orange.svg)](https://github.com/chosentechies/GamerOS)
 [![License](https://img.shields.io/badge/license-Custom-red.svg)](https://github.com/chosentechies/GamerOS/blob/main/LICENSE)
 
 > ⚠️ **WORK IN PROGRESS** ⚠️
 >
 > This operating system project is under heavy development. Features may change, break, or be incomplete at any time. The name "GamerOS" is a placeholder and will be changed upon release.
 >
-> **Current Build: 0.0.0.1200** | See [Changelog](changelog/Build0.0.0.1200.md) for details.
+> **Current Build: 0.0.0.1350** | See [Changelog](changelog/Build0.0.0.1350.md) for details. | [Summary](changelog/Build0.0.0.1350-SUMMARY.md) 
+
+## Getting Started
+
+### Prerequisites
+
+- [Docker](https://www.docker.com/get-started)
+- [QEMU](https://www.qemu.org/download.html). Make sure to add QEMU to your PATH.
+- [VMware Player](https://www.vmware.com/products/workstation-player/workstation-player-evaluation.html)
+
+### Build
+
+To build the OS, run the following command:
+
+```batch
+build.bat
+```
+
+### Run
+
+To run the OS in QEMU, run the following command:
+
+```batch
+run-qemu.bat
+```
+
+To run the OS in VMware, run the following command:
+
+```batch
+run-vmware.bat
+```
+
+### Debug
+
+To run the OS in debug mode, run the following command:
+
+```batch
+debug.bat
+```
+
+### Clean
+
+To clean the build artifacts, run the following command:
+
+```batch
+clean.bat
+```
 
 ## About The Project
 
@@ -32,7 +78,7 @@ GamerOS is a 64-bit hobby operating system with a custom kernel, graphical deskt
 
 The latest ISO file can always be found in the `dist/x86_64` folder.
 
-**Current Build:** 0.0.0.1200
+**Current Build:** 0.0.0.1350
 
 ## Features
 
