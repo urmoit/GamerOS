@@ -12,14 +12,14 @@
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chosentechies/GamerOS)
 [![Version](https://img.shields.io/badge/version-1.0-blue.svg)](https://github.com/chosentechies/GamerOS)
-[![Build](https://img.shields.io/badge/build-0.0.0.1350-orange.svg)](https://github.com/chosentechies/GamerOS)
+[![Build](https://img.shields.io/badge/build-0.0.0.1400-orange.svg)](https://github.com/chosentechies/GamerOS)
 [![License](https://img.shields.io/badge/license-Custom-red.svg)](https://github.com/chosentechies/GamerOS/blob/main/LICENSE)
 
 > ⚠️ **WORK IN PROGRESS** ⚠️
 >
 > This operating system project is under heavy development. Features may change, break, or be incomplete at any time. The name "GamerOS" is a placeholder and will be changed upon release.
 >
-> **Current Build: 0.0.0.1350** | See [Changelog](changelog/Build0.0.0.1350.md) for details. | [Summary](changelog/Build0.0.0.1350-SUMMARY.md) 
+> **Current Build: 0.0.0.1400** | See [Changelog](changelog/Build0.0.0.1400.md) for details. | [Summary](changelog/Build0.0.0.1400-SUMMARY.md)
 
 ## Getting Started
 
@@ -78,7 +78,7 @@ GamerOS is a 64-bit hobby operating system with a custom kernel, graphical deskt
 
 The latest ISO file can always be found in the `dist/x86_64` folder.
 
-**Current Build:** 0.0.0.1350
+**Current Build:** 0.0.0.1400
 
 ## Features
 
@@ -87,7 +87,7 @@ The latest ISO file can always be found in the `dist/x86_64` folder.
     *   Taskbar, Start Menu, and System Tray
     *   Multiple movable windows (e.g., File Explorer, Settings)
     *   Desktop icons like "This PC" and "Recycle Bin"
-*   **Graphics:** VGA (320x200x256) graphics mode 13h.
+*   **Graphics:** Enhanced VGA/VESA graphics with multiple resolutions (320x200 to 1024x768) and 32-bit color depth support.
 *   **Input:** Mouse cursor with simulated/keyboard movement and keyboard event handling.
 *   **System:** Real-Time Clock (RTC) reading and display, and hardware interrupt controllers (PIC, IDT) setup.
 *   **Build Environment:** Portable Makefile and Docker-based build environment for easy setup.

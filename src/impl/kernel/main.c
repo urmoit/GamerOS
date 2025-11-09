@@ -25,8 +25,8 @@ void process2_entry() {
 }
 
 void kernel_main(void) {
-    // Initialize VGA graphics mode 13h (320x200x256)
-    vga_init_mode13();
+    // Initialize VGA graphics mode with higher resolution (640x480x256)
+    vga_init_mode101h();
 
     // Set the desktop background
     vga_set_desktop_background();
@@ -46,9 +46,24 @@ void kernel_main(void) {
         // For now, just allocate and don't use
     }
 
-    // Create some sample windows
-    create_window(50, 50, 100, 80, "Window 1");
-    create_window(80, 70, 120, 90, "Window 2");
+    // Create some sample windows with better positioning for higher resolution
+    create_window(100, 100, 200, 150, "Window 1");
+    create_window(350, 120, 250, 180, "Window 2");
+
+    // Demonstrate new graphics capabilities
+    // Draw some shapes using the new primitives
+    vga_draw_circle(150, 150, 30, rgb_to_color(255, 0, 0, 255)); // Red circle
+    vga_draw_line(200, 200, 300, 250, rgb_to_color(0, 255, 0, 255)); // Green line
+    vga_fill_triangle(400, 200, 450, 150, 500, 250, rgb_to_color(0, 0, 255, 128)); // Blue triangle with alpha
+
+    // Create a software render buffer for advanced effects
+    render_buffer_t* render_buf = create_render_buffer(100, 100);
+    if (render_buf) {
+        clear_render_buffer(render_buf, rgb_to_color(255, 255, 0, 200)); // Yellow with alpha
+        draw_circle_software(render_buf, 50, 50, 30, rgb_to_color(255, 0, 255, 255)); // Magenta circle
+        render_buffer_to_screen(render_buf, 50, 300); // Render to screen
+        destroy_render_buffer(render_buf);
+    }
 
     // Create a sample file
     file_t* test_file = fs_create_file("test.txt");
