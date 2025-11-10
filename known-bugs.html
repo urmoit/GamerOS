@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Known Bugs - GamerOS</title>
+    <meta name="description" content="Track all known bugs, errors, and issues in the GamerOS codebase.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">GamerOS</div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="about.html">About</a></li>
+                <li><a href="roadmap.html">Roadmap</a></li>
+                <li><a href="news.html">News</a></li>
+                <li><a href="known-bugs.html">Known Bugs</a></li>
+                <li><a href="download.html">Download</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="bugs-hero modern">
+            <div class="hero-background">
+                <div class="hero-particles">
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                </div>
+            </div>
+            <div class="hero-content-modern">
+                <div class="hero-icon">🐛</div>
+                <h1>Known Bugs and Issues</h1>
+                <p class="hero-description">This document tracks all known bugs, errors, and issues in the GamerOS codebase. Items are organized by severity and include status tracking.</p>
+            </div>
+        </section>
+
+        <section class="bugs-content-modern">
+            <!-- Critical Issues Card -->
+            <div class="bug-card critical">
+                <div class="bug-card-header">
+                    <div class="bug-card-icon">🚨</div>
+                    <div class="bug-card-title">
+                        <h2>Critical Issues</h2>
+                        <span class="bug-card-subtitle">Prevents OS from functioning</span>
+                    </div>
+                    <div class="bug-stats">
+                        <span class="stat-fixed">4 Fixed</span>
+                        <span class="stat-remaining">1 Remaining</span>
+                    </div>
+                </div>
+                <div class="bug-card-content">
+                    <div class="bug-section">
+                        <h3 class="fixed">Fixed ✅</h3>
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">BIOS Interrupt Issues in Graphics</span>
+                                <span class="bug-desc">BIOS interrupts (`int 0x10`) don't work in 64-bit long mode</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Missing Interrupt Handlers</span>
+                                <span class="bug-desc">`common_isr_handler` and `common_irq_handler` were undefined</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">IDT Entry Size for 64-bit</span>
+                                <span class="bug-desc">IDT entries used 32-bit addresses in 64-bit mode</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Window Creation Memory Allocation</span>
+                                <span class="bug-desc">Used static allocation preventing multiple windows</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bug-section">
+                        <h3 class="remaining">Remaining 🔴</h3>
+                        <div class="bug-list">
+                            <div class="bug-item critical-item">
+                                <span class="bug-title">OS Not Starting in QEMU</span>
+                                <span class="bug-desc">GamerOS boots but enters paused state due to BIOS interrupts called in protected mode causing SMM activation and exception loops</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logic Errors Card -->
+            <div class="bug-card logic">
+                <div class="bug-card-header">
+                    <div class="bug-card-icon">🧠</div>
+                    <div class="bug-card-title">
+                        <h2>Logic Errors</h2>
+                        <span class="bug-card-subtitle">Causes incorrect behavior</span>
+                    </div>
+                    <div class="bug-stats">
+                        <span class="stat-fixed">5 Fixed</span>
+                        <span class="stat-remaining">10 Remaining</span>
+                    </div>
+                </div>
+                <div class="bug-card-content">
+                    <div class="bug-section">
+                        <h3 class="fixed">Fixed ✅</h3>
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Alpha Blending Logic</span>
+                                <span class="bug-desc">Division by zero possible and incorrect formula</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Process Scheduling Issues</span>
+                                <span class="bug-desc">Stack setup didn't match context switching ABI</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">File System Bounds Checking</span>
+                                <span class="bug-desc">Off-by-one error in size validation</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Mouse Coordinate Handling</span>
+                                <span class="bug-desc">No bounds checking, potential negative overflow</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Color Conversion Issues</span>
+                                <span class="bug-desc">Poor 8-bit palette approximation</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bug-section">
+                        <h3 class="remaining">Remaining 🔴</h3>
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">RTC BCD Conversion</span>
+                                <span class="bug-desc">May not work on all hardware configurations</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Context Switch Stack Corruption</span>
+                                <span class="bug-desc">Context switch may corrupt stack due to improper register saving order</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">ISR Stack Frame Issues</span>
+                                <span class="bug-desc">ISR handlers may not properly handle interrupt stack frames</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">PIC EOI Logic Error</span>
+                                <span class="bug-desc">EOI sent to wrong PIC for certain IRQs</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Font Character Bounds</span>
+                                <span class="bug-desc">Character validation allows invalid ASCII values</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Alignment Issues</span>
+                                <span class="bug-desc">kmalloc doesn't ensure proper alignment for all data types</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Scheduler Race Conditions</span>
+                                <span class="bug-desc">No protection against concurrent access to process table</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Infinite Loops in Process Entry Points</span>
+                                <span class="bug-desc">Process functions use for(;;) without proper exit conditions</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Main Kernel Loop Busy Waiting</span>
+                                <span class="bug-desc">Uses inefficient busy-wait delay instead of proper timer interrupts</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Setup Screen Hang</span>
+                                <span class="bug-desc">ui_handle_setup() contains infinite loop with no escape mechanism</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Code Quality Card -->
+            <div class="bug-card quality">
+                <div class="bug-card-header">
+                    <div class="bug-card-icon">🛠️</div>
+                    <div class="bug-card-title">
+                        <h2>Code Quality</h2>
+                        <span class="bug-card-subtitle">Warnings/Style issues</span>
+                    </div>
+                    <div class="bug-stats">
+                        <span class="stat-fixed">3 Fixed</span>
+                        <span class="stat-remaining">6 Remaining</span>
+                    </div>
+                </div>
+                <div class="bug-card-content">
+                    <div class="bug-section">
+                        <h3 class="fixed">Fixed ✅</h3>
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Dead Code Removal</span>
+                                <span class="bug-desc">Unused `text_mode_continue` label</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Loop Optimization</span>
+                                <span class="bug-desc">Extremely inefficient busy-wait loops</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Management Documentation</span>
+                                <span class="bug-desc">`kfree()` did nothing without explanation</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bug-section">
+                        <h3 class="remaining">Remaining 🔴</h3>
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Compiler Warnings</span>
+                                <span class="bug-desc">Several signed/unsigned comparison warnings</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Implicit Function Declarations</span>
+                                <span class="bug-desc">`kmalloc`/`kfree` not visible during individual compilation</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Unused Variables</span>
+                                <span class="bug-desc">Several variables defined but not used</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Missing NULL Checks</span>
+                                <span class="bug-desc">Many functions return 0 for error but callers don't check</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Inconsistent Return Values</span>
+                                <span class="bug-desc">Some functions return 0 for success, others for failure</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Magic Numbers</span>
+                                <span class="bug-desc">Hard-coded values without constants (e.g., interrupt numbers, port addresses)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Missing Features Card -->
+            <div class="bug-card features">
+                <div class="bug-card-header">
+                    <div class="bug-card-icon">✨</div>
+                    <div class="bug-card-title">
+                        <h2>Missing Features</h2>
+                        <span class="bug-card-subtitle">Functionality gaps</span>
+                    </div>
+                    <div class="bug-stats">
+                        <span class="stat-fixed">2 Fixed</span>
+                        <span class="stat-remaining">10 Remaining</span>
+                    </div>
+                </div>
+                <div class="bug-card-content">
+                    <div class="bug-section">
+                        <h3 class="fixed">Fixed ✅</h3>
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Font System Inconsistencies</span>
+                                <span class="bug-desc">Two different font rendering systems</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Stack Frame Setup</span>
+                                <span class="bug-desc">Improved process stack initialization</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bug-section">
+                        <h3 class="remaining">Remaining 🔴</h3>
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Proper Timer Interrupts</span>
+                                <span class="bug-desc">Currently using busy-wait delays</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Keyboard Input Buffering</span>
+                                <span class="bug-desc">No proper input handling system</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Error Recovery</span>
+                                <span class="bug-desc">No graceful failure modes for most operations</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Protection</span>
+                                <span class="bug-desc">No virtual memory or protection mechanisms</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">System Calls</span>
+                                <span class="bug-desc">No proper syscall interface</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Device Drivers</span>
+                                <span class="bug-desc">Limited hardware support</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">File System Persistence</span>
+                                <span class="bug-desc">Files don't survive reboots</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Process Termination</span>
+                                <span class="bug-desc">No way to exit or terminate processes cleanly</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Deallocation in Main</span>
+                                <span class="bug-desc">Test memory allocation never freed</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Window Title Rendering</span>
+                                <span class="bug-desc">draw_window() skips title drawing due to missing function</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other Issues Grid -->
+            <div class="other-issues-grid">
+                <div class="bug-card build">
+                    <div class="bug-card-header">
+                        <div class="bug-card-icon">🔨</div>
+                        <div class="bug-card-title">
+                            <h3>Build System</h3>
+                        </div>
+                        <div class="bug-stats">
+                            <span class="stat-remaining">3 Remaining</span>
+                        </div>
+                    </div>
+                    <div class="bug-card-content">
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Dependency Tracking</span>
+                                <span class="bug-desc">Some object files may not rebuild when headers change</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Cross-Compilation Assumptions</span>
+                                <span class="bug-desc">No version checking for build tools</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Warning Suppression</span>
+                                <span class="bug-desc">Build produces warnings that could be addressed</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bug-card testing">
+                    <div class="bug-card-header">
+                        <div class="bug-card-icon">🧪</div>
+                        <div class="bug-card-title">
+                            <h3>Testing & Validation</h3>
+                        </div>
+                        <div class="bug-stats">
+                            <span class="stat-remaining">4 Remaining</span>
+                        </div>
+                    </div>
+                    <div class="bug-card-content">
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Unit Tests</span>
+                                <span class="bug-desc">No automated testing framework</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Integration Tests</span>
+                                <span class="bug-desc">No system-level testing</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Edge Case Handling</span>
+                                <span class="bug-desc">Limited validation of input parameters</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Leak Detection</span>
+                                <span class="bug-desc">No tools to detect memory issues</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bug-card docs">
+                    <div class="bug-card-header">
+                        <div class="bug-card-icon">📚</div>
+                        <div class="bug-card-title">
+                            <h3>Documentation</h3>
+                        </div>
+                        <div class="bug-stats">
+                            <span class="stat-remaining">4 Remaining</span>
+                        </div>
+                    </div>
+                    <div class="bug-card-content">
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Code Comments</span>
+                                <span class="bug-desc">Many functions lack proper documentation</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">API Documentation</span>
+                                <span class="bug-desc">Interface contracts not clearly defined</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Build Instructions</span>
+                                <span class="bug-desc">Limited troubleshooting information</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Architecture Documentation</span>
+                                <span class="bug-desc">High-level design not documented</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bug-card performance">
+                    <div class="bug-card-header">
+                        <div class="bug-card-icon">⚡</div>
+                        <div class="bug-card-title">
+                            <h3>Performance</h3>
+                        </div>
+                        <div class="bug-stats">
+                            <span class="stat-remaining">6 Remaining</span>
+                        </div>
+                    </div>
+                    <div class="bug-card-content">
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Graphics Performance</span>
+                                <span class="bug-desc">Software rendering is slow</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Usage</span>
+                                <span class="bug-desc">No memory optimization</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">CPU Utilization</span>
+                                <span class="bug-desc">Inefficient algorithms in some areas</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Interrupt Latency</span>
+                                <span class="bug-desc">No real-time considerations</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Busy Wait Delays</span>
+                                <span class="bug-desc">Main loop uses volatile loop instead of proper timing</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Copy Operations</span>
+                                <span class="bug-desc">No optimized memory operations for large buffers</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bug-card security">
+                    <div class="bug-card-header">
+                        <div class="bug-card-icon">🔒</div>
+                        <div class="bug-card-title">
+                            <h3>Security</h3>
+                        </div>
+                        <div class="bug-stats">
+                            <span class="stat-remaining">6 Remaining</span>
+                        </div>
+                    </div>
+                    <div class="bug-card-content">
+                        <div class="bug-list">
+                            <div class="bug-item">
+                                <span class="bug-title">Input Validation</span>
+                                <span class="bug-desc">Limited bounds checking on user inputs</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Buffer Overflows</span>
+                                <span class="bug-desc">Potential buffer overflow vulnerabilities</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Privilege Escalation</span>
+                                <span class="bug-desc">No proper privilege separation</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Memory Corruption</span>
+                                <span class="bug-desc">No memory protection mechanisms</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Null Pointer Dereferences</span>
+                                <span class="bug-desc">Many functions don't check for null pointers before use</span>
+                            </div>
+                            <div class="bug-item">
+                                <span class="bug-title">Integer Overflows</span>
+                                <span class="bug-desc">No protection against arithmetic overflows in calculations</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Section -->
+            <div class="summary-section">
+                <h2>Summary</h2>
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <span class="summary-number">16/48</span>
+                        <span class="summary-label">Fixed Issues (33%)</span>
+                    </div>
+                    <div class="summary-stat critical">
+                        <span class="summary-number">1/5</span>
+                        <span class="summary-label">Critical Issues (80% resolved)</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="summary-number">3/14</span>
+                        <span class="summary-label">Logic Errors (21% resolved)</span>
+                    </div>
+                </div>
+                <div class="summary-description">
+                    <div class="critical-alert">
+                        <span class="alert-icon">🚨</span>
+                        <strong>Critical Issue:</strong> The OS has critical boot issues that prevent it from starting properly in QEMU. The system enters a paused state due to BIOS interrupts being called in protected mode, causing SMM activation and exception loops. This must be fixed before the OS can run.
+                    </div>
+                    <p>Additional issues include infinite loops, memory leaks, null pointer dereferences, and performance problems that should be addressed for stability and reliability.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-particles">
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+        </div>
+
+        <!-- Main Footer Content -->
+        <div class="footer-main">
+            <div class="footer-brand">
+                <div class="brand-header">
+                    <span class="brand-icon">🚀</span>
+                    <h3>GamerOS</h3>
+                </div>
+                <p>A modern x86_64 hobby operating system built from scratch with a Windows 11-like desktop environment.</p>
+                <div class="brand-stats">
+                    <div class="brand-stat">
+                        <span class="stat-number">6</span>
+                        <span class="stat-label">Releases</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">48</span>
+                        <span class="stat-label">Known Issues</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">33%</span>
+                        <span class="stat-label">Fixed</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="index.html"><span class="link-icon">🏠</span>Home</a></li>
+                        <li><a href="about.html"><span class="link-icon">ℹ️</span>About</a></li>
+                        <li><a href="roadmap.html"><span class="link-icon">🗺️</span>Roadmap</a></li>
+                        <li><a href="news.html"><span class="link-icon">📰</span>News</a></li>
+                        <li><a href="known-bugs.html"><span class="link-icon">🐛</span>Known Bugs</a></li>
+                        <li><a href="download.html"><span class="link-icon">⬇️</span>Download</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="news/build-0.0.0.1512.html"><span class="link-icon">📋</span>Latest Changelog</a></li>
+                        <li><a href="all-versions.html"><span class="link-icon">📦</span>All Versions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank"><span class="link-icon">📖</span>Documentation</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank"><span class="link-icon">🐛</span>Report Issues</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank"><span class="link-icon">📜</span>License</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS" target="_blank"><span class="link-icon">🐙</span>GitHub</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/discussions" target="_blank"><span class="link-icon">💬</span>Discussions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/CONTRIBUTING.md" target="_blank"><span class="link-icon">🤝</span>Contributing</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/stargazers" target="_blank"><span class="link-icon">⭐</span>Stargazers</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/network/members" target="_blank"><span class="link-icon">🍴</span>Forks</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h4>Development</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS/actions" target="_blank"><span class="link-icon">⚙️</span>CI/CD</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/releases" target="_blank"><span class="link-icon">🏷️</span>Releases</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/commits" target="_blank"><span class="link-icon">📝</span>Commits</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/branches" target="_blank"><span class="link-icon">🌿</span>Branches</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/tags" target="_blank"><span class="link-icon">🏷️</span>Tags</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Bottom -->
+        <div class="footer-bottom">
+            <div class="footer-bottom-content">
+                <div class="copyright">
+                    <p>&copy; 2025 Chosentechies. All rights reserved.</p>
+                </div>
+                <div class="footer-badges">
+                    <span class="badge">Built with ❤️ for the open source community</span>
+                    <span class="badge">MIT License</span>
+                    <span class="badge">x86_64 Architecture</span>
+                </div>
+                <div class="footer-actions">
+                    <a href="#top" class="back-to-top">
+                        <span class="back-icon">⬆️</span>
+                        Back to Top
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

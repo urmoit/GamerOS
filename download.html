@@ -19,166 +19,383 @@
                 <li><a href="about.html">About</a></li>
                 <li><a href="roadmap.html">Roadmap</a></li>
                 <li><a href="news.html">News</a></li>
+                <li><a href="known-bugs.html">Known Bugs</a></li>
                 <li><a href="download.html">Download</a></li>
             </ul>
         </nav>
     </header>
-
     <main>
-        <section class="download-hero modern">
+        <!-- Hero Section -->
+        <section class="download-hero-section">
             <div class="hero-background">
-                <div class="hero-particles">
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
+                <div class="floating-elements">
+                    <div class="download-cloud cloud-1">☁️</div>
+                    <div class="download-cloud cloud-2">☁️</div>
+                    <div class="download-cloud cloud-3">☁️</div>
+                    <div class="download-arrow arrow-1">⬇️</div>
+                    <div class="download-arrow arrow-2">⬇️</div>
+                    <div class="download-arrow arrow-3">⬇️</div>
+                    <div class="download-pulse pulse-1"></div>
+                    <div class="download-pulse pulse-2"></div>
+                    <div class="download-pulse pulse-3"></div>
                 </div>
             </div>
-            <div class="hero-content-modern">
-                <div class="hero-icon">⬇️</div>
-                <h1>Download GamerOS</h1>
-                <p class="download-subtitle">Get the latest builds of our x86_64 hobby operating system</p>
+            <div class="hero-content">
+                <div class="hero-badge">⬇️ Download Center</div>
+                <h1 class="hero-title">
+                    <span class="hero-title-main">Get GamerOS</span>
+                    <span class="hero-title-sub">Download the Latest Builds</span>
+                </h1>
+                <p class="hero-description">
+                    Experience the future of hobby operating systems. Download our latest builds and explore
+                    the Windows 11-inspired desktop environment running on bare metal x86_64 architecture.
+                </p>
+                <div class="hero-metrics">
+                    <div class="metric">
+                        <span class="metric-number">4.89MB</span>
+                        <span class="metric-label">Latest Build Size</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">x86_64</span>
+                        <span class="metric-label">Architecture</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">Free</span>
+                        <span class="metric-label">Open Source</span>
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <a href="#downloads" class="cta-button primary">
+                        <span class="cta-icon">⬇️</span>
+                        Download Latest
+                        <span class="cta-arrow">→</span>
+                    </a>
+                    <a href="#requirements" class="cta-button secondary">
+                        <span class="cta-icon">ℹ️</span>
+                        System Requirements
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="download-visualization">
+                    <div class="iso-disk">
+                        <div class="disk-shine"></div>
+                        <div class="disk-label">GamerOS</div>
+                        <div class="disk-version">0.0.0.1512</div>
+                        <div class="disk-icon">💿</div>
+                    </div>
+                    <div class="download-stats">
+                        <div class="stat-ring">
+                            <div class="stat-ring-fill" style="--percentage: 100"></div>
+                            <div class="stat-ring-content">
+                                <span class="stat-ready">Ready</span>
+                                <span class="stat-to-download">to Download</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <section id="downloads" class="downloads-modern">
-            <div class="download-intro-modern">
-                <div class="intro-content">
-                    <div class="intro-icon">💿</div>
-                    <h2>Choose Your Build</h2>
-                    <p>All downloads are ISO files that can be run in virtual machines or burned to USB drives for testing on real hardware.</p>
+        <!-- System Requirements -->
+        <section id="requirements" class="requirements-section">
+            <div class="section-header">
+                <h2>System Requirements</h2>
+                <p>Ensure your system can run GamerOS</p>
+            </div>
+            <div class="requirements-grid">
+                <div class="requirement-card minimum">
+                    <div class="req-header">
+                        <span class="req-icon">📊</span>
+                        <h3>Minimum Requirements</h3>
+                    </div>
+                    <div class="req-list">
+                        <div class="req-item">
+                            <span class="req-check">✅</span>
+                            <div class="req-content">
+                                <strong>x86_64 Compatible CPU</strong>
+                                <span class="req-detail">Any modern x86_64 processor</span>
+                            </div>
+                        </div>
+                        <div class="req-item">
+                            <span class="req-check">✅</span>
+                            <div class="req-content">
+                                <strong>512MB RAM</strong>
+                                <span class="req-detail">1GB+ recommended for best experience</span>
+                            </div>
+                        </div>
+                        <div class="req-item">
+                            <span class="req-check">✅</span>
+                            <div class="req-content">
+                                <strong>Virtualization Software</strong>
+                                <span class="req-detail">QEMU, VMware, or VirtualBox</span>
+                            </div>
+                        </div>
+                        <div class="req-item">
+                            <span class="req-check">✅</span>
+                            <div class="req-content">
+                                <strong>10MB Free Space</strong>
+                                <span class="req-detail">For ISO file and virtual disk</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="system-req-modern">
+
+                <div class="requirement-card recommended">
+                    <div class="req-header">
+                        <span class="req-icon">⭐</span>
+                        <h3>Recommended Setup</h3>
+                    </div>
+                    <div class="req-list">
+                        <div class="req-item">
+                            <span class="req-check">⭐</span>
+                            <div class="req-content">
+                                <strong>Intel i5/AMD Ryzen 5</strong>
+                                <span class="req-detail">Or equivalent modern processor</span>
+                            </div>
+                        </div>
+                        <div class="req-item">
+                            <span class="req-check">⭐</span>
+                            <div class="req-content">
+                                <strong>2GB+ RAM</strong>
+                                <span class="req-detail">For smooth graphics and multitasking</span>
+                            </div>
+                        </div>
+                        <div class="req-item">
+                            <span class="req-check">⭐</span>
+                            <div class="req-content">
+                                <strong>QEMU 6.0+</strong>
+                                <span class="req-detail">Latest version for best compatibility</span>
+                            </div>
+                        </div>
+                        <div class="req-item">
+                            <span class="req-check">⭐</span>
+                            <div class="req-content">
+                                <strong>SSD Storage</strong>
+                                <span class="req-detail">Faster virtual machine performance</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="requirement-card supported">
                     <div class="req-header">
                         <span class="req-icon">🖥️</span>
-                        <h3>System Requirements</h3>
+                        <h3>Supported Platforms</h3>
                     </div>
-                    <div class="req-grid">
-                        <div class="req-item-modern">
-                            <span class="req-bullet">⚡</span>
-                            <span>x86_64 compatible processor</span>
+                    <div class="platform-list">
+                        <div class="platform-item">
+                            <span class="platform-icon">🖥️</span>
+                            <span class="platform-name">Virtual Machines</span>
                         </div>
-                        <div class="req-item-modern">
-                            <span class="req-bullet">💾</span>
-                            <span>At least 512MB RAM (recommended 1GB+)</span>
+                        <div class="platform-item">
+                            <span class="platform-icon">💻</span>
+                            <span class="platform-name">Real Hardware</span>
                         </div>
-                        <div class="req-item-modern">
-                            <span class="req-bullet">🖥️</span>
-                            <span>QEMU, VMware, or VirtualBox for virtualization</span>
+                        <div class="platform-item">
+                            <span class="platform-icon">☁️</span>
+                            <span class="platform-name">Cloud Instances</span>
                         </div>
-                        <div class="req-item-modern">
-                            <span class="req-bullet">🔌</span>
-                            <span>USB drive (for physical installation)</span>
+                        <div class="platform-item">
+                            <span class="platform-icon">🔧</span>
+                            <span class="platform-name">Development VMs</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Downloads Section -->
+        <section id="downloads" class="downloads-section">
+            <div class="section-header">
+                <h2>Download Builds</h2>
+                <p>Choose the version that suits your needs</p>
+            </div>
+
+            <!-- Featured Download -->
+            <div class="featured-download">
+                <div class="download-badge">🔥 LATEST RELEASE</div>
+                <div class="download-card featured">
+                    <div class="download-header">
+                        <div class="download-icon">🚀</div>
+                        <div class="download-info">
+                            <h3>Build 0.0.0.1512</h3>
+                            <div class="download-meta">
+                                <span class="meta-item">📅 November 10, 2025</span>
+                                <span class="meta-item">📦 4.89 MB</span>
+                                <span class="meta-item">🏷️ Stable Release</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="download-description">
+                        <p>Experience the latest GamerOS build with major kernel improvements, enhanced memory management, custom font rendering, and comprehensive bug fixes. This release introduces a more robust process scheduling system and better hardware integration.</p>
+                        <div class="download-features">
+                            <span class="feature-tag">🧠 Enhanced Memory</span>
+                            <span class="feature-tag">🎨 Custom Fonts</span>
+                            <span class="feature-tag">⚡ Better Graphics</span>
+                            <span class="feature-tag">🐛 Bug Fixes</span>
+                        </div>
+                    </div>
+                    <div class="download-actions">
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1512/GamerOS_Build_0.0.0.1512.iso"
+                           class="download-button primary large" target="_blank">
+                            <span class="button-icon">⬇️</span>
+                            Download ISO (4.89 MB)
+                            <span class="button-arrow">→</span>
+                        </a>
+                        <a href="news/build-0.0.0.1512.html" class="download-button secondary">
+                            <span class="button-icon">📖</span>
+                            Release Notes
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alternative Downloads -->
+            <div class="alternative-downloads">
+                <h3>Previous Versions</h3>
+                <div class="downloads-grid">
+                    <div class="download-card">
+                        <div class="download-header">
+                            <div class="download-icon">🔧</div>
+                            <div class="download-info">
+                                <h4>Build 0.0.0.1420</h4>
+                                <span class="version-badge">Development</span>
+                            </div>
+                        </div>
+                        <div class="download-meta">
+                            <span class="meta-item">📅 November 10, 2025</span>
+                            <span class="meta-item">📦 4.88 MB</span>
+                        </div>
+                        <p>Development experience improvements with updated QEMU configuration and educational resources.</p>
+                        <div class="download-actions">
+                            <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1420/GamerOS_Build_0.0.0.1420.iso"
+                               class="download-button primary" target="_blank">
+                                <span class="button-icon">⬇️</span>
+                                Download
+                            </a>
+                            <a href="news/build-0.0.0.1420.html" class="download-button secondary small">
+                                <span class="button-icon">📋</span>
+                                Notes
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="download-card archive">
+                        <div class="archive-header">
+                            <div class="archive-icon">📚</div>
+                            <div class="archive-info">
+                                <h4>All Versions Archive</h4>
+                                <p>Access our complete collection of historical builds and releases</p>
+                            </div>
+                        </div>
+                        <div class="archive-actions">
+                            <a href="all-versions.html" class="archive-button">
+                                <span class="button-icon">📂</span>
+                                Browse Archive
+                                <span class="button-arrow">→</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Getting Started -->
+        <section class="getting-started-section">
+            <div class="section-header">
+                <h2>Getting Started</h2>
+                <p>Follow these simple steps to run GamerOS</p>
+            </div>
+            <div class="steps-container">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Download & Prepare</h3>
+                        <p>Download the ISO file from the section above. No extraction needed - ISO files are ready to use.</p>
+                        <div class="step-tip">
+                            <span class="tip-icon">💡</span>
+                            <span>ISO files are bootable disk images</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-connector">
+                    <div class="connector-line"></div>
+                    <div class="connector-arrow">→</div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Create Virtual Machine</h3>
+                        <p>Use QEMU, VMware Workstation, or VirtualBox to create a new virtual machine with x86_64 architecture.</p>
+                        <div class="step-commands">
+                            <div class="command">
+                                <strong>QEMU:</strong>
+                                <code>qemu-system-x86_64 -cdrom GamerOS.iso -m 1024</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-connector">
+                    <div class="connector-line"></div>
+                    <div class="connector-arrow">→</div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Boot & Explore</h3>
+                        <p>Configure your VM to boot from the ISO file and start exploring the GamerOS desktop environment.</p>
+                        <div class="step-features">
+                            <span class="feature-highlight">🎨 Windows 11-like UI</span>
+                            <span class="feature-highlight">⚡ Hardware Acceleration</span>
+                            <span class="feature-highlight">🖱️ Mouse & Keyboard</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="download-list-modern">
-                <!-- Latest Release - Full Width -->
-                <div class="latest-release-modern">
-                    <div class="version-entry-modern featured">
-                        <div class="version-header-modern">
-                            <div class="version-icon">🔧</div>
-                            <div class="version-info">
-                                <h3>Build 0.0.0.1420</h3>
-                                <span class="version-badge-modern latest">Latest Release</span>
-                            </div>
-                        </div>
-                        <div class="version-meta-modern">
-                            <span class="release-date-modern">📅 November 10, 2025</span>
-                            <span class="file-size-modern">📦 4.88MB</span>
-                        </div>
-                        <p class="version-description-modern">Development experience improvements with updated QEMU configuration and educational resources for developers.</p>
-                        <div class="version-actions-modern">
-                            <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1420/GamerOS_Build_0.0.0.1420.iso" class="download-btn-modern primary">
-                                <span class="btn-icon">⬇️</span>
-                                Download ISO
-                            </a>
-                            <a href="news/build-0.0.0.1420.html" class="release-notes-btn-modern">
-                                <span class="btn-icon">📋</span>
-                                Release Notes
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Previous Releases - Grid Layout -->
-                <div class="releases-grid-modern">
-                    <div class="version-entry-modern">
-                        <div class="version-header-modern">
-                            <div class="version-icon">🎨</div>
-                            <div class="version-info">
-                                <h4>Build 0.0.0.1400</h4>
-                                <span class="version-badge-modern older">Previous</span>
-                            </div>
-                        </div>
-                        <div class="version-meta-modern">
-                            <span class="release-date-modern">📅 November 9, 2025</span>
-                            <span class="file-size-modern">📦 4.88MB</span>
-                        </div>
-                        <p class="version-description-modern">Major graphics system overhaul with full CPU acceleration, multiple resolutions, and 32-bit color depth support.</p>
-                        <div class="version-actions-modern">
-                            <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1400/GamerOS_Build_0.0.0.1400.iso" class="download-btn-modern secondary">
-                                <span class="btn-icon">⬇️</span>
-                                Download ISO
-                            </a>
-                            <a href="news/build-0.0.0.1400.html" class="release-notes-btn-modern">
-                                <span class="btn-icon">📋</span>
-                                Release Notes
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="version-entry-modern archive-card">
-                        <div class="archive-content">
-                            <div class="archive-icon">📁</div>
-                            <h4>File Archive</h4>
-                            <p>Browse our complete file archive with all historical GamerOS builds, organized like a traditional file explorer.</p>
-                            <a href="all-versions.html" class="archive-btn-modern">
-                                <span class="btn-icon">📂</span>
-                                Open Archive
-                            </a>
-                        </div>
-                    </div>
+            <div class="troubleshooting-section">
+                <h3>Need Help?</h3>
+                <div class="help-resources">
+                    <a href="https://github.com/urmoit/GamerOS/blob/main/README.md" class="help-link" target="_blank">
+                        <span class="help-icon">📖</span>
+                        <span>Installation Guide</span>
+                    </a>
+                    <a href="https://github.com/urmoit/GamerOS/issues" class="help-link" target="_blank">
+                        <span class="help-icon">🐛</span>
+                        <span>Report Issues</span>
+                    </a>
+                    <a href="known-bugs.html" class="help-link">
+                        <span class="help-icon">⚠️</span>
+                        <span>Known Bugs</span>
+                    </a>
                 </div>
             </div>
+        </section>
 
-            <div class="download-help-modern">
-                <div class="help-header">
-                    <span class="help-icon">🛠️</span>
-                    <h3>Getting Started</h3>
-                </div>
-                <div class="help-steps-modern">
-                    <div class="help-step-modern">
-                        <div class="step-number-modern">1</div>
-                        <div class="step-content-modern">
-                            <h4>Download & Extract</h4>
-                            <p>Download the ISO file and extract it if needed.</p>
-                        </div>
-                    </div>
-                    <div class="help-step-modern">
-                        <div class="step-number-modern">2</div>
-                        <div class="step-content-modern">
-                            <h4>Set Up Virtualization</h4>
-                            <p>Use QEMU, VMware, or VirtualBox to create a new VM.</p>
-                        </div>
-                    </div>
-                    <div class="help-step-modern">
-                        <div class="step-number-modern">3</div>
-                        <div class="step-content-modern">
-                            <h4>Boot the ISO</h4>
-                            <p>Configure the VM to boot from the ISO file.</p>
-                        </div>
-                    </div>
-                    <div class="help-step-modern">
-                        <div class="step-number-modern">4</div>
-                        <div class="step-content-modern">
-                            <h4>Explore GamerOS</h4>
-                            <p>Experience the Windows 11-like desktop environment!</p>
-                        </div>
-                    </div>
+        <!-- Community Section -->
+        <section class="community-cta-section">
+            <div class="community-content">
+                <div class="community-icon">🤝</div>
+                <h2>Join the Community</h2>
+                <p>Contribute to GamerOS development, report bugs, or help improve the project</p>
+                <div class="community-actions">
+                    <a href="https://github.com/urmoit/GamerOS" class="community-button primary" target="_blank">
+                        <span class="button-icon">🐙</span>
+                        View on GitHub
+                    </a>
+                    <a href="roadmap.html" class="community-button secondary">
+                        <span class="button-icon">🗺️</span>
+                        Development Roadmap
+                    </a>
+                    <a href="news.html" class="community-button secondary">
+                        <span class="button-icon">📰</span>
+                        Latest News
+                    </a>
                 </div>
             </div>
         </section>
@@ -195,43 +412,97 @@
             <div class="footer-particle"></div>
             <div class="footer-particle"></div>
         </div>
-        <div class="footer-content">
-            <div class="footer-section">
-                <h3>GamerOS</h3>
+
+        <!-- Main Footer Content -->
+        <div class="footer-main">
+            <div class="footer-brand">
+                <div class="brand-header">
+                    <span class="brand-icon">🚀</span>
+                    <h3>GamerOS</h3>
+                </div>
                 <p>A modern x86_64 hobby operating system built from scratch with a Windows 11-like desktop environment.</p>
-                <div class="social-links">
-                    <a href="https://github.com/urmoit/GamerOS" target="_blank" class="social-link">
-                        <span class="social-icon">🐙</span>
-                        GitHub
-                    </a>
+                <div class="brand-stats">
+                    <div class="brand-stat">
+                        <span class="stat-number">6</span>
+                        <span class="stat-label">Releases</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">48</span>
+                        <span class="stat-label">Known Issues</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">33%</span>
+                        <span class="stat-label">Fixed</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="footer-section">
-                <h4>Quick Links</h4>
-                <ul>
-                    <li><a href="index.html">Home</a></li>
-                    <li><a href="about.html">About</a></li>
-                    <li><a href="download.html">Download</a></li>
-                    <li><a href="news.html">News</a></li>
-                    <li><a href="all-versions.html">All Versions</a></li>
-                </ul>
-            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="index.html"><span class="link-icon">🏠</span>Home</a></li>
+                        <li><a href="about.html"><span class="link-icon">ℹ️</span>About</a></li>
+                        <li><a href="roadmap.html"><span class="link-icon">🗺️</span>Roadmap</a></li>
+                        <li><a href="news.html"><span class="link-icon">📰</span>News</a></li>
+                        <li><a href="known-bugs.html"><span class="link-icon">🐛</span>Known Bugs</a></li>
+                        <li><a href="download.html"><span class="link-icon">⬇️</span>Download</a></li>
+                    </ul>
+                </div>
 
-            <div class="footer-section">
-                <h4>Resources</h4>
-                <ul>
-                    <li><a href="news/build-0.0.0.1400.html">Latest Changelog</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank">Documentation</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank">Report Issues</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank">License</a></li>
-                </ul>
-            </div>
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="news/build-0.0.0.1512.html"><span class="link-icon">📋</span>Latest Changelog</a></li>
+                        <li><a href="all-versions.html"><span class="link-icon">📦</span>All Versions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank"><span class="link-icon">📖</span>Documentation</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank"><span class="link-icon">🐛</span>Report Issues</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank"><span class="link-icon">📜</span>License</a></li>
+                    </ul>
+                </div>
 
+                <div class="footer-column">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS" target="_blank"><span class="link-icon">🐙</span>GitHub</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/discussions" target="_blank"><span class="link-icon">💬</span>Discussions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/CONTRIBUTING.md" target="_blank"><span class="link-icon">🤝</span>Contributing</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/stargazers" target="_blank"><span class="link-icon">⭐</span>Stargazers</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/network/members" target="_blank"><span class="link-icon">🍴</span>Forks</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h4>Development</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS/actions" target="_blank"><span class="link-icon">⚙️</span>CI/CD</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/releases" target="_blank"><span class="link-icon">🏷️</span>Releases</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/commits" target="_blank"><span class="link-icon">📝</span>Commits</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/branches" target="_blank"><span class="link-icon">🌿</span>Branches</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/tags" target="_blank"><span class="link-icon">🏷️</span>Tags</a></li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
+        <!-- Footer Bottom -->
         <div class="footer-bottom">
-            <p>&copy; 2025 Chosentechies. All rights reserved. | Built with ❤️ for the open source community</p>
+            <div class="footer-bottom-content">
+                <div class="copyright">
+                    <p>&copy; 2025 Chosentechies. All rights reserved.</p>
+                </div>
+                <div class="footer-badges">
+                    <span class="badge">Built with ❤️ for the open source community</span>
+                    <span class="badge">MIT License</span>
+                    <span class="badge">x86_64 Architecture</span>
+                </div>
+                <div class="footer-actions">
+                    <a href="#top" class="back-to-top">
+                        <span class="back-icon">⬆️</span>
+                        Back to Top
+                    </a>
+                </div>
+            </div>
         </div>
     </footer>
 

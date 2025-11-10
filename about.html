@@ -19,6 +19,7 @@
                 <li><a href="about.html">About</a></li>
                 <li><a href="roadmap.html">Roadmap</a></li>
                 <li><a href="news.html">News</a></li>
+                <li><a href="known-bugs.html">Known Bugs</a></li>
                 <li><a href="download.html">Download</a></li>
             </ul>
         </nav>
@@ -41,7 +42,7 @@
                 <p class="about-subtitle">A modern 64-bit operating system built from the ground up</p>
                 <div class="hero-stats">
                     <div class="stat-item">
-                        <span class="stat-number">5</span>
+                        <span class="stat-number">6</span>
                         <span class="stat-label">Releases</span>
                     </div>
                     <div class="stat-item">
@@ -53,124 +54,331 @@
         </section>
 
         <section class="about-content-modern">
-            <div class="about-intro-modern">
-                <div class="intro-content">
-                    <div class="intro-icon">🚀</div>
-                    <h2>Project Overview</h2>
+            <!-- Project Overview Card -->
+            <div class="about-card overview">
+                <div class="about-card-header">
+                    <div class="about-card-icon">🚀</div>
+                    <div class="about-card-title">
+                        <h2>Project Overview</h2>
+                        <span class="about-card-subtitle">What is GamerOS?</span>
+                    </div>
+                </div>
+                <div class="about-card-content">
                     <p>GamerOS is a 64-bit hobby operating system with a custom kernel, graphical desktop, and windowing system inspired by Windows 11. It runs on the x86_64 architecture and is written from scratch in C and x86-64 Assembly. The project aims to provide a modern desktop experience with direct hardware access, featuring a custom-built graphical user interface.</p>
+
+                    <div class="overview-highlights">
+                        <div class="highlight-item">
+                            <span class="highlight-icon">🎯</span>
+                            <span><strong>Educational Focus:</strong> Learn OS development and low-level programming</span>
+                        </div>
+                        <div class="highlight-item">
+                            <span class="highlight-icon">🔧</span>
+                            <span><strong>From Scratch:</strong> Every component built without standard libraries</span>
+                        </div>
+                        <div class="highlight-item">
+                            <span class="highlight-icon">🆓</span>
+                            <span><strong>Open Source:</strong> MIT licensed and community-driven</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="warning-box-modern">
-                    <div class="warning-icon">⚠️</div>
+            </div>
+
+            <!-- Development Notice Card -->
+            <div class="about-card warning">
+                <div class="about-card-header">
+                    <div class="about-card-icon">⚠️</div>
+                    <div class="about-card-title">
+                        <h2>Development Notice</h2>
+                        <span class="about-card-subtitle">Important Information</span>
+                    </div>
+                </div>
+                <div class="about-card-content">
                     <div class="warning-content">
-                        <h3>Development Notice</h3>
                         <p>This project is currently under heavy development. Features may change, break, or be incomplete at any time. The name "GamerOS" is a placeholder and will be changed upon release.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="features-grid-modern">
-                <div class="feature-card-modern planned">
-                    <div class="card-header">
-                        <span class="card-icon">🚀</span>
-                        <h3>Planned Features</h3>
-                    </div>
-                    <div class="feature-list-modern">
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🐧</span>
-                            <span><strong>Linux Compatibility:</strong> Support for running Linux applications natively</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🪟</span>
-                            <span><strong>Windows Layer:</strong> Compatibility layer for Windows applications</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">📱</span>
-                            <span><strong>Android Support:</strong> Ability to run APK files and Android apps</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🌐</span>
-                            <span><strong>Network Stack:</strong> Full TCP/IP implementation and internet connectivity</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">💾</span>
-                            <span><strong>File Systems:</strong> Support for FAT32, NTFS, and custom file systems</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🎵</span>
-                            <span><strong>Multimedia:</strong> Audio drivers and video playback capabilities</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="feature-card-modern current">
-                    <div class="card-header">
-                        <span class="card-icon">✨</span>
-                        <h3>Current Features</h3>
-                    </div>
-                    <div class="feature-list-modern">
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🖥️</span>
-                            <span><strong>Custom 64-bit Kernel:</strong> x86_64 architecture, ELF format, no standard library dependencies</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🪟</span>
-                            <span><strong>Graphical Desktop Environment:</strong> Windows 11-inspired interface with taskbar, start menu, and system tray</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🎨</span>
-                            <span><strong>Graphics & Input:</strong> VGA graphics mode, mouse cursor, and full keyboard event handling</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">⚙️</span>
-                            <span><strong>System Features:</strong> Real-Time Clock reading, hardware interrupt controllers setup</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🔧</span>
-                            <span><strong>Development Tools:</strong> Portable Makefile and Docker-based build environment</span>
-                        </div>
-                        <div class="feature-item-modern">
-                            <span class="feature-bullet">🎯</span>
-                            <span><strong>Virtualization:</strong> QEMU and VMware support for easy testing</span>
+                        <div class="warning-tips">
+                            <div class="tip-item">
+                                <span class="tip-icon">🔄</span>
+                                <span>Expect frequent updates and changes</span>
+                            </div>
+                            <div class="tip-item">
+                                <span class="tip-icon">🐛</span>
+                                <span>Check known bugs before reporting issues</span>
+                            </div>
+                            <div class="tip-item">
+                                <span class="tip-icon">📅</span>
+                                <span>Follow the roadmap for upcoming features</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- Features Showcase -->
+            <div class="features-showcase">
+                <div class="showcase-header">
+                    <span class="showcase-icon">✨</span>
+                    <h2>Features</h2>
+                </div>
+
+                <!-- Current Features Card -->
+                <div class="about-card current-features">
+                    <div class="about-card-header">
+                        <div class="about-card-icon">🟢</div>
+                        <div class="about-card-title">
+                            <h3>Current Features</h3>
+                            <span class="about-card-subtitle">What's working now</span>
+                        </div>
+                        <div class="feature-count">
+                            <span class="count-number">6</span>
+                            <span class="count-label">Features</span>
+                        </div>
+                    </div>
+                    <div class="about-card-content">
+                        <div class="features-grid">
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🖥️</div>
+                                <div class="feature-content">
+                                    <h4>Custom 64-bit Kernel</h4>
+                                    <p>x86_64 architecture, ELF format, no standard library dependencies</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🪟</div>
+                                <div class="feature-content">
+                                    <h4>Graphical Desktop Environment</h4>
+                                    <p>Windows 11-inspired interface with taskbar, start menu, and system tray</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🎨</div>
+                                <div class="feature-content">
+                                    <h4>Graphics & Input</h4>
+                                    <p>VGA graphics mode, mouse cursor, and full keyboard event handling</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">⚙️</div>
+                                <div class="feature-content">
+                                    <h4>System Features</h4>
+                                    <p>Real-Time Clock reading, hardware interrupt controllers setup</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🔧</div>
+                                <div class="feature-content">
+                                    <h4>Development Tools</h4>
+                                    <p>Portable Makefile and Docker-based build environment</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🎯</div>
+                                <div class="feature-content">
+                                    <h4>Virtualization</h4>
+                                    <p>QEMU and VMware support for easy testing</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Planned Features Card -->
+                <div class="about-card planned-features">
+                    <div class="about-card-header">
+                        <div class="about-card-icon">🚀</div>
+                        <div class="about-card-title">
+                            <h3>Planned Features</h3>
+                            <span class="about-card-subtitle">Coming soon</span>
+                        </div>
+                        <div class="feature-count">
+                            <span class="count-number">7</span>
+                            <span class="count-label">Features</span>
+                        </div>
+                    </div>
+                    <div class="about-card-content">
+                        <div class="features-grid">
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🐧</div>
+                                <div class="feature-content">
+                                    <h4>Linux Compatibility</h4>
+                                    <p>Support for running Linux applications natively</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🪟</div>
+                                <div class="feature-content">
+                                    <h4>Windows Layer</h4>
+                                    <p>Compatibility layer for Windows applications</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">📱</div>
+                                <div class="feature-content">
+                                    <h4>Android Support</h4>
+                                    <p>Ability to run APK files and Android apps</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🌐</div>
+                                <div class="feature-content">
+                                    <h4>Network Stack</h4>
+                                    <p>Full TCP/IP implementation and internet connectivity</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">💾</div>
+                                <div class="feature-content">
+                                    <h4>File Systems</h4>
+                                    <p>Support for FAT32, NTFS, and custom file systems</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🎵</div>
+                                <div class="feature-content">
+                                    <h4>Multimedia</h4>
+                                    <p>Audio drivers and video playback capabilities</p>
+                                </div>
+                            </div>
+                            <div class="feature-item-large">
+                                <div class="feature-icon-large">🔒</div>
+                                <div class="feature-content">
+                                    <h4>Security Features</h4>
+                                    <p>User permissions, secure boot, and system protection</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technical Details Section -->
             <div class="tech-details-modern">
                 <div class="tech-header">
                     <span class="tech-icon">⚙️</span>
-                    <h2>Technical Details</h2>
+                    <h2>Technical Specifications</h2>
                 </div>
-                <div class="tech-grid">
-                    <div class="tech-card">
-                        <div class="tech-icon-small">🏗️</div>
-                        <h4>Architecture</h4>
+                <div class="tech-grid-modern">
+                    <div class="tech-card-modern">
+                        <div class="tech-card-header">
+                            <div class="tech-icon-large">🏗️</div>
+                            <h4>Architecture</h4>
+                        </div>
                         <p>x86_64 (AMD64) 64-bit architecture with support for modern CPU features</p>
+                        <div class="tech-specs">
+                            <span class="spec-tag">64-bit</span>
+                            <span class="spec-tag">x86_64</span>
+                            <span class="spec-tag">AMD64</span>
+                        </div>
                     </div>
-                    <div class="tech-card">
-                        <div class="tech-icon-small">💻</div>
-                        <h4>Languages</h4>
+                    <div class="tech-card-modern">
+                        <div class="tech-card-header">
+                            <div class="tech-icon-large">💻</div>
+                            <h4>Languages</h4>
+                        </div>
                         <p>C programming language and x86-64 Assembly for low-level operations</p>
+                        <div class="tech-specs">
+                            <span class="spec-tag">C</span>
+                            <span class="spec-tag">Assembly</span>
+                            <span class="spec-tag">x86-64</span>
+                        </div>
                     </div>
-                    <div class="tech-card">
-                        <div class="tech-icon-small">📦</div>
-                        <h4>Bootloader</h4>
+                    <div class="tech-card-modern">
+                        <div class="tech-card-header">
+                            <div class="tech-icon-large">📦</div>
+                            <h4>Bootloader</h4>
+                        </div>
                         <p>GRUB2 bootloader with Multiboot2 specification support</p>
+                        <div class="tech-specs">
+                            <span class="spec-tag">GRUB2</span>
+                            <span class="spec-tag">Multiboot2</span>
+                        </div>
                     </div>
-                    <div class="tech-card">
-                        <div class="tech-icon-small">🎨</div>
-                        <h4>Graphics</h4>
+                    <div class="tech-card-modern">
+                        <div class="tech-card-header">
+                            <div class="tech-icon-large">🎨</div>
+                            <h4>Graphics</h4>
+                        </div>
                         <p>VGA graphics mode with framebuffer support for higher resolutions</p>
+                        <div class="tech-specs">
+                            <span class="spec-tag">VGA</span>
+                            <span class="spec-tag">Framebuffer</span>
+                            <span class="spec-tag">High-res</span>
+                        </div>
                     </div>
-                    <div class="tech-card">
-                        <div class="tech-icon-small">🔧</div>
-                        <h4>Build System</h4>
+                    <div class="tech-card-modern">
+                        <div class="tech-card-header">
+                            <div class="tech-icon-large">🔧</div>
+                            <h4>Build System</h4>
+                        </div>
                         <p>Docker-based build environment with automated scripts and Makefiles</p>
+                        <div class="tech-specs">
+                            <span class="spec-tag">Docker</span>
+                            <span class="spec-tag">Makefile</span>
+                            <span class="spec-tag">Automated</span>
+                        </div>
                     </div>
-                    <div class="tech-card">
-                        <div class="tech-icon-small">📋</div>
-                        <h4>License</h4>
+                    <div class="tech-card-modern">
+                        <div class="tech-card-header">
+                            <div class="tech-icon-large">📋</div>
+                            <h4>License</h4>
+                        </div>
                         <p>MIT License - free and open source software</p>
+                        <div class="tech-specs">
+                            <span class="spec-tag">MIT</span>
+                            <span class="spec-tag">Open Source</span>
+                            <span class="spec-tag">Free</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Project Stats -->
+            <div class="project-stats-section">
+                <div class="stats-header">
+                    <span class="stats-icon">📊</span>
+                    <h2>Project Statistics</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-content">
+                            <span class="stat-number">6</span>
+                            <span class="stat-label">Releases</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🐛</div>
+                        <div class="stat-content">
+                            <span class="stat-number">48</span>
+                            <span class="stat-label">Known Issues</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-content">
+                            <span class="stat-number">16</span>
+                            <span class="stat-label">Fixed (33%)</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <span class="stat-number">2025</span>
+                            <span class="stat-label">Started</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏗️</div>
+                        <div class="stat-content">
+                            <span class="stat-number">x86_64</span>
+                            <span class="stat-label">Architecture</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📚</div>
+                        <div class="stat-content">
+                            <span class="stat-number">MIT</span>
+                            <span class="stat-label">License</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -188,43 +396,97 @@
             <div class="footer-particle"></div>
             <div class="footer-particle"></div>
         </div>
-        <div class="footer-content">
-            <div class="footer-section">
-                <h3>GamerOS</h3>
+
+        <!-- Main Footer Content -->
+        <div class="footer-main">
+            <div class="footer-brand">
+                <div class="brand-header">
+                    <span class="brand-icon">🚀</span>
+                    <h3>GamerOS</h3>
+                </div>
                 <p>A modern x86_64 hobby operating system built from scratch with a Windows 11-like desktop environment.</p>
-                <div class="social-links">
-                    <a href="https://github.com/urmoit/GamerOS" target="_blank" class="social-link">
-                        <span class="social-icon">🐙</span>
-                        GitHub
-                    </a>
+                <div class="brand-stats">
+                    <div class="brand-stat">
+                        <span class="stat-number">6</span>
+                        <span class="stat-label">Releases</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">48</span>
+                        <span class="stat-label">Known Issues</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">33%</span>
+                        <span class="stat-label">Fixed</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="footer-section">
-                <h4>Quick Links</h4>
-                <ul>
-                    <li><a href="index.html">Home</a></li>
-                    <li><a href="about.html">About</a></li>
-                    <li><a href="download.html">Download</a></li>
-                    <li><a href="news.html">News</a></li>
-                    <li><a href="all-versions.html">All Versions</a></li>
-                </ul>
-            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="index.html"><span class="link-icon">🏠</span>Home</a></li>
+                        <li><a href="about.html"><span class="link-icon">ℹ️</span>About</a></li>
+                        <li><a href="roadmap.html"><span class="link-icon">🗺️</span>Roadmap</a></li>
+                        <li><a href="news.html"><span class="link-icon">📰</span>News</a></li>
+                        <li><a href="known-bugs.html"><span class="link-icon">🐛</span>Known Bugs</a></li>
+                        <li><a href="download.html"><span class="link-icon">⬇️</span>Download</a></li>
+                    </ul>
+                </div>
 
-            <div class="footer-section">
-                <h4>Resources</h4>
-                <ul>
-                    <li><a href="news/build-0.0.0.1350.html">Latest Changelog</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank">Documentation</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank">Report Issues</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank">License</a></li>
-                </ul>
-            </div>
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="news/build-0.0.0.1512.html"><span class="link-icon">📋</span>Latest Changelog</a></li>
+                        <li><a href="all-versions.html"><span class="link-icon">📦</span>All Versions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank"><span class="link-icon">📖</span>Documentation</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank"><span class="link-icon">🐛</span>Report Issues</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank"><span class="link-icon">📜</span>License</a></li>
+                    </ul>
+                </div>
 
+                <div class="footer-column">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS" target="_blank"><span class="link-icon">🐙</span>GitHub</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/discussions" target="_blank"><span class="link-icon">💬</span>Discussions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/CONTRIBUTING.md" target="_blank"><span class="link-icon">🤝</span>Contributing</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/stargazers" target="_blank"><span class="link-icon">⭐</span>Stargazers</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/network/members" target="_blank"><span class="link-icon">🍴</span>Forks</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h4>Development</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS/actions" target="_blank"><span class="link-icon">⚙️</span>CI/CD</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/releases" target="_blank"><span class="link-icon">🏷️</span>Releases</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/commits" target="_blank"><span class="link-icon">📝</span>Commits</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/branches" target="_blank"><span class="link-icon">🌿</span>Branches</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/tags" target="_blank"><span class="link-icon">🏷️</span>Tags</a></li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
+        <!-- Footer Bottom -->
         <div class="footer-bottom">
-            <p>&copy; 2025 Chosentechies. All rights reserved. | Built with ❤️ for the open source community</p>
+            <div class="footer-bottom-content">
+                <div class="copyright">
+                    <p>&copy; 2025 Chosentechies. All rights reserved.</p>
+                </div>
+                <div class="footer-badges">
+                    <span class="badge">Built with ❤️ for the open source community</span>
+                    <span class="badge">MIT License</span>
+                    <span class="badge">x86_64 Architecture</span>
+                </div>
+                <div class="footer-actions">
+                    <a href="#top" class="back-to-top">
+                        <span class="back-icon">⬆️</span>
+                        Back to Top
+                    </a>
+                </div>
+            </div>
         </div>
     </footer>
 

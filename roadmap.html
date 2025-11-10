@@ -19,703 +19,634 @@
                 <li><a href="about.html">About</a></li>
                 <li><a href="roadmap.html">Roadmap</a></li>
                 <li><a href="news.html">News</a></li>
+                <li><a href="known-bugs.html">Known Bugs</a></li>
                 <li><a href="download.html">Download</a></li>
             </ul>
         </nav>
     </header>
 
     <main>
-        <section class="roadmap-hero modern">
+        <!-- Hero Section -->
+        <section class="roadmap-hero-section">
             <div class="hero-background">
-                <div class="hero-particles">
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
+                <div class="floating-elements">
+                    <div class="floating-orb orb-1"></div>
+                    <div class="floating-orb orb-2"></div>
+                    <div class="floating-orb orb-3"></div>
+                    <div class="floating-path path-1"></div>
+                    <div class="floating-path path-2"></div>
+                    <div class="floating-milestone milestone-1">1</div>
+                    <div class="floating-milestone milestone-2">2</div>
+                    <div class="floating-milestone milestone-3">3</div>
                 </div>
             </div>
-            <div class="hero-content-modern">
-                <div class="hero-icon">🚀</div>
-                <h1>Development Roadmap</h1>
-                <p class="roadmap-subtitle">Charting the future of GamerOS - from kernel to desktop</p>
-                <div class="roadmap-stats">
-                    <div class="stat-badge">
-                        <span class="stat-number">6</span>
-                        <span class="stat-label">Major Milestones</span>
+            <div class="hero-content">
+                <div class="hero-badge">🗺️ Development Roadmap</div>
+                <h1 class="hero-title">
+                    <span class="hero-title-main">The Future of GamerOS</span>
+                    <span class="hero-title-sub">From Kernel to Complete Operating System</span>
+                </h1>
+                <p class="hero-description">
+                    Discover our ambitious journey to transform GamerOS from a simple kernel into a full-featured,
+                    modern operating system. Each milestone brings us closer to our vision of performance,
+                    simplicity, and user experience excellence.
+                </p>
+                <div class="hero-metrics">
+                    <div class="metric">
+                        <span class="metric-number">6</span>
+                        <span class="metric-label">Major Phases</span>
                     </div>
-                    <div class="stat-badge">
-                        <span class="stat-number">Q1 2026</span>
-                        <span class="stat-label">Next Release</span>
+                    <div class="metric">
+                        <span class="metric-number">Q1 2026</span>
+                        <span class="metric-label">Next Milestone</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">28%</span>
+                        <span class="metric-label">Phase 2 Complete</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">2027</span>
+                        <span class="metric-label">Target Completion</span>
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <a href="#timeline" class="cta-button primary">
+                        <span class="cta-icon">📅</span>
+                        View Timeline
+                        <span class="cta-arrow">→</span>
+                    </a>
+                    <a href="#contribute" class="cta-button secondary">
+                        <span class="cta-icon">🤝</span>
+                        Get Involved
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="progress-visualization">
+                    <div class="progress-ring">
+                        <div class="progress-ring-circle" style="--percentage: 28"></div>
+                        <div class="progress-ring-content">
+                            <span class="progress-number">28%</span>
+                            <span class="progress-label">Complete</span>
+                        </div>
+                    </div>
+                    <div class="progress-phases">
+                        <div class="phase-indicator active" data-phase="1"></div>
+                        <div class="phase-indicator active" data-phase="2"></div>
+                        <div class="phase-indicator" data-phase="3"></div>
+                        <div class="phase-indicator" data-phase="4"></div>
+                        <div class="phase-indicator" data-phase="5"></div>
+                        <div class="phase-indicator" data-phase="6"></div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section class="roadmap-content" class="roadmap-content-modern">
-            <div class="roadmap-intro-modern">
-                <div class="intro-content">
-                    <div class="intro-icon">🎯</div>
-                    <h2>Our Vision</h2>
-                    <p>GamerOS is evolving from a simple kernel into a full-featured operating system. Our roadmap outlines the key milestones that will transform GamerOS into a modern, user-friendly platform while maintaining its commitment to performance and simplicity.</p>
+        <!-- Vision Section -->
+        <section class="vision-section">
+            <div class="section-header">
+                <h2>Our Vision & Principles</h2>
+                <p>The guiding principles that shape every decision in GamerOS development</p>
+            </div>
+            <div class="vision-grid">
+                <div class="vision-card primary">
+                    <div class="vision-icon">🎯</div>
+                    <h3>Focused Development</h3>
+                    <p>Each milestone builds upon the previous, ensuring stability and reliability. We prioritize quality over quantity, taking the time to get things right.</p>
+                    <div class="vision-highlight">Incremental Progress</div>
                 </div>
-                <div class="vision-cards-modern">
-                    <div class="vision-card-modern">
-                        <div class="vision-icon-modern">🎯</div>
-                        <h3>Focused Development</h3>
-                        <p>Each milestone builds upon the previous, ensuring stability and reliability.</p>
-                    </div>
-                    <div class="vision-card-modern">
-                        <div class="vision-icon-modern">⚡</div>
-                        <h3>Performance First</h3>
-                        <p>Direct hardware access and optimized code for maximum efficiency.</p>
-                    </div>
-                    <div class="vision-card-modern">
-                        <div class="vision-icon-modern">🔧</div>
-                        <h3>Developer Friendly</h3>
-                        <p>Comprehensive tools and documentation for contributors.</p>
-                    </div>
+                <div class="vision-card">
+                    <div class="vision-icon">⚡</div>
+                    <h3>Performance First</h3>
+                    <p>Direct hardware access and optimized code for maximum efficiency. No unnecessary abstractions slowing you down.</p>
+                    <div class="vision-highlight">Zero Compromise</div>
+                </div>
+                <div class="vision-card">
+                    <div class="vision-icon">🔧</div>
+                    <h3>Developer Friendly</h3>
+                    <p>Comprehensive tools and documentation for contributors. We believe great software comes from great developer experience.</p>
+                    <div class="vision-highlight">Community Driven</div>
+                </div>
+                <div class="vision-card">
+                    <div class="vision-icon">🎨</div>
+                    <h3>User Experience</h3>
+                    <p>Modern, intuitive interfaces that make complex systems accessible. Beauty in simplicity and functionality.</p>
+                    <div class="vision-highlight">Design Matters</div>
                 </div>
             </div>
+        </section>
 
-            <div class="roadmap-timeline-modern">
-                <div class="timeline-header">
-                    <span class="timeline-icon">📅</span>
-                    <h2>Development Phases</h2>
-                </div>
+        <!-- Timeline Section -->
+        <section id="timeline" class="timeline-section">
+            <div class="section-header">
+                <h2>Development Timeline</h2>
+                <p>Follow our journey through six major phases of development</p>
+            </div>
 
-                <div class="timeline-item completed">
-                    <div class="timeline-marker">
-                        <span class="phase-number">1</span>
-                        <span class="phase-status">✅</span>
-                    </div>
-                    <div class="timeline-content">
-                        <h3>Foundation (Completed)</h3>
-                        <p class="phase-description">Basic x86_64 kernel with bootloader and minimal system initialization.</p>
-                        <div class="phase-features">
-                            <span class="feature-tag">Kernel Boot</span>
-                            <span class="feature-tag">Memory Setup</span>
-                            <span class="feature-tag">Basic I/O</span>
+            <div class="timeline-container">
+                <!-- Phase 1: Foundation -->
+                <div class="timeline-phase completed">
+                    <div class="phase-header">
+                        <div class="phase-marker completed">
+                            <span class="phase-number">1</span>
+                            <span class="phase-icon">✅</span>
                         </div>
-                        <div class="phase-date">✅ Completed - Build 0.0.0.1200</div>
-                        <button class="expand-btn" onclick="toggleMilestone(this)">
-                            <span class="expand-icon">▼</span>
-                            View Details
-                        </button>
-                        <div class="milestone-details" style="display: none;">
-                            <h4>Completed Tasks</h4>
-                            <div class="task-list">
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Implement basic x86_64 kernel</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Set up 64-bit long mode</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Create Multiboot2 bootloader compatibility</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Implement VGA text mode terminal (80x25)</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Set up basic kernel initialization</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Establish system ready state</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Create Docker-based build environment</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Develop portable Makefile system</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Integrate GRUB2 bootloader</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Generate bootable ISO images</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Support ELF kernel binaries</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Add VMware Workstation support</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Implement QEMU emulation</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Create automated build scripts</label>
-                                </div>
+                        <div class="phase-info">
+                            <h3>Foundation</h3>
+                            <p class="phase-subtitle">Basic x86_64 kernel with bootloader and minimal system initialization</p>
+                            <div class="phase-meta">
+                                <span class="phase-status completed">Completed</span>
+                                <span class="phase-date">Build 0.0.0.1200</span>
                             </div>
                         </div>
                     </div>
+                    <div class="phase-content">
+                        <div class="phase-description">
+                            <p>The foundation phase established the core infrastructure that everything else builds upon. We created a stable, bootable x86_64 kernel with proper memory management and I/O capabilities.</p>
+                        </div>
+                        <div class="phase-features">
+                            <span class="feature-chip">Kernel Boot</span>
+                            <span class="feature-chip">Memory Setup</span>
+                            <span class="feature-chip">Basic I/O</span>
+                            <span class="feature-chip">Multiboot2</span>
+                            <span class="feature-chip">ELF Support</span>
+                        </div>
+                        <div class="phase-details">
+                            <h4>Key Achievements</h4>
+                            <ul class="achievement-list">
+                                <li>✅ Implemented basic x86_64 kernel with 64-bit long mode</li>
+                                <li>✅ Created Multiboot2 bootloader compatibility</li>
+                                <li>✅ Set up VGA text mode terminal (80x25)</li>
+                                <li>✅ Integrated GRUB2 bootloader and ISO generation</li>
+                                <li>✅ Added VMware Workstation and QEMU support</li>
+                                <li>✅ Developed Docker-based build environment</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="timeline-item current">
-                    <div class="timeline-marker">
-                        <span class="phase-number">2</span>
-                        <span class="phase-status">🔄</span>
+                <!-- Phase 2: Graphics & Desktop -->
+                <div class="timeline-phase current">
+                    <div class="phase-header">
+                        <div class="phase-marker current">
+                            <span class="phase-number">2</span>
+                            <span class="phase-icon">🔄</span>
+                        </div>
+                        <div class="phase-info">
+                            <h3>Graphics & Desktop</h3>
+                            <p class="phase-subtitle">Implementing graphical user interface and desktop environment</p>
+                            <div class="phase-meta">
+                                <span class="phase-status current">In Progress</span>
+                                <span class="phase-date">Target: Q1 2026</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="timeline-content">
-                        <h3>Graphics & Desktop (Current)</h3>
-                        <p class="phase-description">Implementing graphical user interface and desktop environment with advanced CPU-accelerated graphics.</p>
-                        <div class="phase-features">
-                            <span class="feature-tag">VGA Graphics</span>
-                            <span class="feature-tag">Window System</span>
-                            <span class="feature-tag">Desktop Environment</span>
-                            <span class="feature-tag">Input Handling</span>
+                    <div class="phase-content">
+                        <div class="phase-description">
+                            <p>This phase transforms GamerOS from a text-based kernel into a modern graphical operating system with a Windows 11-inspired desktop environment.</p>
                         </div>
                         <div class="phase-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: 28%"></div>
+                            <div class="progress-visual">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 28%"></div>
+                                </div>
+                                <span class="progress-percentage">28% Complete</span>
                             </div>
-                            <span class="progress-text">28% Complete</span>
                         </div>
-                        <div class="phase-date">🎯 Target: Q1 2026</div>
-                        <button class="expand-btn" onclick="toggleMilestone(this)">
-                            <span class="expand-icon">▼</span>
-                            View Details
-                        </button>
-                        <div class="milestone-details" style="display: none;">
-                            <h4>Current Tasks</h4>
-                            <div class="task-list">
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Implement VGA graphics mode (320x200x256)</label>
+                        <div class="phase-features">
+                            <span class="feature-chip">VGA Graphics</span>
+                            <span class="feature-chip">Window System</span>
+                            <span class="feature-chip">Desktop Environment</span>
+                            <span class="feature-chip">Input Handling</span>
+                            <span class="feature-chip">32-bit Color</span>
+                        </div>
+                        <div class="phase-details">
+                            <h4>Current Focus</h4>
+                            <div class="task-breakdown">
+                                <div class="task-category">
+                                    <h5>✅ Completed</h5>
+                                    <ul>
+                                        <li>VGA graphics mode (320x200x256)</li>
+                                        <li>Framebuffer graphics system</li>
+                                        <li>Multiple video mode support</li>
+                                        <li>32-bit color depth with alpha blending</li>
+                                        <li>CPU-accelerated drawing primitives</li>
+                                    </ul>
                                 </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Set up framebuffer graphics system</label>
+                                <div class="task-category">
+                                    <h5>🔄 In Progress</h5>
+                                    <ul>
+                                        <li>Basic window management system</li>
+                                        <li>Mouse cursor and input handling</li>
+                                        <li>Windows 11-like desktop environment</li>
+                                        <li>Taskbar with start menu</li>
+                                        <li>Desktop icons and file explorer</li>
+                                    </ul>
                                 </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Add multiple video mode support (640x480, 800x600, 1024x768)</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Implement 32-bit color depth with alpha blending</label>
-                                </div>
-                                <div class="task-item completed">
-                                    <div class="custom-checkbox checked"></div>
-                                    <label>Create CPU-accelerated drawing primitives</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create basic window management system</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement mouse cursor and input handling</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Build Windows 11-like desktop environment</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement taskbar with start menu</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add desktop icons and file explorer</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Complete window system with resizing and moving</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Polish UI animations and interactions</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement theming and customization options</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add keyboard shortcuts and hotkeys</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement system notifications</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create settings and configuration panel</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add multi-monitor support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement accessibility features</label>
+                                <div class="task-category">
+                                    <h5>⏳ Planned</h5>
+                                    <ul>
+                                        <li>Window resizing and moving</li>
+                                        <li>UI animations and interactions</li>
+                                        <li>Theming and customization</li>
+                                        <li>System notifications</li>
+                                        <li>Multi-monitor support</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="timeline-item upcoming">
-                    <div class="timeline-marker">
-                        <span class="phase-number">3</span>
-                        <span class="phase-status">⏳</span>
-                    </div>
-                    <div class="timeline-content">
-                        <h3>Memory Management</h3>
-                        <p class="phase-description">Advanced memory management, virtual memory, and process isolation.</p>
-                        <div class="phase-features">
-                            <span class="feature-tag">Virtual Memory</span>
-                            <span class="feature-tag">Heap Allocation</span>
-                            <span class="feature-tag">Process Management</span>
-                            <span class="feature-tag">Memory Protection</span>
+                <!-- Phase 3: Memory Management -->
+                <div class="timeline-phase upcoming">
+                    <div class="phase-header">
+                        <div class="phase-marker upcoming">
+                            <span class="phase-number">3</span>
+                            <span class="phase-icon">⏳</span>
                         </div>
-                        <div class="phase-date">📅 Planned: Q2 2026</div>
-                        <button class="expand-btn" onclick="toggleMilestone(this)">
-                            <span class="expand-icon">▼</span>
-                            View Details
-                        </button>
-                        <div class="milestone-details" style="display: none;">
-                            <h4>Planned Tasks</h4>
-                            <div class="task-list">
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement virtual memory system</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create heap allocation system</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Set up paging and page tables</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement memory protection</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add process isolation</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Memory debugging and monitoring tools</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement demand paging</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add memory compression</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create memory profiling tools</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement NUMA support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add memory defragmentation</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement swap space management</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create garbage collection system</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement memory-mapped files</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add shared memory support</label>
-                                </div>
+                        <div class="phase-info">
+                            <h3>Memory Management</h3>
+                            <p class="phase-subtitle">Advanced memory management, virtual memory, and process isolation</p>
+                            <div class="phase-meta">
+                                <span class="phase-status upcoming">Planned</span>
+                                <span class="phase-date">Q2 2026</span>
                             </div>
+                        </div>
+                    </div>
+                    <div class="phase-content">
+                        <div class="phase-description">
+                            <p>Implementing sophisticated memory management including virtual memory, paging, and process isolation to enable multi-tasking and memory protection.</p>
+                        </div>
+                        <div class="phase-features">
+                            <span class="feature-chip">Virtual Memory</span>
+                            <span class="feature-chip">Heap Allocation</span>
+                            <span class="feature-chip">Process Management</span>
+                            <span class="feature-chip">Memory Protection</span>
+                            <span class="feature-chip">Demand Paging</span>
+                        </div>
+                        <div class="phase-details">
+                            <h4>Planned Features</h4>
+                            <ul class="achievement-list">
+                                <li>Virtual memory system implementation</li>
+                                <li>Heap allocation and deallocation</li>
+                                <li>Paging and page table management</li>
+                                <li>Memory protection and isolation</li>
+                                <li>Process management and scheduling</li>
+                                <li>Memory debugging and profiling tools</li>
+                                <li>Swap space and memory compression</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
 
-                <div class="timeline-item upcoming">
-                    <div class="timeline-marker">
-                        <span class="phase-number">4</span>
-                        <span class="phase-status">⏳</span>
-                    </div>
-                    <div class="timeline-content">
-                        <h3>File System & Storage</h3>
-                        <p class="phase-description">Persistent storage, file systems, and device drivers.</p>
-                        <div class="phase-features">
-                            <span class="feature-tag">File System</span>
-                            <span class="feature-tag">Device Drivers</span>
-                            <span class="feature-tag">Storage I/O</span>
-                            <span class="feature-tag">Data Persistence</span>
+                <!-- Phase 4: File System & Storage -->
+                <div class="timeline-phase upcoming">
+                    <div class="phase-header">
+                        <div class="phase-marker upcoming">
+                            <span class="phase-number">4</span>
+                            <span class="phase-icon">⏳</span>
                         </div>
-                        <div class="phase-date">📅 Planned: Q3 2026</div>
-                        <button class="expand-btn" onclick="toggleMilestone(this)">
-                            <span class="expand-icon">▼</span>
-                            View Details
-                        </button>
-                        <div class="milestone-details" style="display: none;">
-                            <h4>Planned Tasks</h4>
-                            <div class="task-list">
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement basic file system (FAT32)</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create storage device drivers</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement disk I/O operations</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add file read/write operations</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement directory operations</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>File system utilities and tools</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement file permissions</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add file metadata support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create backup and recovery tools</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement RAID support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add encryption support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create disk management utilities</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement journaling file system</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add file compression support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create disk defragmentation tools</label>
-                                </div>
+                        <div class="phase-info">
+                            <h3>File System & Storage</h3>
+                            <p class="phase-subtitle">Persistent storage, file systems, and device drivers</p>
+                            <div class="phase-meta">
+                                <span class="phase-status upcoming">Planned</span>
+                                <span class="phase-date">Q3 2026</span>
                             </div>
+                        </div>
+                    </div>
+                    <div class="phase-content">
+                        <div class="phase-description">
+                            <p>Adding persistent storage capabilities with file systems, device drivers, and data persistence to create a fully functional operating system.</p>
+                        </div>
+                        <div class="phase-features">
+                            <span class="feature-chip">File System</span>
+                            <span class="feature-chip">Device Drivers</span>
+                            <span class="feature-chip">Storage I/O</span>
+                            <span class="feature-chip">Data Persistence</span>
+                            <span class="feature-chip">File Permissions</span>
+                        </div>
+                        <div class="phase-details">
+                            <h4>Planned Features</h4>
+                            <ul class="achievement-list">
+                                <li>FAT32 and journaling file systems</li>
+                                <li>Storage device drivers (HDD, SSD, USB)</li>
+                                <li>File read/write operations</li>
+                                <li>Directory management</li>
+                                <li>File permissions and metadata</li>
+                                <li>Backup and recovery tools</li>
+                                <li>Encryption and compression support</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
 
-                <div class="timeline-item upcoming">
-                    <div class="timeline-marker">
-                        <span class="phase-number">5</span>
-                        <span class="phase-status">⏳</span>
-                    </div>
-                    <div class="timeline-content">
-                        <h3>Applications & Ecosystem</h3>
-                        <p class="phase-description">Application framework, compatibility layers, and user applications.</p>
-                        <div class="phase-features">
-                            <span class="feature-tag">App Framework</span>
-                            <span class="feature-tag">Compatibility Layer</span>
-                            <span class="feature-tag">System Tools</span>
-                            <span class="feature-tag">User Applications</span>
+                <!-- Phase 5: Applications & Ecosystem -->
+                <div class="timeline-phase upcoming">
+                    <div class="phase-header">
+                        <div class="phase-marker upcoming">
+                            <span class="phase-number">5</span>
+                            <span class="phase-icon">⏳</span>
                         </div>
-                        <div class="phase-date">📅 Planned: Q4 2026</div>
-                        <button class="expand-btn" onclick="toggleMilestone(this)">
-                            <span class="expand-icon">▼</span>
-                            View Details
-                        </button>
-                        <div class="milestone-details" style="display: none;">
-                            <h4>Planned Tasks</h4>
-                            <div class="task-list">
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create application API framework</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement compatibility layer</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Build essential system applications</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create package management system</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Develop user productivity tools</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement application marketplace</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add multi-language support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement app sandboxing</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create development SDK</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add app update system</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement app permissions</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create app statistics and analytics</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Develop system monitoring tools</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create backup and restore utilities</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement system optimization tools</label>
-                                </div>
+                        <div class="phase-info">
+                            <h3>Applications & Ecosystem</h3>
+                            <p class="phase-subtitle">Application framework, compatibility layers, and user applications</p>
+                            <div class="phase-meta">
+                                <span class="phase-status upcoming">Planned</span>
+                                <span class="phase-date">Q4 2026</span>
                             </div>
+                        </div>
+                    </div>
+                    <div class="phase-content">
+                        <div class="phase-description">
+                            <p>Building the application ecosystem with frameworks, compatibility layers, and essential user applications to make GamerOS a complete platform.</p>
+                        </div>
+                        <div class="phase-features">
+                            <span class="feature-chip">App Framework</span>
+                            <span class="feature-chip">Compatibility Layer</span>
+                            <span class="feature-chip">System Tools</span>
+                            <span class="feature-chip">Package Manager</span>
+                            <span class="feature-chip">SDK</span>
+                        </div>
+                        <div class="phase-details">
+                            <h4>Planned Features</h4>
+                            <ul class="achievement-list">
+                                <li>Application API framework</li>
+                                <li>Compatibility layer for existing software</li>
+                                <li>Essential system applications</li>
+                                <li>Package management system</li>
+                                <li>Application marketplace</li>
+                                <li>Development SDK and tools</li>
+                                <li>Multi-language support</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
 
-                <div class="timeline-item upcoming">
-                    <div class="timeline-marker">
-                        <span class="phase-number">6</span>
-                        <span class="phase-status">⏳</span>
-                    </div>
-                    <div class="timeline-content">
-                        <h3>Networking & Connectivity</h3>
-                        <p class="phase-description">Network stack implementation, internet connectivity, and communication protocols.</p>
-                        <div class="phase-features">
-                            <span class="feature-tag">TCP/IP Stack</span>
-                            <span class="feature-tag">Wireless Support</span>
-                            <span class="feature-tag">Web Browser</span>
-                            <span class="feature-tag">Cloud Services</span>
+                <!-- Phase 6: Networking & Connectivity -->
+                <div class="timeline-phase upcoming">
+                    <div class="phase-header">
+                        <div class="phase-marker upcoming">
+                            <span class="phase-number">6</span>
+                            <span class="phase-icon">⏳</span>
                         </div>
-                        <div class="phase-date">📅 Planned: Q1 2027</div>
-                        <button class="expand-btn" onclick="toggleMilestone(this)">
-                            <span class="expand-icon">▼</span>
-                            View Details
-                        </button>
-                        <div class="milestone-details" style="display: none;">
-                            <h4>Planned Tasks</h4>
-                            <div class="task-list">
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement TCP/IP protocol stack</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add Ethernet driver support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement DHCP client</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add DNS resolution</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement HTTP/HTTPS protocols</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create web browser application</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add WiFi driver support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement Bluetooth connectivity</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create email client</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add cloud storage integration</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement VPN support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add firewall and security features</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Create network monitoring tools</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Implement IPv6 support</label>
-                                </div>
-                                <div class="task-item pending">
-                                    <div class="custom-checkbox"></div>
-                                    <label>Add network configuration utilities</label>
-                                </div>
+                        <div class="phase-info">
+                            <h3>Networking & Connectivity</h3>
+                            <p class="phase-subtitle">Network stack implementation, internet connectivity, and communication protocols</p>
+                            <div class="phase-meta">
+                                <span class="phase-status upcoming">Planned</span>
+                                <span class="phase-date">Q1 2027</span>
                             </div>
+                        </div>
+                    </div>
+                    <div class="phase-content">
+                        <div class="phase-description">
+                            <p>The final phase brings internet connectivity and networking capabilities, transforming GamerOS into a fully connected modern operating system.</p>
+                        </div>
+                        <div class="phase-features">
+                            <span class="feature-chip">TCP/IP Stack</span>
+                            <span class="feature-chip">Wireless Support</span>
+                            <span class="feature-chip">Web Browser</span>
+                            <span class="feature-chip">Cloud Services</span>
+                            <span class="feature-chip">Security</span>
+                        </div>
+                        <div class="phase-details">
+                            <h4>Planned Features</h4>
+                            <ul class="achievement-list">
+                                <li>TCP/IP protocol stack implementation</li>
+                                <li>Ethernet and WiFi driver support</li>
+                                <li>DHCP client and DNS resolution</li>
+                                <li>HTTP/HTTPS protocols</li>
+                                <li>Web browser application</li>
+                                <li>Email client and communication tools</li>
+                                <li>Cloud storage integration</li>
+                                <li>Firewall and security features</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
+        </section>
 
-            <div class="roadmap-features-modern">
-                <div class="features-header">
-                    <span class="features-icon">🚀</span>
-                    <h2>Upcoming Features</h2>
+        <!-- Feature Roadmap -->
+        <section class="feature-roadmap">
+            <div class="section-header">
+                <h2>Feature Roadmap</h2>
+                <p>Explore upcoming features and capabilities planned for future releases</p>
+            </div>
+            <div class="feature-categories">
+                <div class="feature-category">
+                    <div class="category-header">
+                        <span class="category-icon">🖥️</span>
+                        <h3>Graphics & Display</h3>
+                    </div>
+                    <div class="category-features">
+                        <div class="feature-item high-priority">
+                            <h4>High-Resolution Displays</h4>
+                            <p>Support for 4K and higher resolution displays with advanced rendering techniques.</p>
+                            <span class="priority-badge high">High Priority</span>
+                        </div>
+                        <div class="feature-item medium-priority">
+                            <h4>GPU Acceleration</h4>
+                            <p>Hardware-accelerated graphics rendering and GPU compute capabilities.</p>
+                            <span class="priority-badge medium">Medium Priority</span>
+                        </div>
+                        <div class="feature-item medium-priority">
+                            <h4>Advanced Rendering</h4>
+                            <p>Modern rendering techniques including shaders and visual effects.</p>
+                            <span class="priority-badge medium">Medium Priority</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="features-grid-modern">
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🖥️</div>
-                        <h4>Advanced Graphics</h4>
-                        <p>High-resolution displays, GPU acceleration, and modern rendering techniques.</p>
-                        <span class="feature-priority-modern high">High Priority</span>
+
+                <div class="feature-category">
+                    <div class="category-header">
+                        <span class="category-icon">🌐</span>
+                        <h3>Connectivity</h3>
                     </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🌐</div>
-                        <h4>Network Stack</h4>
-                        <p>TCP/IP implementation, wireless networking, and internet connectivity.</p>
-                        <span class="feature-priority-modern high">High Priority</span>
+                    <div class="category-features">
+                        <div class="feature-item high-priority">
+                            <h4>Network Stack</h4>
+                            <p>Complete TCP/IP implementation with IPv4 and IPv6 support.</p>
+                            <span class="priority-badge high">High Priority</span>
+                        </div>
+                        <div class="feature-item high-priority">
+                            <h4>Wireless Networking</h4>
+                            <p>WiFi and Bluetooth connectivity for modern device support.</p>
+                            <span class="priority-badge high">High Priority</span>
+                        </div>
+                        <div class="feature-item medium-priority">
+                            <h4>Cloud Services</h4>
+                            <p>Integration with cloud storage and synchronization services.</p>
+                            <span class="priority-badge medium">Medium Priority</span>
+                        </div>
                     </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🎵</div>
-                        <h4>Audio System</h4>
-                        <p>Sound drivers, audio processing, and multimedia capabilities.</p>
-                        <span class="feature-priority-modern medium">Medium Priority</span>
+                </div>
+
+                <div class="feature-category">
+                    <div class="category-header">
+                        <span class="category-icon">🔒</span>
+                        <h3>Security & Privacy</h3>
                     </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🔒</div>
-                        <h4>Security Features</h4>
-                        <p>User permissions, secure boot, and system protection mechanisms.</p>
-                        <span class="feature-priority-modern high">High Priority</span>
+                    <div class="category-features">
+                        <div class="feature-item high-priority">
+                            <h4>System Security</h4>
+                            <p>User permissions, secure boot, and comprehensive system protection.</p>
+                            <span class="priority-badge high">High Priority</span>
+                        </div>
+                        <div class="feature-item high-priority">
+                            <h4>Data Encryption</h4>
+                            <p>Advanced encryption for files, communications, and secure storage.</p>
+                            <span class="priority-badge high">High Priority</span>
+                        </div>
+                        <div class="feature-item medium-priority">
+                            <h4>Privacy Controls</h4>
+                            <p>Granular privacy settings and data protection mechanisms.</p>
+                            <span class="priority-badge medium">Medium Priority</span>
+                        </div>
                     </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🎮</div>
-                        <h4>Gaming Framework</h4>
-                        <p>DirectX/OpenGL compatibility layer and game development tools.</p>
-                        <span class="feature-priority-modern medium">Medium Priority</span>
+                </div>
+
+                <div class="feature-category">
+                    <div class="category-header">
+                        <span class="category-icon">🎮</span>
+                        <h3>Gaming & Multimedia</h3>
                     </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">☁️</div>
-                        <h4>Cloud Integration</h4>
-                        <p>Cloud storage, synchronization, and remote access capabilities.</p>
-                        <span class="feature-priority-modern medium">Medium Priority</span>
+                    <div class="category-features">
+                        <div class="feature-item medium-priority">
+                            <h4>Gaming Framework</h4>
+                            <p>DirectX/OpenGL compatibility layer for game development.</p>
+                            <span class="priority-badge medium">Medium Priority</span>
+                        </div>
+                        <div class="feature-item medium-priority">
+                            <h4>Audio System</h4>
+                            <p>Advanced sound drivers and multimedia processing capabilities.</p>
+                            <span class="priority-badge medium">Medium Priority</span>
+                        </div>
+                        <div class="feature-item low-priority">
+                            <h4>Media Framework</h4>
+                            <p>Video playback, streaming, and multimedia content support.</p>
+                            <span class="priority-badge low">Future Feature</span>
+                        </div>
                     </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">📱</div>
-                        <h4>Mobile Support</h4>
-                        <p>Touch interfaces, mobile device compatibility, and portable computing.</p>
-                        <span class="feature-priority-modern low">Future Feature</span>
+                </div>
+
+                <div class="feature-category">
+                    <div class="category-header">
+                        <span class="category-icon">🤖</span>
+                        <h3>Future Technologies</h3>
                     </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🤖</div>
-                        <h4>AI Integration</h4>
-                        <p>Machine learning capabilities and intelligent system assistance.</p>
-                        <span class="feature-priority-modern low">Future Feature</span>
-                    </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🛡️</div>
-                        <h4>Cybersecurity</h4>
-                        <p>Advanced encryption, threat detection, and secure communication.</p>
-                        <span class="feature-priority-modern high">High Priority</span>
-                    </div>
-                    <div class="feature-item-modern upcoming">
-                        <div class="feature-icon-modern">🌍</div>
-                        <h4>Globalization</h4>
-                        <p>Multi-language support, localization, and international standards.</p>
-                        <span class="feature-priority-modern medium">Medium Priority</span>
+                    <div class="category-features">
+                        <div class="feature-item low-priority">
+                            <h4>AI Integration</h4>
+                            <p>Machine learning capabilities and intelligent system assistance.</p>
+                            <span class="priority-badge low">Future Feature</span>
+                        </div>
+                        <div class="feature-item low-priority">
+                            <h4>Mobile Support</h4>
+                            <p>Touch interfaces and mobile device compatibility.</p>
+                            <span class="priority-badge low">Future Feature</span>
+                        </div>
+                        <div class="feature-item low-priority">
+                            <h4>IoT Connectivity</h4>
+                            <p>Internet of Things device support and smart home integration.</p>
+                            <span class="priority-badge low">Future Feature</span>
+                        </div>
                     </div>
                 </div>
             </div>
+        </section>
 
-            <div class="contribute-section-modern">
-                <div class="contribute-header">
-                    <span class="contribute-main-icon">🤝</span>
-                    <h2>Join the Development</h2>
+        <!-- Community Section -->
+        <section id="contribute" class="community-section">
+            <div class="section-header">
+                <h2>Join the Development</h2>
+                <p>GamerOS is an open-source project that welcomes contributors at all levels</p>
+            </div>
+            <div class="community-content">
+                <div class="community-intro">
+                    <p>Whether you're a kernel hacker, UI designer, documentation writer, or simply enthusiastic about operating system development, there's a place for you in our community. Every contribution, no matter how small, helps advance the project.</p>
                 </div>
-                <p>GamerOS is an open-source project that welcomes contributors at all levels. Whether you're a kernel hacker, UI designer, or documentation writer, there's a place for you in our community.</p>
-                <div class="contribute-ways-modern">
-                    <div class="contribute-item-modern">
-                        <div class="contribute-icon-modern">💻</div>
-                        <h4>Code Contributions</h4>
-                        <p>Help build the kernel, drivers, and system components.</p>
-                        <a href="https://github.com/urmoit/GamerOS" class="contribute-link-modern">View Repository →</a>
+                <div class="contribution-paths">
+                    <div class="contribution-path">
+                        <div class="path-icon">💻</div>
+                        <h3>Code Contributions</h3>
+                        <p>Help build the kernel, drivers, and system components. Work on graphics, networking, file systems, or any other core functionality.</p>
+                        <div class="path-skills">
+                            <span class="skill-tag">C</span>
+                            <span class="skill-tag">Assembly</span>
+                            <span class="skill-tag">x86_64</span>
+                            <span class="skill-tag">Low-level Programming</span>
+                        </div>
+                        <a href="https://github.com/urmoit/GamerOS" class="path-link" target="_blank">
+                            <span class="link-icon">🐙</span>
+                            View Repository
+                        </a>
                     </div>
-                    <div class="contribute-item-modern">
-                        <div class="contribute-icon-modern">📖</div>
-                        <h4>Documentation</h4>
-                        <p>Improve documentation, write tutorials, and create guides.</p>
-                        <a href="https://github.com/urmoit/GamerOS/wiki" class="contribute-link-modern">View Wiki →</a>
+                    <div class="contribution-path">
+                        <div class="path-icon">🎨</div>
+                        <h3>Design & UI</h3>
+                        <p>Create beautiful interfaces, design user experiences, and improve the visual aspects of the desktop environment.</p>
+                        <div class="path-skills">
+                            <span class="skill-tag">UI/UX Design</span>
+                            <span class="skill-tag">Graphics Design</span>
+                            <span class="skill-tag">User Experience</span>
+                        </div>
+                        <a href="https://github.com/urmoit/GamerOS/issues" class="path-link" target="_blank">
+                            <span class="link-icon">🎯</span>
+                            Design Issues
+                        </a>
                     </div>
-                    <div class="contribute-item-modern">
-                        <div class="contribute-icon-modern">🐛</div>
-                        <h4>Bug Reports</h4>
-                        <p>Report issues, suggest improvements, and help testing.</p>
-                        <a href="https://github.com/urmoit/GamerOS/issues" class="contribute-link-modern">Report Issue →</a>
+                    <div class="contribution-path">
+                        <div class="path-icon">📖</div>
+                        <h3>Documentation</h3>
+                        <p>Improve documentation, write tutorials, create guides, and help new contributors get started with the project.</p>
+                        <div class="path-skills">
+                            <span class="skill-tag">Technical Writing</span>
+                            <span class="skill-tag">Markdown</span>
+                            <span class="skill-tag">Documentation</span>
+                        </div>
+                        <a href="https://github.com/urmoit/GamerOS/wiki" class="path-link" target="_blank">
+                            <span class="link-icon">📚</span>
+                            View Wiki
+                        </a>
+                    </div>
+                    <div class="contribution-path">
+                        <div class="path-icon">🐛</div>
+                        <h3>Testing & QA</h3>
+                        <p>Report bugs, suggest improvements, test new features, and help ensure the stability of the operating system.</p>
+                        <div class="path-skills">
+                            <span class="skill-tag">Testing</span>
+                            <span class="skill-tag">Bug Reports</span>
+                            <span class="skill-tag">Quality Assurance</span>
+                        </div>
+                        <a href="https://github.com/urmoit/GamerOS/issues" class="path-link" target="_blank">
+                            <span class="link-icon">🚨</span>
+                            Report Issues
+                        </a>
+                    </div>
+                </div>
+                <div class="community-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">6</span>
+                        <span class="stat-label">Development Phases</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">48</span>
+                        <span class="stat-label">Known Issues</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">33%</span>
+                        <span class="stat-label">Issues Resolved</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">2025</span>
+                        <span class="stat-label">Project Started</span>
                     </div>
                 </div>
             </div>
+        </section>
         </section>
     </main>
 
@@ -730,43 +661,97 @@
             <div class="footer-particle"></div>
             <div class="footer-particle"></div>
         </div>
-        <div class="footer-content">
-            <div class="footer-section">
-                <h3>GamerOS</h3>
+
+        <!-- Main Footer Content -->
+        <div class="footer-main">
+            <div class="footer-brand">
+                <div class="brand-header">
+                    <span class="brand-icon">🚀</span>
+                    <h3>GamerOS</h3>
+                </div>
                 <p>A modern x86_64 hobby operating system built from scratch with a Windows 11-like desktop environment.</p>
-                <div class="social-links">
-                    <a href="https://github.com/urmoit/GamerOS" target="_blank" class="social-link">
-                        <span class="social-icon">🐙</span>
-                        GitHub
-                    </a>
+                <div class="brand-stats">
+                    <div class="brand-stat">
+                        <span class="stat-number">6</span>
+                        <span class="stat-label">Releases</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">48</span>
+                        <span class="stat-label">Known Issues</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">33%</span>
+                        <span class="stat-label">Fixed</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="footer-section">
-                <h4>Quick Links</h4>
-                <ul>
-                    <li><a href="index.html">Home</a></li>
-                    <li><a href="about.html">About</a></li>
-                    <li><a href="roadmap.html">Roadmap</a></li>
-                    <li><a href="news.html">News</a></li>
-                    <li><a href="download.html">Download</a></li>
-                </ul>
-            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="index.html"><span class="link-icon">🏠</span>Home</a></li>
+                        <li><a href="about.html"><span class="link-icon">ℹ️</span>About</a></li>
+                        <li><a href="roadmap.html"><span class="link-icon">🗺️</span>Roadmap</a></li>
+                        <li><a href="news.html"><span class="link-icon">📰</span>News</a></li>
+                        <li><a href="known-bugs.html"><span class="link-icon">🐛</span>Known Bugs</a></li>
+                        <li><a href="download.html"><span class="link-icon">⬇️</span>Download</a></li>
+                    </ul>
+                </div>
 
-            <div class="footer-section">
-                <h4>Resources</h4>
-                <ul>
-                    <li><a href="news/build-0.0.0.1350.html">Latest Changelog</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank">Documentation</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank">Report Issues</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank">License</a></li>
-                </ul>
-            </div>
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="news/build-0.0.0.1512.html"><span class="link-icon">📋</span>Latest Changelog</a></li>
+                        <li><a href="all-versions.html"><span class="link-icon">📦</span>All Versions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank"><span class="link-icon">📖</span>Documentation</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank"><span class="link-icon">🐛</span>Report Issues</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank"><span class="link-icon">📜</span>License</a></li>
+                    </ul>
+                </div>
 
+                <div class="footer-column">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS" target="_blank"><span class="link-icon">🐙</span>GitHub</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/discussions" target="_blank"><span class="link-icon">💬</span>Discussions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/CONTRIBUTING.md" target="_blank"><span class="link-icon">🤝</span>Contributing</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/stargazers" target="_blank"><span class="link-icon">⭐</span>Stargazers</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/network/members" target="_blank"><span class="link-icon">🍴</span>Forks</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h4>Development</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS/actions" target="_blank"><span class="link-icon">⚙️</span>CI/CD</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/releases" target="_blank"><span class="link-icon">🏷️</span>Releases</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/commits" target="_blank"><span class="link-icon">📝</span>Commits</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/branches" target="_blank"><span class="link-icon">🌿</span>Branches</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/tags" target="_blank"><span class="link-icon">🏷️</span>Tags</a></li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
+        <!-- Footer Bottom -->
         <div class="footer-bottom">
-            <p>&copy; 2025 Chosentechies. All rights reserved. | Built with ❤️ for the open source community</p>
+            <div class="footer-bottom-content">
+                <div class="copyright">
+                    <p>&copy; 2025 Chosentechies. All rights reserved.</p>
+                </div>
+                <div class="footer-badges">
+                    <span class="badge">Built with ❤️ for the open source community</span>
+                    <span class="badge">MIT License</span>
+                    <span class="badge">x86_64 Architecture</span>
+                </div>
+                <div class="footer-actions">
+                    <a href="#top" class="back-to-top">
+                        <span class="back-icon">⬆️</span>
+                        Back to Top
+                    </a>
+                </div>
+            </div>
         </div>
     </footer>
 

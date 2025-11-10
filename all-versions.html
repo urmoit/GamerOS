@@ -19,185 +19,546 @@
                 <li><a href="about.html">About</a></li>
                 <li><a href="roadmap.html">Roadmap</a></li>
                 <li><a href="news.html">News</a></li>
+                <li><a href="known-bugs.html">Known Bugs</a></li>
                 <li><a href="download.html">Download</a></li>
             </ul>
         </nav>
     </header>
 
     <main>
-        <section class="all-versions-hero modern">
+        <!-- Hero Section -->
+        <section class="archive-hero-section">
             <div class="hero-background">
-                <div class="hero-particles">
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
-                    <div class="particle"></div>
+                <div class="floating-elements">
+                    <div class="archive-book book-1">📚</div>
+                    <div class="archive-book book-2">📖</div>
+                    <div class="archive-book book-3">📓</div>
+                    <div class="archive-scroll scroll-1">📜</div>
+                    <div class="archive-scroll scroll-2">📜</div>
+                    <div class="archive-dust dust-1"></div>
+                    <div class="archive-dust dust-2"></div>
+                    <div class="archive-dust dust-3"></div>
                 </div>
             </div>
-            <div class="hero-content-modern">
-                <div class="hero-icon">📁</div>
-                <h1>All GamerOS Versions</h1>
-                <p class="versions-subtitle">Complete archive of all releases and development builds</p>
-                <div class="hero-stats">
-                    <div class="stat-item">
-                        <span class="stat-number">5</span>
-                        <span class="stat-label">Total Builds</span>
+            <div class="hero-content">
+                <div class="hero-badge">📚 Archive</div>
+                <h1 class="hero-title">
+                    <span class="hero-title-main">Version Archive</span>
+                    <span class="hero-title-sub">Complete History of GamerOS</span>
+                </h1>
+                <p class="hero-description">
+                    Explore the complete collection of GamerOS releases and development builds.
+                    From the initial kernel implementation to the latest features, every version tells part of our story.
+                </p>
+                <div class="hero-metrics">
+                    <div class="metric">
+                        <span class="metric-number">6</span>
+                        <span class="metric-label">Total Builds</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">2025</span>
+                        <span class="metric-label">Development Year</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">∞</span>
+                        <span class="metric-label">Preserved</span>
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <a href="#archive" class="cta-button primary">
+                        <span class="cta-icon">📂</span>
+                        Browse Archive
+                        <span class="cta-arrow">→</span>
+                    </a>
+                    <a href="download.html" class="cta-button secondary">
+                        <span class="cta-icon">⬇️</span>
+                        Latest Version
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="archive-visualization">
+                    <div class="archive-stack">
+                        <div class="stack-layer layer-1">
+                            <div class="layer-label">v0.0.0.1512</div>
+                            <div class="layer-icon">💿</div>
+                        </div>
+                        <div class="stack-layer layer-2">
+                            <div class="layer-label">v0.0.0.1420</div>
+                            <div class="layer-icon">💿</div>
+                        </div>
+                        <div class="stack-layer layer-3">
+                            <div class="layer-label">v0.0.0.1400</div>
+                            <div class="layer-icon">💿</div>
+                        </div>
+                        <div class="stack-layer layer-4">
+                            <div class="layer-label">v0.0.0.1350</div>
+                            <div class="layer-icon">💿</div>
+                        </div>
+                        <div class="stack-layer layer-5">
+                            <div class="layer-label">v0.0.0.1200</div>
+                            <div class="layer-icon">💿</div>
+                        </div>
+                        <div class="stack-layer layer-6">
+                            <div class="layer-label">v0.0.0.1130a</div>
+                            <div class="layer-icon">💿</div>
+                        </div>
+                    </div>
+                    <div class="archive-timeline">
+                        <div class="timeline-line"></div>
+                        <div class="timeline-markers">
+                            <div class="timeline-marker active"></div>
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-marker"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section id="versions-archive" class="versions-archive-modern">
-            <div class="versions-intro-modern">
-                <div class="intro-content">
-                    <div class="intro-icon">💿</div>
-                    <h2>Version Archive</h2>
-                    <p>Access all previous versions of GamerOS. While we recommend using the latest release for the best experience, older versions are available for testing, development, or historical purposes.</p>
+        <!-- Archive Introduction -->
+        <section class="archive-intro-section">
+            <div class="section-header">
+                <h2>Complete Version History</h2>
+                <p>Every build, every milestone, preserved for eternity</p>
+            </div>
+            <div class="intro-cards">
+                <div class="intro-card">
+                    <div class="card-icon">🕰️</div>
+                    <h3>Historical Archive</h3>
+                    <p>Access all previous versions of GamerOS, from the very first kernel boot to the latest enhancements.</p>
+                </div>
+                <div class="intro-card">
+                    <div class="card-icon">🔬</div>
+                    <h3>Development Testing</h3>
+                    <p>Perfect for developers who need to test compatibility or study the evolution of the codebase.</p>
+                </div>
+                <div class="intro-card">
+                    <div class="card-icon">📖</div>
+                    <h3>Learning Resource</h3>
+                    <p>Study the progression of operating system development and kernel implementation techniques.</p>
                 </div>
             </div>
+        </section>
 
+        <!-- Archive Browser -->
+        <section id="archive" class="archive-browser-section">
+            <div class="section-header">
+                <h2>Version Browser</h2>
+                <p>Select a version to explore its details and download</p>
+            </div>
+
+            <!-- Version Filter -->
+            <div class="version-filters">
+                <button class="filter-btn active" data-filter="all">All Versions</button>
+                <button class="filter-btn" data-filter="latest">Latest Only</button>
+                <button class="filter-btn" data-filter="stable">Stable Builds</button>
+                <button class="filter-btn" data-filter="development">Development</button>
+            </div>
+
+            <!-- Archive Grid -->
             <div class="archive-grid">
-                <div class="archive-item latest">
+                <!-- Latest Release -->
+                <div class="archive-item featured latest" data-category="latest stable">
+                    <div class="item-ribbon">⭐ LATEST</div>
                     <div class="item-header">
-                        <div class="file-icon-large">💿</div>
-                        <div class="file-info">
-                            <h3>GamerOS_Build_0.0.0.1420.iso</h3>
-                            <span class="file-badge latest">Latest Release</span>
+                        <div class="version-icon">🚀</div>
+                        <div class="version-info">
+                            <h3>Build 0.0.0.1512</h3>
+                            <div class="version-tags">
+                                <span class="tag stable">Stable</span>
+                                <span class="tag latest">Latest</span>
+                            </div>
                         </div>
                     </div>
                     <div class="item-meta">
-                        <span class="meta-item">📅 November 10, 2025</span>
-                        <span class="meta-item">📦 4.88MB</span>
-                        <span class="meta-item">🏷️ Development Tools</span>
+                        <div class="meta-row">
+                            <span class="meta-label">Release Date:</span>
+                            <span class="meta-value">November 10, 2025</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">File Size:</span>
+                            <span class="meta-value">4.89 MB</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Architecture:</span>
+                            <span class="meta-value">x86_64</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Focus:</span>
+                            <span class="meta-value">Kernel Enhancements</span>
+                        </div>
                     </div>
-                    <p class="item-description">Development experience improvements with updated QEMU configuration and educational resources for developers.</p>
+                    <div class="item-description">
+                        <p>Major kernel improvements with enhanced memory management, custom font rendering, improved graphics initialization, and comprehensive bug fixes. This release introduces a more robust process scheduling system and better hardware integration.</p>
+                        <div class="item-highlights">
+                            <span class="highlight">🧠 Enhanced Memory Management</span>
+                            <span class="highlight">🎨 Custom Font Rendering</span>
+                            <span class="highlight">⚡ Improved Graphics Pipeline</span>
+                            <span class="highlight">🐛 Comprehensive Bug Fixes</span>
+                        </div>
+                    </div>
                     <div class="item-actions">
-                        <a href="news/build-0.0.0.1420.html" class="action-btn primary">
-                            <span class="btn-icon">📋</span>
-                            Changelog
+                        <a href="news/build-0.0.0.1512.html" class="action-button primary">
+                            <span class="button-icon">📖</span>
+                            Read Changelog
                         </a>
-                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1420/GamerOS_Build_0.0.0.1420.iso" class="action-btn secondary">
-                            <span class="btn-icon">⬇️</span>
-                            Download
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1512/GamerOS_Build_0.0.0.1512.iso"
+                           class="action-button secondary" target="_blank">
+                            <span class="button-icon">⬇️</span>
+                            Download ISO
                         </a>
                     </div>
                 </div>
 
-                <div class="archive-item">
+                <!-- Build 0.0.0.1420 -->
+                <div class="archive-item development" data-category="development">
                     <div class="item-header">
-                        <div class="file-icon-large">💿</div>
-                        <div class="file-info">
-                            <h3>GamerOS_Build_0.0.0.1400.iso</h3>
-                            <span class="file-badge older">Previous</span>
+                        <div class="version-icon">🔧</div>
+                        <div class="version-info">
+                            <h3>Build 0.0.0.1420</h3>
+                            <div class="version-tags">
+                                <span class="tag development">Development</span>
+                            </div>
                         </div>
                     </div>
                     <div class="item-meta">
-                        <span class="meta-item">📅 November 9, 2025</span>
-                        <span class="meta-item">📦 4.88MB</span>
-                        <span class="meta-item">🏷️ Graphics Update</span>
+                        <div class="meta-row">
+                            <span class="meta-label">Release Date:</span>
+                            <span class="meta-value">November 10, 2025</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">File Size:</span>
+                            <span class="meta-value">4.88 MB</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Focus:</span>
+                            <span class="meta-value">Development Tools</span>
+                        </div>
                     </div>
-                    <p class="item-description">Major graphics system overhaul with full CPU acceleration, multiple resolutions, and 32-bit color depth support.</p>
+                    <div class="item-description">
+                        <p>Development experience improvements with updated QEMU configuration and educational resources for developers.</p>
+                    </div>
                     <div class="item-actions">
-                        <a href="news/build-0.0.0.1400.html" class="action-btn primary">
-                            <span class="btn-icon">📋</span>
-                            Changelog
+                        <a href="news/build-0.0.0.1420.html" class="action-button primary">
+                            <span class="button-icon">📖</span>
+                            Read Changelog
                         </a>
-                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1400/GamerOS_Build_0.0.0.1400.iso" class="action-btn secondary">
-                            <span class="btn-icon">⬇️</span>
-                            Download
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1420/GamerOS_Build_0.0.0.1420.iso"
+                           class="action-button secondary" target="_blank">
+                            <span class="button-icon">⬇️</span>
+                            Download ISO
                         </a>
                     </div>
                 </div>
 
-                <div class="archive-item">
+                <!-- Build 0.0.0.1400 -->
+                <div class="archive-item stable" data-category="stable">
                     <div class="item-header">
-                        <div class="file-icon-large">💿</div>
-                        <div class="file-info">
-                            <h3>GamerOS_Build_0.0.0.1350.iso</h3>
-                            <span class="file-badge older">Previous</span>
+                        <div class="version-icon">🎨</div>
+                        <div class="version-info">
+                            <h3>Build 0.0.0.1400</h3>
+                            <div class="version-tags">
+                                <span class="tag stable">Stable</span>
+                            </div>
                         </div>
                     </div>
                     <div class="item-meta">
-                        <span class="meta-item">📅 November 5, 2025</span>
-                        <span class="meta-item">📦 4.86MB</span>
-                        <span class="meta-item">🏷️ Build Tools</span>
+                        <div class="meta-row">
+                            <span class="meta-label">Release Date:</span>
+                            <span class="meta-value">November 9, 2025</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">File Size:</span>
+                            <span class="meta-value">4.88 MB</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Focus:</span>
+                            <span class="meta-value">Graphics Update</span>
+                        </div>
                     </div>
-                    <p class="item-description">New build scripts and project cleanup with enhanced development tools.</p>
+                    <div class="item-description">
+                        <p>Major graphics system overhaul with full CPU acceleration, multiple resolutions, and 32-bit color depth support.</p>
+                        <div class="item-highlights">
+                            <span class="highlight">🎨 CPU Graphics Acceleration</span>
+                            <span class="highlight">📐 Multiple Resolutions</span>
+                            <span class="highlight">🌈 32-bit Color Depth</span>
+                        </div>
+                    </div>
                     <div class="item-actions">
-                        <a href="news/build-0.0.0.1350.html" class="action-btn primary">
-                            <span class="btn-icon">📋</span>
-                            Changelog
+                        <a href="news/build-0.0.0.1400.html" class="action-button primary">
+                            <span class="button-icon">📖</span>
+                            Read Changelog
                         </a>
-                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1350/GamerOS_Build_0.0.0.1350.iso" class="action-btn secondary">
-                            <span class="btn-icon">⬇️</span>
-                            Download
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1400/GamerOS_Build_0.0.0.1400.iso"
+                           class="action-button secondary" target="_blank">
+                            <span class="button-icon">⬇️</span>
+                            Download ISO
                         </a>
                     </div>
                 </div>
 
-                <div class="archive-item">
+                <!-- Build 0.0.0.1350 -->
+                <div class="archive-item development" data-category="development">
                     <div class="item-header">
-                        <div class="file-icon-large">💿</div>
-                        <div class="file-info">
-                            <h3>GamerOS_Build_0.0.0.1200.iso</h3>
-                            <span class="file-badge older">Previous</span>
+                        <div class="version-icon">⚙️</div>
+                        <div class="version-info">
+                            <h3>Build 0.0.0.1350</h3>
+                            <div class="version-tags">
+                                <span class="tag development">Development</span>
+                            </div>
                         </div>
                     </div>
                     <div class="item-meta">
-                        <span class="meta-item">📅 November 1, 2025</span>
-                        <span class="meta-item">📦 4.84MB</span>
-                        <span class="meta-item">🏷️ Initial Release</span>
+                        <div class="meta-row">
+                            <span class="meta-label">Release Date:</span>
+                            <span class="meta-value">November 5, 2025</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">File Size:</span>
+                            <span class="meta-value">4.86 MB</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Focus:</span>
+                            <span class="meta-value">Build Tools</span>
+                        </div>
                     </div>
-                    <p class="item-description">Initial release with custom x64 kernel implementation, Docker-based build system, and VMware support.</p>
+                    <div class="item-description">
+                        <p>New build scripts and project cleanup with enhanced development tools.</p>
+                    </div>
                     <div class="item-actions">
-                        <a href="news/build-0.0.0.1200.html" class="action-btn primary">
-                            <span class="btn-icon">📋</span>
-                            Changelog
+                        <a href="news/build-0.0.0.1350.html" class="action-button primary">
+                            <span class="button-icon">📖</span>
+                            Read Changelog
                         </a>
-                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1200/GamerOS_Build_0.0.0.1200.iso" class="action-btn secondary">
-                            <span class="btn-icon">⬇️</span>
-                            Download
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1350/GamerOS_Build_0.0.0.1350.iso"
+                           class="action-button secondary" target="_blank">
+                            <span class="button-icon">⬇️</span>
+                            Download ISO
                         </a>
                     </div>
                 </div>
 
-                <div class="archive-item">
+                <!-- Build 0.0.0.1200 -->
+                <div class="archive-item stable" data-category="stable">
                     <div class="item-header">
-                        <div class="file-icon-large">💿</div>
-                        <div class="file-info">
-                            <h3>GamerOS_Build_0.0.0.1130a.iso</h3>
-                            <span class="file-badge older">Previous</span>
+                        <div class="version-icon">🎯</div>
+                        <div class="version-info">
+                            <h3>Build 0.0.0.1200</h3>
+                            <div class="version-tags">
+                                <span class="tag stable">Stable</span>
+                                <span class="tag milestone">Milestone</span>
+                            </div>
                         </div>
                     </div>
                     <div class="item-meta">
-                        <span class="meta-item">📅 October 28, 2025</span>
-                        <span class="meta-item">📦 8.1MB</span>
-                        <span class="meta-item">🏷️ Graphics Update</span>
+                        <div class="meta-row">
+                            <span class="meta-label">Release Date:</span>
+                            <span class="meta-value">November 1, 2025</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">File Size:</span>
+                            <span class="meta-value">4.84 MB</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Focus:</span>
+                            <span class="meta-value">Initial Release</span>
+                        </div>
                     </div>
-                    <p class="item-description">Major graphics system refactor with framebuffer integration, moving away from legacy VGA mode for higher resolutions and modern color depths.</p>
+                    <div class="item-description">
+                        <p>Initial release with custom x64 kernel implementation, Docker-based build system, and VMware support.</p>
+                        <div class="item-highlights">
+                            <span class="highlight">🏗️ Custom x64 Kernel</span>
+                            <span class="highlight">🐳 Docker Build System</span>
+                            <span class="highlight">🖥️ VMware Support</span>
+                        </div>
+                    </div>
                     <div class="item-actions">
-                        <a href="news/build-0.0.0.1130a.html" class="action-btn primary">
-                            <span class="btn-icon">📋</span>
-                            Changelog
+                        <a href="news/build-0.0.0.1200.html" class="action-button primary">
+                            <span class="button-icon">📖</span>
+                            Read Changelog
                         </a>
-                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1130a/GamerOS_Build_0.0.0.1130a.iso" class="action-btn secondary">
-                            <span class="btn-icon">⬇️</span>
-                            Download
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1200/GamerOS_Build_0.0.0.1200.iso"
+                           class="action-button secondary" target="_blank">
+                            <span class="button-icon">⬇️</span>
+                            Download ISO
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Build 0.0.0.1130a -->
+                <div class="archive-item stable" data-category="stable">
+                    <div class="item-header">
+                        <div class="version-icon">🎨</div>
+                        <div class="version-info">
+                            <h3>Build 0.0.0.1130a</h3>
+                            <div class="version-tags">
+                                <span class="tag stable">Stable</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="item-meta">
+                        <div class="meta-row">
+                            <span class="meta-label">Release Date:</span>
+                            <span class="meta-value">October 28, 2025</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">File Size:</span>
+                            <span class="meta-value">8.1 MB</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Focus:</span>
+                            <span class="meta-value">Graphics Update</span>
+                        </div>
+                    </div>
+                    <div class="item-description">
+                        <p>Major graphics system refactor with framebuffer integration, moving away from legacy VGA mode for higher resolutions and modern color depths.</p>
+                        <div class="item-highlights">
+                            <span class="highlight">🖼️ Framebuffer Integration</span>
+                            <span class="highlight">📺 Higher Resolutions</span>
+                            <span class="highlight">🎨 Modern Color Depths</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <a href="news/build-0.0.0.1130a.html" class="action-button primary">
+                            <span class="button-icon">📖</span>
+                            Read Changelog
+                        </a>
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1130a/GamerOS_Build_0.0.0.1130a.iso"
+                           class="action-button secondary" target="_blank">
+                            <span class="button-icon">⬇️</span>
+                            Download ISO
                         </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Archive Notice -->
-            <div class="archive-notice-modern">
-                <div class="notice-icon">📚</div>
-                <h3>Complete Version Archive</h3>
-                <p>This archive contains all historical GamerOS releases. For the latest version, visit the downloads page.</p>
-                <a href="download.html" class="back-to-downloads-modern">
-                    <span class="btn-icon">⬅️</span>
-                    Back to Downloads
-                </a>
+            <!-- Archive Stats -->
+            <div class="archive-stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-number">6</div>
+                            <div class="stat-label">Total Versions</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-content">
+                            <div class="stat-number">~35MB</div>
+                            <div class="stat-label">Total Archive Size</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-content">
+                            <div class="stat-number">2025</div>
+                            <div class="stat-label">Development Year</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-number">100%</div>
+                            <div class="stat-label">Versions Preserved</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Archive Navigation -->
+        <section class="archive-navigation-section">
+            <div class="navigation-content">
+                <div class="nav-header">
+                    <h2>Continue Your Journey</h2>
+                    <p>Explore more of the GamerOS ecosystem</p>
+                </div>
+                <div class="navigation-grid">
+                    <div class="nav-cluster">
+                        <div class="cluster-title">Downloads</div>
+                        <div class="cluster-cards">
+                            <a href="download.html" class="nav-card premium">
+                                <div class="card-visual">
+                                    <div class="card-icon">⬇️</div>
+                                    <div class="card-glow"></div>
+                                </div>
+                                <div class="card-content">
+                                    <h3>Latest Release</h3>
+                                    <p>Get Build 0.0.0.1512 with all the newest features</p>
+                                    <div class="card-meta">
+                                        <span class="meta-tag">Recommended</span>
+                                        <span class="meta-arrow">→</span>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="nav-cluster">
+                        <div class="cluster-title">Stay Updated</div>
+                        <div class="cluster-cards">
+                            <a href="news.html" class="nav-card">
+                                <div class="card-visual">
+                                    <div class="card-icon">📰</div>
+                                </div>
+                                <div class="card-content">
+                                    <h3>News & Changelogs</h3>
+                                    <p>Follow development progress and release notes</p>
+                                    <div class="card-meta">
+                                        <span class="meta-arrow">→</span>
+                                    </div>
+                                </div>
+                            </a>
+                            <a href="roadmap.html" class="nav-card">
+                                <div class="card-visual">
+                                    <div class="card-icon">🗺️</div>
+                                </div>
+                                <div class="card-content">
+                                    <h3>Development Roadmap</h3>
+                                    <p>See upcoming features and milestones</p>
+                                    <div class="card-meta">
+                                        <span class="meta-arrow">→</span>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="nav-cluster">
+                        <div class="cluster-title">Get Involved</div>
+                        <div class="cluster-cards">
+                            <a href="https://github.com/urmoit/GamerOS" class="nav-card" target="_blank">
+                                <div class="card-visual">
+                                    <div class="card-icon">🐙</div>
+                                </div>
+                                <div class="card-content">
+                                    <h3>Source Code</h3>
+                                    <p>Contribute to the project on GitHub</p>
+                                    <div class="card-meta">
+                                        <span class="meta-arrow">→</span>
+                                    </div>
+                                </div>
+                            </a>
+                            <a href="known-bugs.html" class="nav-card">
+                                <div class="card-visual">
+                                    <div class="card-icon">🐛</div>
+                                </div>
+                                <div class="card-content">
+                                    <h3>Known Issues</h3>
+                                    <p>Help us improve by reporting bugs</p>
+                                    <div class="card-meta">
+                                        <span class="meta-arrow">→</span>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
     </main>
@@ -213,43 +574,97 @@
             <div class="footer-particle"></div>
             <div class="footer-particle"></div>
         </div>
-        <div class="footer-content">
-            <div class="footer-section">
-                <h3>GamerOS</h3>
+
+        <!-- Main Footer Content -->
+        <div class="footer-main">
+            <div class="footer-brand">
+                <div class="brand-header">
+                    <span class="brand-icon">🚀</span>
+                    <h3>GamerOS</h3>
+                </div>
                 <p>A modern x86_64 hobby operating system built from scratch with a Windows 11-like desktop environment.</p>
-                <div class="social-links">
-                    <a href="https://github.com/urmoit/GamerOS" target="_blank" class="social-link">
-                        <span class="social-icon">🐙</span>
-                        GitHub
-                    </a>
+                <div class="brand-stats">
+                    <div class="brand-stat">
+                        <span class="stat-number">6</span>
+                        <span class="stat-label">Releases</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">48</span>
+                        <span class="stat-label">Known Issues</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="stat-number">33%</span>
+                        <span class="stat-label">Fixed</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="footer-section">
-                <h4>Quick Links</h4>
-                <ul>
-                    <li><a href="index.html">Home</a></li>
-                    <li><a href="about.html">About</a></li>
-                    <li><a href="download.html">Download</a></li>
-                    <li><a href="news.html">News</a></li>
-                    <li><a href="all-versions.html">All Versions</a></li>
-                </ul>
-            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="index.html"><span class="link-icon">🏠</span>Home</a></li>
+                        <li><a href="about.html"><span class="link-icon">ℹ️</span>About</a></li>
+                        <li><a href="roadmap.html"><span class="link-icon">🗺️</span>Roadmap</a></li>
+                        <li><a href="news.html"><span class="link-icon">📰</span>News</a></li>
+                        <li><a href="known-bugs.html"><span class="link-icon">🐛</span>Known Bugs</a></li>
+                        <li><a href="download.html"><span class="link-icon">⬇️</span>Download</a></li>
+                    </ul>
+                </div>
 
-            <div class="footer-section">
-                <h4>Resources</h4>
-                <ul>
-                    <li><a href="news/build-0.0.0.1350.html">Latest Changelog</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank">Documentation</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank">Report Issues</a></li>
-                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank">License</a></li>
-                </ul>
-            </div>
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="news/build-0.0.0.1512.html"><span class="link-icon">📋</span>Latest Changelog</a></li>
+                        <li><a href="all-versions.html"><span class="link-icon">📦</span>All Versions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank"><span class="link-icon">📖</span>Documentation</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank"><span class="link-icon">🐛</span>Report Issues</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank"><span class="link-icon">📜</span>License</a></li>
+                    </ul>
+                </div>
 
+                <div class="footer-column">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS" target="_blank"><span class="link-icon">🐙</span>GitHub</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/discussions" target="_blank"><span class="link-icon">💬</span>Discussions</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/blob/main/CONTRIBUTING.md" target="_blank"><span class="link-icon">🤝</span>Contributing</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/stargazers" target="_blank"><span class="link-icon">⭐</span>Stargazers</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/network/members" target="_blank"><span class="link-icon">🍴</span>Forks</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h4>Development</h4>
+                    <ul>
+                        <li><a href="https://github.com/urmoit/GamerOS/actions" target="_blank"><span class="link-icon">⚙️</span>CI/CD</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/releases" target="_blank"><span class="link-icon">🏷️</span>Releases</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/commits" target="_blank"><span class="link-icon">📝</span>Commits</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/branches" target="_blank"><span class="link-icon">🌿</span>Branches</a></li>
+                        <li><a href="https://github.com/urmoit/GamerOS/tags" target="_blank"><span class="link-icon">🏷️</span>Tags</a></li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
+        <!-- Footer Bottom -->
         <div class="footer-bottom">
-            <p>&copy; 2025 Chosentechies. All rights reserved. | Built with ❤️ for the open source community</p>
+            <div class="footer-bottom-content">
+                <div class="copyright">
+                    <p>&copy; 2025 Chosentechies. All rights reserved.</p>
+                </div>
+                <div class="footer-badges">
+                    <span class="badge">Built with ❤️ for the open source community</span>
+                    <span class="badge">MIT License</span>
+                    <span class="badge">x86_64 Architecture</span>
+                </div>
+                <div class="footer-actions">
+                    <a href="#top" class="back-to-top">
+                        <span class="back-icon">⬆️</span>
+                        Back to Top
+                    </a>
+                </div>
+            </div>
         </div>
     </footer>
 
