@@ -11,7 +11,7 @@ This document tracks all known bugs, errors, and issues in the GamerOS codebase.
 - [x] **Window Creation Memory Allocation** - Used static allocation preventing multiple windows
 
 ### Remaining 🔴
-None currently critical
+- [ ] **OS Not Starting in QEMU** - GamerOS boots but enters paused state due to BIOS interrupts called in protected mode causing SMM activation and exception loops
 
 ## Logic Errors (Causes incorrect behavior)
 
@@ -30,6 +30,9 @@ None currently critical
 - [ ] **Font Character Bounds** - Character validation allows invalid ASCII values
 - [ ] **Memory Alignment Issues** - kmalloc doesn't ensure proper alignment for all data types
 - [ ] **Scheduler Race Conditions** - No protection against concurrent access to process table
+- [ ] **Infinite Loops in Process Entry Points** - Process functions use for(;;) without proper exit conditions
+- [ ] **Main Kernel Loop Busy Waiting** - Uses inefficient busy-wait delay instead of proper timer interrupts
+- [ ] **Setup Screen Hang** - ui_handle_setup() contains infinite loop with no escape mechanism
 
 ## Code Quality Issues (Warnings/Style)
 
@@ -42,6 +45,9 @@ None currently critical
 - [ ] **Compiler Warnings** - Several signed/unsigned comparison warnings
 - [ ] **Implicit Function Declarations** - `kmalloc`/`kfree` not visible during individual compilation
 - [ ] **Unused Variables** - Several variables defined but not used
+- [ ] **Missing NULL Checks** - Many functions return 0 for error but callers don't check
+- [ ] **Inconsistent Return Values** - Some functions return 0 for success, others for failure
+- [ ] **Magic Numbers** - Hard-coded values without constants (e.g., interrupt numbers, port addresses)
 
 ## Missing Features (Functionality gaps)
 
@@ -57,6 +63,9 @@ None currently critical
 - [ ] **System Calls** - No proper syscall interface
 - [ ] **Device Drivers** - Limited hardware support
 - [ ] **File System Persistence** - Files don't survive reboots
+- [ ] **Process Termination** - No way to exit or terminate processes cleanly
+- [ ] **Memory Deallocation in Main** - Test memory allocation never freed
+- [ ] **Window Title Rendering** - draw_window() skips title drawing due to missing function
 
 ## Build System Issues
 
@@ -91,6 +100,8 @@ None
 - [ ] **Memory Usage** - No memory optimization
 - [ ] **CPU Utilization** - Inefficient algorithms in some areas
 - [ ] **Interrupt Latency** - No real-time considerations
+- [ ] **Busy Wait Delays** - Main loop uses volatile loop instead of proper timing
+- [ ] **Memory Copy Operations** - No optimized memory operations for large buffers
 
 ## Security Issues
 
@@ -99,13 +110,15 @@ None
 - [ ] **Buffer Overflows** - Potential buffer overflow vulnerabilities
 - [ ] **Privilege Escalation** - No proper privilege separation
 - [ ] **Memory Corruption** - No memory protection mechanisms
+- [ ] **Null Pointer Dereferences** - Many functions don't check for null pointers before use
+- [ ] **Integer Overflows** - No protection against arithmetic overflows in calculations
 
 ---
 
 ## Summary
 
-**Fixed Issues:** 16/35 (46%)
-**Critical Issues:** 0/4 remaining (100% resolved)
-**Logic Errors:** 3/11 remaining (27% resolved)
+**Fixed Issues:** 16/48 (33%)
+**Critical Issues:** 1/5 remaining (80% resolved)
+**Logic Errors:** 3/14 remaining (21% resolved)
 
-The OS now has all critical bugs resolved and should boot and run basic functionality. Remaining issues are primarily feature gaps and code quality improvements rather than functional blockers.
+The OS has critical boot issues that prevent it from starting properly in QEMU. The system enters a paused state due to BIOS interrupts being called in protected mode, causing SMM activation and exception loops. This must be fixed before the OS can run. Additional issues include infinite loops, memory leaks, null pointer dereferences, and performance problems that should be addressed for stability and reliability.
