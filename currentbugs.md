@@ -24,6 +24,12 @@ None currently critical
 
 ### Remaining 🔴
 - [ ] **RTC BCD Conversion** - May not work on all hardware configurations
+- [ ] **Context Switch Stack Corruption** - Context switch may corrupt stack due to improper register saving order
+- [ ] **ISR Stack Frame Issues** - ISR handlers may not properly handle interrupt stack frames
+- [ ] **PIC EOI Logic Error** - EOI sent to wrong PIC for certain IRQs
+- [ ] **Font Character Bounds** - Character validation allows invalid ASCII values
+- [ ] **Memory Alignment Issues** - kmalloc doesn't ensure proper alignment for all data types
+- [ ] **Scheduler Race Conditions** - No protection against concurrent access to process table
 
 ## Code Quality Issues (Warnings/Style)
 
@@ -98,8 +104,8 @@ None
 
 ## Summary
 
-**Fixed Issues:** 16/28 (57%)
+**Fixed Issues:** 16/35 (46%)
 **Critical Issues:** 0/4 remaining (100% resolved)
-**Logic Errors:** 3/8 remaining (62.5% resolved)
+**Logic Errors:** 3/11 remaining (27% resolved)
 
 The OS now has all critical bugs resolved and should boot and run basic functionality. Remaining issues are primarily feature gaps and code quality improvements rather than functional blockers.
