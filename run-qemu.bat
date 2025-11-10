@@ -3,10 +3,9 @@
 REM Run GamerOS in QEMU
 
 REM Check for QEMU
-where qemu-system-x86_64 >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ERROR: QEMU not found in PATH.
-    echo Please install QEMU and add it to your PATH.
+if not exist "C:\Program Files\qemu\qemu-system-x86_64.exe" (
+    echo ERROR: QEMU not found at C:\Program Files\qemu\qemu-system-x86_64.exe
+    echo Please install QEMU or update the path in this script.
     echo You can download QEMU from: https://www.qemu.org/download.html
     exit /b 1
 )
@@ -19,4 +18,4 @@ if not exist "dist\x86_64\kernel.iso" (
 )
 
 REM Run QEMU with debugging options to prevent immediate exit
-qemu-system-x86_64 -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -d int
+"C:\Program Files\qemu\qemu-system-x86_64.exe" -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -d int
