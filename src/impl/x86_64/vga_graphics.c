@@ -48,7 +48,18 @@ void vga_init_mode12h(void) {
 }
 
 int vga_init_mode101h(void) {
-    // Switch to VESA mode 101h (640x480x256)
+    // Check if VESA mode was already set up in real mode
+    extern char vesa_success[];
+    if (vesa_success[0]) {
+        // VESA mode already set, just configure our variables
+        vga_framebuffer = (uint8_t*)0xA0000; // Standard VGA location, but VESA LFB might be elsewhere
+        current_vga_width = VGA_MODE_101H_WIDTH;
+        current_vga_height = VGA_MODE_101H_HEIGHT;
+        current_vga_mode = VGA_MODE_101H;
+        return 1; // Success - already set
+    }
+
+    // Fallback: try BIOS call (may not work in long mode)
     uint16_t result;
     __asm__ volatile (
         "mov $0x4F02, %%ax\n"

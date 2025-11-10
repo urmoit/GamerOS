@@ -46,12 +46,15 @@ _start:
     cpuid
     cmp eax, 0x80000001
     jb .no_long_mode
-    
+
     mov eax, 0x80000001
     cpuid
     test edx, 1 << 29
     jz .no_long_mode
-    
+
+    ; Try to set up VESA graphics mode before entering long mode
+    call try_vesa_mode
+
     ; Set up paging
     call setup_page_tables
     call enable_paging
@@ -127,6 +130,14 @@ enable_paging:
     
     ret
 
+try_vesa_mode:
+    ; Try to set VESA mode 101h (640x480x256) in real mode
+    ; This will set up the linear framebuffer before entering long mode
+
+    ; For now, just mark as failed - real VESA setup needs more work
+    mov byte [vesa_success], 0
+    ret
+
 bits 64
 start_64:
     ; Update segment registers
@@ -136,14 +147,51 @@ start_64:
     mov es, ax
     mov fs, ax
     mov gs, ax
-    
+
     ; Set up stack
     mov rsp, stack_top_64
-    
+
+    ; Clear screen to white for debugging (indicates we reached 64-bit mode)
+    mov rdi, 0xB8000
+    mov rcx, 2000  ; Clear 80x25 characters
+    mov rax, 0x0F200F200F200F20  ; White spaces on black background
+    rep stosq
+
+    ; Print "64-bit mode reached" message
+    mov dword [0xB8000], 0x0F360F34  ; "64"
+    mov dword [0xB8004], 0x0F2D0F62  ; "-b"
+    mov dword [0xB8008], 0x0F740F69  ; "it"
+    mov dword [0xB800C], 0x0F200F20  ; "  "
+    mov dword [0xB8010], 0x0F6F0F6D  ; "mo"
+    mov dword [0xB8014], 0x0F650F64  ; "de"
+    mov dword [0xB8018], 0x0F200F20  ; "  "
+    mov dword [0xB801C], 0x0F630F72  ; "re"
+    mov dword [0xB8020], 0x0F630F61  ; "ac"
+    mov dword [0xB8024], 0x0F650F68  ; "he"
+    mov dword [0xB8028], 0x0F210F64  ; "d!"
+
+    ; Check VESA success and print graphics status
+    cmp byte [vesa_success], 1
+    jne .no_vesa
+    ; Print "VESA OK" message
+    mov dword [0xB8030], 0x0F450F56  ; "VE"
+    mov dword [0xB8034], 0x0F410F53  ; "SA"
+    mov dword [0xB8038], 0x0F200F20  ; "  "
+    mov dword [0xB803C], 0x0F4B0F4F  ; "OK"
+    jmp .vesa_done
+.no_vesa:
+    ; Print "VESA FAIL" message
+    mov dword [0xB8030], 0x0F450F56  ; "VE"
+    mov dword [0xB8034], 0x0F410F53  ; "SA"
+    mov dword [0xB8038], 0x0F200F20  ; "  "
+    mov dword [0xB803C], 0x0F4C0F46  ; "FA"
+    mov dword [0xB8040], 0x0F4C0F49  ; "IL"
+.vesa_done:
+
     ; Call kernel main
     extern kernel_main
     call kernel_main
-    
+
     ; Should never return, but just in case
     hlt
 
@@ -155,6 +203,18 @@ p3_table:
     resb 4096
 p2_table:
     resb 4096
+
+; VESA information storage
+global vesa_info
+global vesa_mode_info
+global vesa_success
+
+vesa_info:
+    resb 512
+vesa_mode_info:
+    resb 256
+vesa_success:
+    resb 1
 
 stack_bottom:
     resb 16384
