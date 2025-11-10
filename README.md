@@ -21,77 +21,103 @@
 >
 > **Current Build: 0.0.0.1420** | See [Changelog](changelog/Build0.0.0.1420.md) for details.
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- [Docker](https://www.docker.com/get-started)
-- [QEMU](https://www.qemu.org/download.html). Make sure to add QEMU to your PATH.
+Before you begin, ensure you have the following installed:
 
-### QEMU Tutorial
+- **[Docker](https://www.docker.com/get-started)** - For cross-compilation environment
+- **[QEMU](https://www.qemu.org/download/)** - For running and testing the OS
 
-For help with QEMU setup and usage, check out this tutorial: [QEMU Tutorial Video](https://www.youtube.com/watch?v=HywXtRz0URE)
+### 📚 Learning Resources
 
-### Build
+- **QEMU Tutorial**: [Complete QEMU Setup Guide](https://www.youtube.com/watch?v=HywXtRz0URE) - Learn how to install and use QEMU for OS development
+- **OS Development**: Check out [OSDev Wiki](https://wiki.osdev.org/) for comprehensive documentation
 
-To build the OS, run the following command:
+### 🛠️ Quick Start
 
-```batch
-build.bat
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/chosentechies/GamerOS.git
+   cd GamerOS
+   ```
+
+2. **Build the OS**
+   ```batch
+   build.bat
+   ```
+
+3. **Run in QEMU**
+   ```batch
+   run-qemu.bat
+   ```
+
+4. **Debug mode** (optional)
+   ```batch
+   debug.bat
+   ```
+
+5. **Clean build artifacts** (when needed)
+   ```batch
+   clean.bat
+   ```
+
+## 📖 About The Project
+
+**GamerOS** is a 64-bit hobby operating system built entirely from scratch, featuring a Windows 11-inspired desktop environment. Written in C and x86-64 Assembly, it provides direct hardware access and a modern graphical user interface.
+
+### 🎯 Key Features
+
+- **Custom 64-bit Kernel** - No standard library dependencies
+- **Graphical Desktop** - Windows 11-style UI with taskbar, start menu, and windows
+- **Multiple Resolutions** - Support for 320x200 to 1024x768 with 32-bit color depth
+- **Hardware Integration** - Keyboard, mouse, RTC, and interrupt handling
+- **Docker Build System** - Cross-platform compilation environment
+
+
+### 📁 Project Structure
+
+```
+GamerOS/
+├── src/                    # Source code
+│   ├── intf/              # Interfaces and headers
+│   └── impl/              # Implementations
+├── build/                 # Build artifacts
+├── dist/                  # Distribution files
+├── targets/               # Build targets
+└── changelog/             # Version history
 ```
 
-### Run
+**Latest Release**: Build 0.0.0.1420 | [📋 Changelog](changelog/Build0.0.0.1420.md)
 
-To run the OS in QEMU, run the following command:
+## ✨ Current Features
 
-```batch
-run-qemu.bat
-```
+### 🖥️ Desktop Environment
+- **Windows 11-inspired UI** with taskbar and start menu
+- **Movable windows** with basic window management
+- **Desktop icons** and system tray
+- **Clock display** with real-time updates
 
+### 🎨 Graphics System
+- **Multiple video modes**: VGA and VESA support
+- **Resolution range**: 320x200 to 1024x768
+- **Color depth**: Up to 32-bit RGBA
+- **Drawing primitives**: Lines, circles, rectangles, triangles
+- **Software rendering** with double buffering
 
-### Debug
+### ⌨️ Input & Hardware
+- **PS/2 keyboard** with scancode handling
+- **PS/2 mouse** with cursor movement
+- **Real-Time Clock** (RTC) integration
+- **Interrupt handling** (PIC/IDT setup)
 
-To run the OS in debug mode, run the following command:
+### 🏗️ Development
+- **Docker build environment** for cross-compilation
+- **Makefile-based build system**
+- **QEMU integration** for testing and debugging
+- **Modular architecture** with clean separation
 
-```batch
-debug.bat
-```
-
-### Clean
-
-To clean the build artifacts, run the following command:
-
-```batch
-clean.bat
-```
-
-## About The Project
-
-GamerOS is a 64-bit hobby operating system with a custom kernel, graphical desktop, and windowing system inspired by Windows 11. It runs on the x86_64 architecture and is written from scratch in C and x86-64 Assembly. The project aims to provide a modern desktop experience with direct hardware access, featuring a custom-built graphical user interface.
-
-**Planned Features:**
-*   Support for running Linux applications.
-*   Compatibility layer for Windows applications.
-*   Ability to run APK files (Android apps).
-
-The latest ISO file can always be found in the `dist/x86_64` folder.
-
-**Current Build:** 0.0.0.1420
-
-## Features
-
-*   **Custom 64-bit Kernel:** x86_64, ELF format, with no standard library dependencies.
-*   **Graphical Desktop Environment:** Inspired by Windows 11, featuring:
-    *   Taskbar, Start Menu, and System Tray
-    *   Multiple movable windows (e.g., File Explorer, Settings)
-    *   Desktop icons like "This PC" and "Recycle Bin"
-*   **Graphics:** Enhanced VGA/VESA graphics with multiple resolutions (320x200 to 1024x768) and 32-bit color depth support.
-*   **Input:** Mouse cursor with simulated/keyboard movement and keyboard event handling.
-*   **System:** Real-Time Clock (RTC) reading and display, and hardware interrupt controllers (PIC, IDT) setup.
-*   **Build Environment:** Portable Makefile and Docker-based build environment for easy setup.
-*   **Emulation:** QEMU virtualization for easy testing and development.
-
-See the [open issues](https://github.com/chosentechies/GamerOS/issues) for a full list of proposed features (and known issues).
 
 ## License
 
