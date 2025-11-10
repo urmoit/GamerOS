@@ -12,14 +12,14 @@
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chosentechies/GamerOS)
 [![Version](https://img.shields.io/badge/version-1.0-blue.svg)](https://github.com/chosentechies/GamerOS)
-[![Build](https://img.shields.io/badge/build-0.0.0.1400-orange.svg)](https://github.com/chosentechies/GamerOS)
+[![Build](https://img.shields.io/badge/build-0.0.0.1420-orange.svg)](https://github.com/chosentechies/GamerOS)
 [![License](https://img.shields.io/badge/license-Custom-red.svg)](https://github.com/chosentechies/GamerOS/blob/main/LICENSE)
 
 > ⚠️ **WORK IN PROGRESS** ⚠️
 >
 > This operating system project is under heavy development. Features may change, break, or be incomplete at any time. The name "GamerOS" is a placeholder and will be changed upon release.
 >
-> **Current Build: 0.0.0.1400** | See [Changelog](changelog/Build0.0.0.1400.md) for details. | [Summary](changelog/Build0.0.0.1400-SUMMARY.md)
+> **Current Build: 0.0.0.1420** | See [Changelog](changelog/Build0.0.0.1420.md) for details.
 
 ## Getting Started
 
@@ -78,7 +78,7 @@ GamerOS is a 64-bit hobby operating system with a custom kernel, graphical deskt
 
 The latest ISO file can always be found in the `dist/x86_64` folder.
 
-**Current Build:** 0.0.0.1400
+**Current Build:** 0.0.0.1420
 
 ## Features
 
