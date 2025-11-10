@@ -18,5 +18,5 @@ if not exist "dist\x86_64\kernel.iso" (
     exit /b 1
 )
 
-REM Run QEMU
-qemu-system-x86_64 -cdrom dist\x86_64\kernel.iso
+REM Run QEMU with debugging options to prevent immediate exit
+qemu-system-x86_64 -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -d int
