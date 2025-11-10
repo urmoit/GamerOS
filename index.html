@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GamerOS - Modern x86_64 Operating System</title>
+    <meta name="description" content="GamerOS: A simple x86_64 hobby operating system with a Windows 11-like desktop environment, built from scratch.">
+    <meta name="keywords" content="GamerOS, operating system, x86_64, hobby OS, Windows 11-like, desktop environment">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">GamerOS</div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="about.html">About</a></li>
+                <li><a href="roadmap.html">Roadmap</a></li>
+                <li><a href="news.html">News</a></li>
+                <li><a href="download.html">Download</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="hero-content">
+                <h1>GamerOS</h1>
+                <p class="hero-description">A modern x86_64 hobby operating system with a Windows 11-like desktop environment, built entirely from scratch using C and Assembly.</p>
+                <div class="hero-features">
+                    <div class="feature-highlight">
+                        <span class="feature-icon">⚡</span>
+                        <span>Custom 64-bit Kernel</span>
+                    </div>
+                    <div class="feature-highlight">
+                        <span class="feature-icon">🖥️</span>
+                        <span>Graphical Desktop</span>
+                    </div>
+                    <div class="feature-highlight">
+                        <span class="feature-icon">🔧</span>
+                        <span>Direct Hardware Access</span>
+                    </div>
+                </div>
+                <div class="hero-buttons">
+                    <a href="download.html" class="download-btn primary">
+                        <span class="btn-icon">⬇️</span>
+                        Download Now
+                    </a>
+                    <a href="about.html" class="download-btn secondary">
+                        <span class="btn-icon">ℹ️</span>
+                        Learn More
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="code-preview">
+                    <div class="code-header">
+                        <span class="code-dot red"></span>
+                        <span class="code-dot yellow"></span>
+                        <span class="code-dot green"></span>
+                        <span class="code-title">kernel.c</span>
+                    </div>
+                    <div class="code-content">
+                        <pre><code><span class="code-keyword">void</span> <span class="code-function">kernel_main</span>() {
+    <span class="code-comment">// Initialize the GamerOS kernel</span>
+    <span class="code-function">init_kernel</span>();
+    <span class="code-function">init_desktop</span>();
+
+    <span class="code-keyword">while</span> (<span class="code-number">1</span>) {
+        <span class="code-comment">// Main kernel loop</span>
+        <span class="code-function">handle_events</span>();
+    }
+}</code></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <h2>🚀 Why Choose GamerOS?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon-large">⚡</div>
+                    <h3>Lightning Fast</h3>
+                    <p>Direct hardware access and optimized x86_64 architecture for maximum performance. No unnecessary abstractions slowing you down.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-large">🎨</div>
+                    <h3>Modern Interface</h3>
+                    <p>Windows 11-inspired desktop environment with smooth animations, intuitive navigation, and professional aesthetics.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-large">🔧</div>
+                    <h3>Developer Friendly</h3>
+                    <p>Complete build system with Docker support, automated scripts, and comprehensive documentation for easy development.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-large">🎯</div>
+                    <h3>From Scratch</h3>
+                    <p>Every line of code written from the ground up in C and Assembly. Full control and understanding of every component.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-large">🆓</div>
+                    <h3>Open Source</h3>
+                    <p>Free and open source under a permissive license. Contribute, learn, and build upon the foundation we've created.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-large">🔬</div>
+                    <h3>Educational</h3>
+                    <p>Perfect for learning operating system development, low-level programming, and computer architecture concepts.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="stats-section">
+            <div class="stats-container">
+                <div class="stat-item">
+                    <div class="stat-number">3</div>
+                    <div class="stat-label">Releases</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">x86_64</div>
+                    <div class="stat-label">Architecture</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">C & ASM</div>
+                    <div class="stat-label">Languages</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">2025</div>
+                    <div class="stat-label">Started</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="latest-news">
+            <h2>📢 Latest News</h2>
+            <div class="changelog">
+                <h3>🚀 Build 0.0.0.1350 Released!</h3>
+                <p>This build introduces a new set of setup and utility scripts, simplifying the build, run, and clean processes. The project structure has been cleaned up by removing obsolete files and consolidating documentation.</p>
+                <a href="news/build-0.0.0.1350.html">Read more →</a>
+            </div>
+            <p class="view-all-news"><a href="news.html">View all news & changelogs →</a></p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>GamerOS</h3>
+                <p>A modern x86_64 hobby operating system built from scratch with a Windows 11-like desktop environment.</p>
+                <div class="social-links">
+                    <a href="https://github.com/urmoit/GamerOS" target="_blank" class="social-link">
+                        <span class="social-icon">🐙</span>
+                        GitHub
+                    </a>
+                </div>
+            </div>
+
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="about.html">About</a></li>
+                    <li><a href="download.html">Download</a></li>
+                    <li><a href="news.html">News</a></li>
+                    <li><a href="all-versions.html">All Versions</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="news/build-0.0.0.1350.html">Latest Changelog</a></li>
+                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank">Documentation</a></li>
+                    <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank">Report Issues</a></li>
+                    <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank">License</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h4>Project Info</h4>
+                <ul>
+                    <li><strong>Version:</strong> 0.0.0.1350</li>
+                    <li><strong>Architecture:</strong> x86_64</li>
+                    <li><strong>Language:</strong> C & Assembly</li>
+                    <li><strong>License:</strong> MIT</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2025 Chosentechies. All rights reserved. | Built with ❤️ for the open source community</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
