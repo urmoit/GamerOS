@@ -104,7 +104,7 @@ This build introduces significant improvements to the GamerOS kernel, including 
 ---
 
 **Build Information:**
-- Kernel Version: 1.0
+- Kernel Version: 1.1
 - Build Number: 0.0.0.1512
 - Architecture: x86_64
 - Build System: Docker + Make
