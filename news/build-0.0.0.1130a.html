@@ -25,236 +25,323 @@
     </header>
 
     <main>
-        <section class="changelog-hero">
-            <h1>🎨 Build 0.0.0.1130a</h1>
-            <p class="changelog-subtitle">Graphics system refactor with framebuffer integration</p>
-            <div class="release-info">
-                <span class="release-date">📅 Release Date: October 28, 2025</span>
-                <span class="version-badge">Graphics Update</span>
+        <section class="changelog-hero modern">
+            <div class="hero-background">
+                <div class="hero-particles">
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                </div>
+            </div>
+            <div class="hero-content-modern">
+                <div class="hero-icon">🎨</div>
+                <h1>Build 0.0.0.1130a</h1>
+                <p class="changelog-subtitle">Graphics system refactor with framebuffer integration</p>
+                <div class="release-info-modern">
+                    <div class="release-stat">
+                        <span class="stat-icon">📅</span>
+                        <span class="stat-text">October 28, 2025</span>
+                    </div>
+                    <div class="release-stat">
+                        <span class="stat-icon">🏷️</span>
+                        <span class="stat-text">Graphics Update</span>
+                    </div>
+                    <div class="release-stat">
+                        <span class="stat-icon">📦</span>
+                        <span class="stat-text">8.1MB</span>
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1130a/GamerOS_Build_0.0.0.1130a.iso" class="hero-download-btn">
+                        <span class="btn-icon">⬇️</span>
+                        Download ISO
+                    </a>
+                    <a href="#overview" class="hero-scroll-btn">
+                        <span class="btn-icon">👀</span>
+                        View Details
+                    </a>
+                </div>
             </div>
         </section>
 
-        <section class="changelog-page">
+        <section class="changelog-page" id="overview">
             <div class="changelog-content">
-                <div class="overview-section">
-                    <h2>📋 Overview</h2>
+                <div class="overview-section modern">
+                    <div class="section-icon">📋</div>
+                    <h2>Overview</h2>
                     <p>This release includes a significant refactor of the graphics system to move away from legacy VGA mode 13h and towards a more modern framebuffer-based approach. This change is crucial for supporting higher resolutions and color depths.</p>
-                </div>
-
-                <div class="features-section">
-                    <h2>✨ Key Changes</h2>
-
-                    <div class="feature-group">
-                        <h3>🖼️ Framebuffer Integration</h3>
-                        <div class="feature-grid">
-                            <div class="feature-item">
-                                <div class="feature-icon">📊</div>
-                                <div class="feature-text">
-                                    <strong>Framebuffer API</strong>
-                                    <p>New framebuffer.h and framebuffer.c for display management</p>
-                                </div>
-                            </div>
-                            <div class="feature-item">
-                                <div class="feature-icon">🔍</div>
-                                <div class="feature-text">
-                                    <strong>Multiboot2 Parsing</strong>
-                                    <p>Parse GRUB framebuffer tags for display parameters</p>
-                                </div>
-                            </div>
-                            <div class="feature-item">
-                                <div class="feature-icon">📐</div>
-                                <div class="feature-text">
-                                    <strong>High Resolution</strong>
-                                    <p>1024x768x32 framebuffer support</p>
-                                </div>
-                            </div>
-                            <div class="feature-item">
-                                <div class="feature-icon">💾</div>
-                                <div class="feature-text">
-                                    <strong>Direct Memory Access</strong>
-                                    <p>Direct framebuffer memory operations</p>
-                                </div>
-                            </div>
+                    <div class="overview-highlights">
+                        <div class="highlight-card">
+                            <span class="highlight-icon">🖼️</span>
+                            <span class="highlight-text">Framebuffer</span>
                         </div>
-                    </div>
-
-                    <div class="feature-group">
-                        <h3>🎨 Generic Graphics API</h3>
-                        <div class="feature-grid">
-                            <div class="feature-item">
-                                <div class="feature-icon">🖌️</div>
-                                <div class="feature-text">
-                                    <strong>Drawing Primitives</strong>
-                                    <p>put_pixel, draw_rectangle functions</p>
-                                </div>
-                            </div>
-                            <div class="feature-item">
-                                <div class="feature-icon">🚫</div>
-                                <div class="feature-text">
-                                    <strong>No BIOS Interrupts</strong>
-                                    <p>Direct hardware framebuffer access</p>
-                                </div>
-                            </div>
-                            <div class="feature-item">
-                                <div class="feature-icon">🔄</div>
-                                <div class="feature-text">
-                                    <strong>API Replacement</strong>
-                                    <p>Replaced VGA graphics with generic graphics</p>
-                                </div>
-                            </div>
+                        <div class="highlight-card">
+                            <span class="highlight-icon">📐</span>
+                            <span class="highlight-text">High Resolution</span>
                         </div>
-                    </div>
-
-                    <div class="feature-group">
-                        <h3>🖥️ Desktop & Input Updates</h3>
-                        <ul>
-                            <li>✅ Updated desktop.c to use new graphics API</li>
-                            <li>✅ Updated mouse.c for framebuffer compatibility</li>
-                            <li>✅ Re-enabled desktop initialization in main.c</li>
-                            <li>✅ Added framebuffer debugging output</li>
-                        </ul>
-                    </div>
-
-                    <div class="feature-group">
-                        <h3>🔧 Build System Updates</h3>
-                        <ul>
-                            <li>✅ Updated Makefile for new graphics files</li>
-                            <li>✅ Removed old VGA graphics references</li>
-                            <li>✅ Correct compilation of framebuffer.c and graphics.c</li>
-                        </ul>
+                        <div class="highlight-card">
+                            <span class="highlight-icon">🎨</span>
+                            <span class="highlight-text">32-bit Color</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="technical-section">
-                    <h2>🔍 Technical Implementation</h2>
+                <div class="features-section modern">
+                    <div class="section-icon">✨</div>
+                    <h2>Key Changes</h2>
 
-                    <div class="tech-specs">
-                        <div class="spec-group">
-                            <h3>🏗️ Framebuffer Details</h3>
-                            <div class="spec-list">
-                                <div class="spec-item">
+                    <div class="feature-showcase">
+                        <div class="feature-main-card">
+                            <div class="feature-icon-large">🖼️</div>
+                            <h3>Framebuffer Integration</h3>
+                            <p>Complete graphics system overhaul with modern framebuffer-based display management and high-resolution support.</p>
+                        </div>
+
+                        <div class="feature-cards-grid">
+                            <div class="feature-card-interactive">
+                                <div class="card-icon">📊</div>
+                                <h4>Framebuffer API</h4>
+                                <p>New framebuffer.h and framebuffer.c for display management</p>
+                                <div class="card-status">✅ Implemented</div>
+                            </div>
+
+                            <div class="feature-card-interactive">
+                                <div class="card-icon">🔍</div>
+                                <h4>Multiboot2 Parsing</h4>
+                                <p>Parse GRUB framebuffer tags for display parameters</p>
+                                <div class="card-status">✅ Implemented</div>
+                            </div>
+
+                            <div class="feature-card-interactive">
+                                <div class="card-icon">📐</div>
+                                <h4>High Resolution</h4>
+                                <p>1024x768x32 framebuffer support</p>
+                                <div class="card-status">✅ Implemented</div>
+                            </div>
+
+                            <div class="feature-card-interactive">
+                                <div class="card-icon">🖌️</div>
+                                <h4>Drawing Primitives</h4>
+                                <p>put_pixel, draw_rectangle functions</p>
+                                <div class="card-status">✅ Implemented</div>
+                            </div>
+
+                            <div class="feature-card-interactive">
+                                <div class="card-icon">🚫</div>
+                                <h4>No BIOS Interrupts</h4>
+                                <p>Direct hardware framebuffer access</p>
+                                <div class="card-status">✅ Implemented</div>
+                            </div>
+
+                            <div class="feature-card-interactive">
+                                <div class="card-icon">🔄</div>
+                                <h4>API Replacement</h4>
+                                <p>Replaced VGA graphics with generic graphics</p>
+                                <div class="card-status">✅ Implemented</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="technical-section modern">
+                    <div class="section-icon">🔍</div>
+                    <h2>Technical Implementation</h2>
+
+                    <div class="tech-specs-modern">
+                        <div class="spec-group-modern">
+                            <div class="spec-header">
+                                <span class="spec-icon">🏗️</span>
+                                <h3>Framebuffer Details</h3>
+                            </div>
+                            <div class="spec-grid">
+                                <div class="spec-row">
                                     <span class="spec-label">Resolution:</span>
                                     <span class="spec-value">1024x768</span>
                                 </div>
-                                <div class="spec-item">
+                                <div class="spec-row">
                                     <span class="spec-label">Color Depth:</span>
                                     <span class="spec-value">32-bit</span>
                                 </div>
-                                <div class="spec-item">
+                                <div class="spec-row">
                                     <span class="spec-label">Bootloader:</span>
                                     <span class="spec-value">GRUB Multiboot2</span>
                                 </div>
-                                <div class="spec-item">
+                                <div class="spec-row">
                                     <span class="spec-label">Memory Access:</span>
                                     <span class="spec-value">Direct</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="spec-group">
-                            <h3>⚡ Performance Benefits</h3>
-                            <div class="req-list">
-                                <div class="req-item">
-                                    <span class="req-icon">🚀</span>
-                                    <span>Higher resolution support</span>
+                        <div class="spec-group-modern">
+                            <div class="spec-header">
+                                <span class="spec-icon">⚡</span>
+                                <h3>Performance Benefits</h3>
+                            </div>
+                            <div class="req-list-modern">
+                                <div class="req-item-modern">
+                                    <span class="req-icon-modern">🚀</span>
+                                    <span class="req-text">Higher resolution support</span>
                                 </div>
-                                <div class="req-item">
-                                    <span class="req-icon">🎨</span>
-                                    <span>32-bit color depth</span>
+                                <div class="req-item-modern">
+                                    <span class="req-icon-modern">🎨</span>
+                                    <span class="req-text">32-bit color depth</span>
                                 </div>
-                                <div class="req-item">
-                                    <span class="req-icon">⚡</span>
-                                    <span>Direct memory access</span>
+                                <div class="req-item-modern">
+                                    <span class="req-icon-modern">⚡</span>
+                                    <span class="req-text">Direct memory access</span>
                                 </div>
-                                <div class="req-item">
-                                    <span class="req-icon">🔧</span>
-                                    <span>No BIOS interrupt overhead</span>
+                                <div class="req-item-modern">
+                                    <span class="req-icon-modern">🔧</span>
+                                    <span class="req-text">No BIOS interrupt overhead</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="issues-section">
-                    <h2>🎯 Purpose & Goals</h2>
-                    <div class="issues-grid">
-                        <div class="issue-item">
-                            <span class="issue-icon">🖥️</span>
-                            <span>Resolve black screen display issues</span>
+                <div class="issues-section modern">
+                    <div class="section-icon">🎯</div>
+                    <h2>Purpose & Goals</h2>
+                    <div class="issues-grid-modern">
+                        <div class="issue-card">
+                            <div class="issue-icon-large">🖥️</div>
+                            <h4>Display Issues</h4>
+                            <p>Resolve black screen display issues</p>
+                            <span class="issue-priority">High</span>
                         </div>
-                        <div class="issue-item">
-                            <span class="issue-icon">📈</span>
-                            <span>Enable higher resolution graphics</span>
+                        <div class="issue-card">
+                            <div class="issue-icon-large">📈</div>
+                            <h4>Higher Resolution</h4>
+                            <p>Enable higher resolution graphics</p>
+                            <span class="issue-priority">High</span>
                         </div>
-                        <div class="issue-item">
-                            <span class="issue-icon">🎨</span>
-                            <span>Support modern color depths</span>
+                        <div class="issue-card">
+                            <div class="issue-icon-large">🎨</div>
+                            <h4>Modern Colors</h4>
+                            <p>Support modern color depths</p>
+                            <span class="issue-priority">Medium</span>
                         </div>
-                        <div class="issue-item">
-                            <span class="issue-icon">🏗️</span>
-                            <span>Foundation for Windows 11-like desktop</span>
+                        <div class="issue-card">
+                            <div class="issue-icon-large">🏗️</div>
+                            <h4>Desktop Foundation</h4>
+                            <p>Foundation for Windows 11-like desktop</p>
+                            <span class="issue-priority">Medium</span>
                         </div>
-                        <div class="issue-item">
-                            <span class="issue-icon">🐛</span>
-                            <span>Debugging support for display issues</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="files-section">
-                    <h2>📁 Files Modified</h2>
-
-                    <div class="file-changes">
-                        <div class="file-group new">
-                            <h3>🆕 New Files</h3>
-                            <ul>
-                                <li><code>src/intf/framebuffer.h</code> - Framebuffer interface</li>
-                                <li><code>src/impl/x86_64/framebuffer.c</code> - Framebuffer implementation</li>
-                                <li><code>src/intf/graphics.h</code> - Generic graphics API</li>
-                                <li><code>src/impl/x86_64/graphics.c</code> - Graphics primitives</li>
-                            </ul>
-                        </div>
-
-                        <div class="file-group modified">
-                            <h3>✏️ Modified Files</h3>
-                            <ul>
-                                <li><code>src/impl/x86_64/boot/main.asm</code> - Multiboot2 framebuffer parsing</li>
-                                <li><code>src/impl/x86_64/desktop.c</code> - Updated for new graphics API</li>
-                                <li><code>src/impl/x86_64/mouse.c</code> - Framebuffer compatibility</li>
-                                <li><code>src/impl/kernel/main.c</code> - Desktop re-enablement and debugging</li>
-                                <li><code>targets/x86_64/iso/boot/grub/grub.cfg</code> - Framebuffer request</li>
-                                <li><code>Makefile</code> - Updated compilation targets</li>
-                            </ul>
-                        </div>
-
-                        <div class="file-group removed">
-                            <h3>🗑️ Removed Files</h3>
-                            <ul>
-                                <li><code>src/intf/vga_graphics.h</code> - Replaced by graphics.h</li>
-                                <li><code>src/impl/x86_64/vga_graphics.c</code> - Replaced by graphics.c</li>
-                            </ul>
+                        <div class="issue-card">
+                            <div class="issue-icon-large">🐛</div>
+                            <h4>Debugging Support</h4>
+                            <p>Debugging support for display issues</p>
+                            <span class="issue-priority">Low</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="build-info-section">
-                    <h2>ℹ️ Build Information</h2>
-                    <div class="build-info-grid">
-                        <div class="info-item">
-                            <span class="info-label">Kernel Version:</span>
-                            <span class="info-value">1.0</span>
+                <div class="files-section modern">
+                    <div class="section-icon">📁</div>
+                    <h2>Files Modified</h2>
+
+                    <div class="file-changes-modern">
+                        <div class="file-category new">
+                            <div class="category-header">
+                                <span class="category-icon">🆕</span>
+                                <h3>New Files</h3>
+                            </div>
+                            <div class="file-list">
+                                <div class="file-item">
+                                    <code class="file-name">src/intf/framebuffer.h</code>
+                                    <span class="file-desc">Framebuffer interface</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">src/impl/x86_64/framebuffer.c</code>
+                                    <span class="file-desc">Framebuffer implementation</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">src/intf/graphics.h</code>
+                                    <span class="file-desc">Generic graphics API</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">src/impl/x86_64/graphics.c</code>
+                                    <span class="file-desc">Graphics primitives</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="info-item">
-                            <span class="info-label">Build Number:</span>
-                            <span class="info-value">0.0.0.1130a</span>
+
+                        <div class="file-category modified">
+                            <div class="category-header">
+                                <span class="category-icon">✏️</span>
+                                <h3>Modified Files</h3>
+                            </div>
+                            <div class="file-list">
+                                <div class="file-item">
+                                    <code class="file-name">src/impl/x86_64/boot/main.asm</code>
+                                    <span class="file-desc">Multiboot2 framebuffer parsing</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">src/impl/x86_64/desktop.c</code>
+                                    <span class="file-desc">Updated for new graphics API</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">src/impl/x86_64/mouse.c</code>
+                                    <span class="file-desc">Framebuffer compatibility</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">src/impl/kernel/main.c</code>
+                                    <span class="file-desc">Desktop re-enablement and debugging</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">targets/x86_64/iso/boot/grub/grub.cfg</code>
+                                    <span class="file-desc">Framebuffer request</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">Makefile</code>
+                                    <span class="file-desc">Updated compilation targets</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="info-item">
-                            <span class="info-label">Architecture:</span>
-                            <span class="info-value">x86_64</span>
+
+                        <div class="file-category removed">
+                            <div class="category-header">
+                                <span class="category-icon">🗑️</span>
+                                <h3>Removed Files</h3>
+                            </div>
+                            <div class="file-list">
+                                <div class="file-item">
+                                    <code class="file-name">src/intf/vga_graphics.h</code>
+                                    <span class="file-desc">Replaced by graphics.h</span>
+                                </div>
+                                <div class="file-item">
+                                    <code class="file-name">src/impl/x86_64/vga_graphics.c</code>
+                                    <span class="file-desc">Replaced by graphics.c</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="info-item">
-                            <span class="info-label">Focus:</span>
-                            <span class="info-value">Graphics Refactor</span>
+                    </div>
+                </div>
+
+                <div class="build-info-section modern">
+                    <div class="section-icon">ℹ️</div>
+                    <h2>Build Information</h2>
+                    <div class="build-info-modern">
+                        <div class="info-stats-grid">
+                            <div class="info-stat-card">
+                                <div class="stat-label">Kernel Version</div>
+                                <div class="stat-value">1.0</div>
+                            </div>
+                            <div class="info-stat-card">
+                                <div class="stat-label">Build Number</div>
+                                <div class="stat-value">0.0.0.1130a</div>
+                            </div>
+                            <div class="info-stat-card">
+                                <div class="stat-label">Architecture</div>
+                                <div class="stat-value">x86_64</div>
+                            </div>
+                            <div class="info-stat-card">
+                                <div class="stat-label">Focus</div>
+                                <div class="stat-value">Graphics Refactor</div>
+                            </div>
                         </div>
                     </div>
                 </div>

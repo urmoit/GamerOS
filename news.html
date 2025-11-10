@@ -25,78 +25,160 @@
     </header>
 
     <main>
-        <section class="news-hero">
-            <h1>News & Changelogs</h1>
-            <p class="news-subtitle">Stay updated with the latest GamerOS developments and releases</p>
+        <section class="news-hero modern">
+            <div class="hero-background">
+                <div class="hero-particles">
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                </div>
+            </div>
+            <div class="hero-content-modern">
+                <div class="hero-icon">📰</div>
+                <h1>News & Changelogs</h1>
+                <p class="news-subtitle">Stay updated with the latest GamerOS developments and releases</p>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">5</span>
+                        <span class="stat-label">Releases</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">2025</span>
+                        <span class="stat-label">Active Year</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">∞</span>
+                        <span class="stat-label">Innovation</span>
+                    </div>
+                </div>
+            </div>
         </section>
 
-        <section id="news-list">
+        <section id="news-list" class="news-list-modern">
             <!-- Latest Release - Full Width -->
-            <div class="latest-release">
-                <div class="changelog-entry featured">
-                    <div class="entry-header">
-                        <h3><a href="news/build-0.0.0.1400.html">🎨 Build 0.0.0.1400 Released!</a></h3>
-                        <span class="release-badge">Latest</span>
+            <div class="latest-release-modern">
+                <div class="changelog-entry-modern featured">
+                    <div class="entry-header-modern">
+                        <div class="entry-icon">🔧</div>
+                        <div class="entry-content">
+                            <h3><a href="news/build-0.0.0.1420.html">Build 0.0.0.1420 Released!</a></h3>
+                            <span class="release-badge-modern latest">Latest</span>
+                        </div>
                     </div>
-                    <p class="release-date">📅 November 9, 2025</p>
-                    <p>This build introduces major graphics system enhancements with full CPU-based graphics acceleration. The graphics subsystem now supports multiple video modes, advanced drawing primitives, higher resolutions, and 32-bit color depth.</p>
-                    <div class="entry-footer">
-                        <a href="news/build-0.0.0.1400.html" class="read-more">Read Full Changelog →</a>
+                    <div class="entry-meta">
+                        <span class="release-date-modern">📅 November 10, 2025</span>
+                        <span class="release-size">📦 4.88MB</span>
                     </div>
-                </div>
-            </div>
-
-            <!-- Previous Releases - Two Column Grid -->
-            <div class="previous-releases">
-                <div class="changelog-entry">
-                    <div class="entry-header">
-                        <h3><a href="news/build-0.0.0.1350.html">🚀 Build 0.0.0.1350 Released!</a></h3>
-                        <span class="release-badge older">Previous</span>
-                    </div>
-                    <p class="release-date">📅 November 5, 2025</p>
-                    <p>New build scripts and project cleanup with enhanced development tools.</p>
-                    <div class="entry-footer">
-                        <a href="news/build-0.0.0.1350.html" class="read-more">Read Full Changelog →</a>
-                    </div>
-                </div>
-
-                <div class="changelog-entry">
-                    <div class="entry-header">
-                        <h3><a href="news/build-0.0.0.1200.html">📋 Build 0.0.0.1200 Released!</a></h3>
-                        <span class="release-badge older">Previous</span>
-                    </div>
-                    <p class="release-date">📅 November 1, 2025</p>
-                    <p>Initial release with custom x64 kernel implementation, Docker-based build system, and VMware support.</p>
-                    <div class="entry-footer">
-                        <a href="news/build-0.0.0.1200.html" class="read-more">Read Full Changelog →</a>
+                    <p class="entry-description">This build focuses on improving the development experience by updating QEMU configuration and adding educational resources for developers. Enhanced batch scripts with explicit executable paths for seamless Windows integration.</p>
+                    <div class="entry-footer-modern">
+                        <a href="news/build-0.0.0.1420.html" class="read-more-modern">Read Full Changelog →</a>
                     </div>
                 </div>
             </div>
 
-            <!-- Older Releases -->
-            <div class="previous-releases">
-                <div class="changelog-entry">
-                    <div class="entry-header">
-                        <h3><a href="news/build-0.0.0.1130a.html">🎨 Build 0.0.0.1130a Released!</a></h3>
-                        <span class="release-badge older">Graphics Update</span>
+            <!-- Previous Releases - Grid Layout -->
+            <div class="releases-grid">
+                <div class="changelog-entry-modern">
+                    <div class="entry-header-modern">
+                        <div class="entry-icon">🎨</div>
+                        <div class="entry-content">
+                            <h4><a href="news/build-0.0.0.1400.html">Build 0.0.0.1400</a></h4>
+                            <span class="release-badge-modern older">Previous</span>
+                        </div>
                     </div>
-                    <p class="release-date">📅 October 28, 2025</p>
-                    <p>Major graphics system refactor with framebuffer integration, moving away from legacy VGA mode for higher resolutions and modern color depths.</p>
-                    <div class="entry-footer">
-                        <a href="news/build-0.0.0.1130a.html" class="read-more">Read Full Changelog →</a>
+                    <div class="entry-meta">
+                        <span class="release-date-modern">📅 November 9, 2025</span>
+                        <span class="release-size">📦 4.88MB</span>
+                    </div>
+                    <p class="entry-description">Major graphics system overhaul with full CPU acceleration, multiple resolutions, and 32-bit color depth support.</p>
+                    <div class="entry-footer-modern">
+                        <a href="news/build-0.0.0.1400.html" class="read-more-modern">Read Changelog →</a>
+                    </div>
+                </div>
+
+                <div class="changelog-entry-modern">
+                    <div class="entry-header-modern">
+                        <div class="entry-icon">🚀</div>
+                        <div class="entry-content">
+                            <h4><a href="news/build-0.0.0.1350.html">Build 0.0.0.1350</a></h4>
+                            <span class="release-badge-modern older">Previous</span>
+                        </div>
+                    </div>
+                    <div class="entry-meta">
+                        <span class="release-date-modern">📅 November 5, 2025</span>
+                        <span class="release-size">📦 4.86MB</span>
+                    </div>
+                    <p class="entry-description">New build scripts and project cleanup with enhanced development tools.</p>
+                    <div class="entry-footer-modern">
+                        <a href="news/build-0.0.0.1350.html" class="read-more-modern">Read Changelog →</a>
+                    </div>
+                </div>
+
+                <div class="changelog-entry-modern">
+                    <div class="entry-header-modern">
+                        <div class="entry-icon">📋</div>
+                        <div class="entry-content">
+                            <h4><a href="news/build-0.0.0.1200.html">Build 0.0.0.1200</a></h4>
+                            <span class="release-badge-modern older">Previous</span>
+                        </div>
+                    </div>
+                    <div class="entry-meta">
+                        <span class="release-date-modern">📅 November 1, 2025</span>
+                        <span class="release-size">📦 4.84MB</span>
+                    </div>
+                    <p class="entry-description">Initial release with custom x64 kernel implementation, Docker-based build system, and VMware support.</p>
+                    <div class="entry-footer-modern">
+                        <a href="news/build-0.0.0.1200.html" class="read-more-modern">Read Changelog →</a>
+                    </div>
+                </div>
+
+                <div class="changelog-entry-modern">
+                    <div class="entry-header-modern">
+                        <div class="entry-icon">🎨</div>
+                        <div class="entry-content">
+                            <h4><a href="news/build-0.0.0.1130a.html">Build 0.0.0.1130a</a></h4>
+                            <span class="release-badge-modern older">Graphics Update</span>
+                        </div>
+                    </div>
+                    <div class="entry-meta">
+                        <span class="release-date-modern">📅 October 28, 2025</span>
+                        <span class="release-size">📦 8.1MB</span>
+                    </div>
+                    <p class="entry-description">Major graphics system refactor with framebuffer integration, moving away from legacy VGA mode for higher resolutions and modern color depths.</p>
+                    <div class="entry-footer-modern">
+                        <a href="news/build-0.0.0.1130a.html" class="read-more-modern">Read Changelog →</a>
                     </div>
                 </div>
             </div>
 
             <!-- Coming Soon Section -->
-            <div class="coming-soon">
-                <h3>🔮 More Updates Coming Soon</h3>
+            <div class="coming-soon-modern">
+                <div class="coming-soon-icon">🔮</div>
+                <h3>More Updates Coming Soon</h3>
                 <p>Stay tuned for more exciting developments in the GamerOS project! Next up: UI scaling for higher resolutions, GPU acceleration, and 3D graphics pipeline.</p>
+                <div class="coming-soon-features">
+                    <span class="feature-tag">🎯 Memory Management</span>
+                    <span class="feature-tag">💾 File System</span>
+                    <span class="feature-tag">🌐 Networking</span>
+                    <span class="feature-tag">🎮 Gaming Framework</span>
+                </div>
             </div>
         </section>
     </main>
 
     <footer>
+        <div class="footer-particles">
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+        </div>
         <div class="footer-content">
             <div class="footer-section">
                 <h3>GamerOS</h3>
@@ -123,22 +205,13 @@
             <div class="footer-section">
                 <h4>Resources</h4>
                 <ul>
-                    <li><a href="news/build-0.0.0.1400.html">Latest Changelog</a></li>
+                    <li><a href="news/build-0.0.0.1420.html">Latest Changelog</a></li>
                     <li><a href="https://github.com/urmoit/GamerOS/blob/main/README.md" target="_blank">Documentation</a></li>
                     <li><a href="https://github.com/urmoit/GamerOS/issues" target="_blank">Report Issues</a></li>
                     <li><a href="https://github.com/urmoit/GamerOS/blob/main/LICENSE" target="_blank">License</a></li>
                 </ul>
             </div>
 
-            <div class="footer-section">
-                <h4>Project Info</h4>
-                <ul>
-                    <li><strong>Version:</strong> 0.0.0.1400</li>
-                    <li><strong>Architecture:</strong> x86_64</li>
-                    <li><strong>Language:</strong> C & Assembly</li>
-                    <li><strong>License:</strong> MIT</li>
-                </ul>
-            </div>
         </div>
 
         <div class="footer-bottom">

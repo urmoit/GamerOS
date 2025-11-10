@@ -25,50 +25,194 @@
     </header>
 
     <main>
-        <section class="all-versions-hero">
-            <h1>All GamerOS Versions</h1>
-            <p class="versions-subtitle">Complete archive of all releases and development builds</p>
+        <section class="all-versions-hero modern">
+            <div class="hero-background">
+                <div class="hero-particles">
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                </div>
+            </div>
+            <div class="hero-content-modern">
+                <div class="hero-icon">📁</div>
+                <h1>All GamerOS Versions</h1>
+                <p class="versions-subtitle">Complete archive of all releases and development builds</p>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">5</span>
+                        <span class="stat-label">Total Builds</span>
+                    </div>
+                </div>
+            </div>
         </section>
 
-        <section id="versions-archive">
-            <div class="versions-intro">
-                <p>Access all previous versions of GamerOS. While we recommend using the latest release for the best experience, older versions are available for testing, development, or historical purposes.</p>
+        <section id="versions-archive" class="versions-archive-modern">
+            <div class="versions-intro-modern">
+                <div class="intro-content">
+                    <div class="intro-icon">💿</div>
+                    <h2>Version Archive</h2>
+                    <p>Access all previous versions of GamerOS. While we recommend using the latest release for the best experience, older versions are available for testing, development, or historical purposes.</p>
+                </div>
             </div>
 
-            <div class="versions-list">
-                <div class="version-entry">
-                    <div class="version-header">
-                        <h3>🎨 Build 0.0.0.1130a</h3>
-                        <span class="version-badge older">Graphics Update</span>
+            <div class="archive-grid">
+                <div class="archive-item latest">
+                    <div class="item-header">
+                        <div class="file-icon-large">💿</div>
+                        <div class="file-info">
+                            <h3>GamerOS_Build_0.0.0.1420.iso</h3>
+                            <span class="file-badge latest">Latest Release</span>
+                        </div>
                     </div>
-                    <div class="version-meta">
-                        <span class="release-date">📅 October 28, 2025</span>
-                        <span class="file-size">💾 ~2MB</span>
+                    <div class="item-meta">
+                        <span class="meta-item">📅 November 10, 2025</span>
+                        <span class="meta-item">📦 4.88MB</span>
+                        <span class="meta-item">🏷️ Development Tools</span>
                     </div>
-                    <p class="version-description">Graphics system refactor with framebuffer integration for higher resolutions and modern color depths.</p>
-                    <div class="version-actions">
-                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1130a/GamerOS_Build_0.0.0.1130a.iso" class="download-btn secondary">
-                            <span class="btn-icon">⬇️</span>
-                            Download ISO
-                        </a>
-                        <a href="news/build-0.0.0.1130a.html" class="release-notes-btn">
+                    <p class="item-description">Development experience improvements with updated QEMU configuration and educational resources for developers.</p>
+                    <div class="item-actions">
+                        <a href="news/build-0.0.0.1420.html" class="action-btn primary">
                             <span class="btn-icon">📋</span>
-                            Release Notes
+                            Changelog
+                        </a>
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1420/GamerOS_Build_0.0.0.1420.iso" class="action-btn secondary">
+                            <span class="btn-icon">⬇️</span>
+                            Download
                         </a>
                     </div>
                 </div>
 
-                <!-- Future versions can be added here -->
-                <div class="no-more-versions">
-                    <h3>📚 Version Archive</h3>
-                    <p>This page will be updated as new versions are released. Check back later for more historical builds!</p>
-                    <a href="download.html" class="back-to-downloads">← Back to Downloads</a>
+                <div class="archive-item">
+                    <div class="item-header">
+                        <div class="file-icon-large">💿</div>
+                        <div class="file-info">
+                            <h3>GamerOS_Build_0.0.0.1400.iso</h3>
+                            <span class="file-badge older">Previous</span>
+                        </div>
+                    </div>
+                    <div class="item-meta">
+                        <span class="meta-item">📅 November 9, 2025</span>
+                        <span class="meta-item">📦 4.88MB</span>
+                        <span class="meta-item">🏷️ Graphics Update</span>
+                    </div>
+                    <p class="item-description">Major graphics system overhaul with full CPU acceleration, multiple resolutions, and 32-bit color depth support.</p>
+                    <div class="item-actions">
+                        <a href="news/build-0.0.0.1400.html" class="action-btn primary">
+                            <span class="btn-icon">📋</span>
+                            Changelog
+                        </a>
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1400/GamerOS_Build_0.0.0.1400.iso" class="action-btn secondary">
+                            <span class="btn-icon">⬇️</span>
+                            Download
+                        </a>
+                    </div>
                 </div>
+
+                <div class="archive-item">
+                    <div class="item-header">
+                        <div class="file-icon-large">💿</div>
+                        <div class="file-info">
+                            <h3>GamerOS_Build_0.0.0.1350.iso</h3>
+                            <span class="file-badge older">Previous</span>
+                        </div>
+                    </div>
+                    <div class="item-meta">
+                        <span class="meta-item">📅 November 5, 2025</span>
+                        <span class="meta-item">📦 4.86MB</span>
+                        <span class="meta-item">🏷️ Build Tools</span>
+                    </div>
+                    <p class="item-description">New build scripts and project cleanup with enhanced development tools.</p>
+                    <div class="item-actions">
+                        <a href="news/build-0.0.0.1350.html" class="action-btn primary">
+                            <span class="btn-icon">📋</span>
+                            Changelog
+                        </a>
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1350/GamerOS_Build_0.0.0.1350.iso" class="action-btn secondary">
+                            <span class="btn-icon">⬇️</span>
+                            Download
+                        </a>
+                    </div>
+                </div>
+
+                <div class="archive-item">
+                    <div class="item-header">
+                        <div class="file-icon-large">💿</div>
+                        <div class="file-info">
+                            <h3>GamerOS_Build_0.0.0.1200.iso</h3>
+                            <span class="file-badge older">Previous</span>
+                        </div>
+                    </div>
+                    <div class="item-meta">
+                        <span class="meta-item">📅 November 1, 2025</span>
+                        <span class="meta-item">📦 4.84MB</span>
+                        <span class="meta-item">🏷️ Initial Release</span>
+                    </div>
+                    <p class="item-description">Initial release with custom x64 kernel implementation, Docker-based build system, and VMware support.</p>
+                    <div class="item-actions">
+                        <a href="news/build-0.0.0.1200.html" class="action-btn primary">
+                            <span class="btn-icon">📋</span>
+                            Changelog
+                        </a>
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1200/GamerOS_Build_0.0.0.1200.iso" class="action-btn secondary">
+                            <span class="btn-icon">⬇️</span>
+                            Download
+                        </a>
+                    </div>
+                </div>
+
+                <div class="archive-item">
+                    <div class="item-header">
+                        <div class="file-icon-large">💿</div>
+                        <div class="file-info">
+                            <h3>GamerOS_Build_0.0.0.1130a.iso</h3>
+                            <span class="file-badge older">Previous</span>
+                        </div>
+                    </div>
+                    <div class="item-meta">
+                        <span class="meta-item">📅 October 28, 2025</span>
+                        <span class="meta-item">📦 8.1MB</span>
+                        <span class="meta-item">🏷️ Graphics Update</span>
+                    </div>
+                    <p class="item-description">Major graphics system refactor with framebuffer integration, moving away from legacy VGA mode for higher resolutions and modern color depths.</p>
+                    <div class="item-actions">
+                        <a href="news/build-0.0.0.1130a.html" class="action-btn primary">
+                            <span class="btn-icon">📋</span>
+                            Changelog
+                        </a>
+                        <a href="https://github.com/urmoit/GamerOS/releases/download/0.0.0.1130a/GamerOS_Build_0.0.0.1130a.iso" class="action-btn secondary">
+                            <span class="btn-icon">⬇️</span>
+                            Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Archive Notice -->
+            <div class="archive-notice-modern">
+                <div class="notice-icon">📚</div>
+                <h3>Complete Version Archive</h3>
+                <p>This archive contains all historical GamerOS releases. For the latest version, visit the downloads page.</p>
+                <a href="download.html" class="back-to-downloads-modern">
+                    <span class="btn-icon">⬅️</span>
+                    Back to Downloads
+                </a>
             </div>
         </section>
     </main>
 
     <footer>
+        <div class="footer-particles">
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+            <div class="footer-particle"></div>
+        </div>
         <div class="footer-content">
             <div class="footer-section">
                 <h3>GamerOS</h3>
@@ -102,15 +246,6 @@
                 </ul>
             </div>
 
-            <div class="footer-section">
-                <h4>Project Info</h4>
-                <ul>
-                    <li><strong>Version:</strong> 0.0.0.1350</li>
-                    <li><strong>Architecture:</strong> x86_64</li>
-                    <li><strong>Language:</strong> C & Assembly</li>
-                    <li><strong>License:</strong> MIT</li>
-                </ul>
-            </div>
         </div>
 
         <div class="footer-bottom">

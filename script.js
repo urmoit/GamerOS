@@ -80,8 +80,8 @@ function initScrollEffects() {
 }
 
 function initHoverEffects() {
-    // 3D tilt effect for cards
-    const cards = document.querySelectorAll('.feature-card, .changelog-entry, .version-entry');
+    // 3D tilt effect for cards (reduced intensity for better UX)
+    const cards = document.querySelectorAll('.feature-card, .changelog-entry, .version-entry, .changelog-entry-modern');
     cards.forEach(card => {
         card.addEventListener('mousemove', function(e) {
             const rect = this.getBoundingClientRect();
@@ -91,10 +91,11 @@ function initHoverEffects() {
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
 
-            const rotateX = (y - centerY) / 10;
-            const rotateY = (centerX - x) / 10;
+            // Reduced tilt intensity for better user experience
+            const rotateX = (y - centerY) / 20; // Changed from /10 to /20
+            const rotateY = (centerX - x) / 20; // Changed from /10 to /20
 
-            this.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(10px)`;
+            this.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(5px)`;
         });
 
         card.addEventListener('mouseleave', function() {
@@ -225,13 +226,19 @@ document.addEventListener('mousemove', function(e) {
         cursor.style.top = e.clientY + 'px';
     }
 
-    // Update mouse trail
-    mouseTrail.forEach((trail, index) => {
-        setTimeout(() => {
-            trail.style.left = e.clientX + 'px';
-            trail.style.top = e.clientY + 'px';
-        }, index * 50);
-    });
+    // Update mouse trail only if not in corner areas
+    const cornerThreshold = 50; // pixels from edge
+    const isInCorner = e.clientX < cornerThreshold || e.clientX > window.innerWidth - cornerThreshold ||
+                      e.clientY < cornerThreshold || e.clientY > window.innerHeight - cornerThreshold;
+
+    if (!isInCorner) {
+        mouseTrail.forEach((trail, index) => {
+            setTimeout(() => {
+                trail.style.left = e.clientX + 'px';
+                trail.style.top = e.clientY + 'px';
+            }, index * 50);
+        });
+    }
 });
 
 // Roadmap functionality
