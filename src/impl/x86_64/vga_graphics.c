@@ -1,5 +1,6 @@
 #include "../../intf/graphics.h"
 #include "../../intf/ui.h"
+#include "../../intf/font.h"
 
 // Global video mode state
 uint32_t current_vga_width = VGA_WIDTH;
@@ -171,7 +172,13 @@ void vga_set_pixel(uint32_t x, uint32_t y, uint32_t color) {
 
     uint32_t offset = y * current_vga_width + x;
 
-    // Handle different color depths and video modes
+    // For VGA mode 13h (320x200x256), always use 8-bit palette mode
+    if (current_vga_mode == VGA_MODE_13H) {
+        ((uint8_t*)vga_framebuffer)[offset] = (uint8_t)color;
+        return;
+    }
+
+    // Handle other modes with different color depths
     switch (current_color_depth) {
         case COLOR_DEPTH_8BIT:
             // 8-bit palette mode
@@ -485,19 +492,12 @@ void vga_fast_clear(uint8_t color) {
 }
 
 // Basic bitmap font rendering (8x8 characters)
-static const uint8_t font_8x8[128][8] = {
-    // Space (32)
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-    // Exclamation mark (33)
-    {0x18, 0x18, 0x18, 0x18, 0x18, 0x00, 0x18, 0x00},
-    // And so on... (simplified for demonstration)
-    // This would need the full ASCII character set
-};
+// Font data is now in font.c and included via font.h
 
 void vga_draw_char(uint32_t x, uint32_t y, char c, uint8_t color) {
     if (c < 32 || c > 127) return; // Only printable ASCII
 
-    const uint8_t* char_bitmap = font_8x8[(uint8_t)c];
+    const uint8_t* char_bitmap = font_8x8[(uint8_t)c - 32];
 
     for (uint32_t row = 0; row < 8; row++) {
         uint8_t row_data = char_bitmap[row];

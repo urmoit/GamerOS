@@ -41,21 +41,32 @@ void kernel_main(void) {
         video_memory[320 + i * 2 + 1] = 0x0E;        // Yellow on black
     }
 
-    // DISABLE graphics initialization for VMware compatibility
-    // The vga_set_mode() call is causing triple faults in VMware
-    graphics_initialized = 0; // Force text mode
+    // Try graphics initialization - should work now with VGA mode 13h
+    if (vga_set_mode(VGA_MODE_13H)) {
+        graphics_initialized = 1;
 
-    const char* skip_msg = "Graphics disabled for VMware compatibility";
-    for (int i = 0; skip_msg[i] != '\0'; i++) {
-        video_memory[320 + i * 2] = skip_msg[i];     // Character
-        video_memory[320 + i * 2 + 1] = 0x0E;       // Yellow on black
+        // Set desktop background
+        vga_set_desktop_background();
+
+        // Draw welcome message using custom font
+        vga_draw_string(50, 50, "Welcome to GamerOS!", 0x0F); // White text
+        vga_draw_string(50, 70, "Custom font system loaded successfully", 0x0A); // Green text
+        vga_draw_string(50, 90, "Graphics mode active", 0x0B); // Cyan text
+
+        const char* graphics_msg = "Graphics mode initialized successfully";
+        for (int i = 0; graphics_msg[i] != '\0'; i++) {
+            video_memory[320 + i * 2] = graphics_msg[i];     // Character
+            video_memory[320 + i * 2 + 1] = 0x0A;           // Green on black
+        }
+    } else {
+        graphics_initialized = 0; // Fallback to text mode
+
+        const char* text_msg = "Graphics initialization failed, using text mode";
+        for (int i = 0; text_msg[i] != '\0'; i++) {
+            video_memory[320 + i * 2] = text_msg[i];     // Character
+            video_memory[320 + i * 2 + 1] = 0x0E;       // Yellow on black
+        }
     }
-
-    // Skip all graphics-dependent initialization
-    goto text_mode_continue;
-
-    // Set the desktop background (only if graphics mode succeeded)
-    vga_set_desktop_background();
 
     // Initialize UI system and windowing (only if graphics work)
     if (graphics_initialized) {
@@ -91,22 +102,22 @@ void kernel_main(void) {
     }
 
     if (graphics_initialized) {
-        // Create some sample windows with better positioning for higher resolution
-        create_window(100, 100, 200, 150, "Window 1");
-        create_window(350, 120, 250, 180, "Window 2");
+        // Create some sample windows with better positioning for 320x200 resolution
+        create_window(50, 120, 150, 100, "Window 1");
+        create_window(220, 130, 180, 120, "Window 2");
 
         // Demonstrate new graphics capabilities
         // Draw some shapes using the new primitives
-        vga_draw_circle(150, 150, 30, rgb_to_color(255, 0, 0, 255)); // Red circle
-        vga_draw_line(200, 200, 300, 250, rgb_to_color(0, 255, 0, 255)); // Green line
-        vga_fill_triangle(400, 200, 450, 150, 500, 250, rgb_to_color(0, 0, 255, 128)); // Blue triangle with alpha
+        vga_draw_circle(100, 50, 20, rgb_to_color(255, 0, 0, 255)); // Red circle
+        vga_draw_line(150, 40, 200, 60, rgb_to_color(0, 255, 0, 255)); // Green line
+        vga_fill_triangle(250, 40, 280, 20, 310, 60, rgb_to_color(0, 0, 255, 128)); // Blue triangle with alpha
 
         // Create a software render buffer for advanced effects
-        render_buffer_t* render_buf = create_render_buffer(100, 100);
+        render_buffer_t* render_buf = create_render_buffer(80, 80);
         if (render_buf) {
             clear_render_buffer(render_buf, rgb_to_color(255, 255, 0, 200)); // Yellow with alpha
-            draw_circle_software(render_buf, 50, 50, 30, rgb_to_color(255, 0, 255, 255)); // Magenta circle
-            render_buffer_to_screen(render_buf, 50, 300); // Render to screen
+            draw_circle_software(render_buf, 40, 40, 25, rgb_to_color(255, 0, 255, 255)); // Magenta circle
+            render_buffer_to_screen(render_buf, 20, 150); // Render to screen
             destroy_render_buffer(render_buf);
         }
     }

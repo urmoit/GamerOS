@@ -11,6 +11,7 @@ ASM_SRC = $(SRC_DIR)/impl/x86_64/boot.asm \
         $(SRC_DIR)/impl/x86_64/context_switch.asm
 C_SRC = $(SRC_DIR)/impl/kernel/main.c \
         $(SRC_DIR)/impl/x86_64/vga_graphics.c \
+        $(SRC_DIR)/impl/x86_64/font.c \
         $(SRC_DIR)/impl/x86_64/ui.c \
         $(SRC_DIR)/impl/x86_64/rtc.c \
         $(SRC_DIR)/impl/x86_64/window.c \
@@ -27,6 +28,7 @@ ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o \
         $(BUILD_DIR)/$(ARCH)/context_switch.o
 C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
+        $(BUILD_DIR)/$(ARCH)/font.o \
         $(BUILD_DIR)/$(ARCH)/ui.o \
         $(BUILD_DIR)/$(ARCH)/rtc.o \
         $(BUILD_DIR)/$(ARCH)/window.o \
@@ -79,6 +81,9 @@ $(BUILD_DIR)/$(ARCH)/main.o: $(SRC_DIR)/impl/kernel/main.c | $(BUILD_DIR)/$(ARCH
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/impl/x86_64/vga_graphics.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/font.o: $(SRC_DIR)/impl/x86_64/font.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/ui.o: $(SRC_DIR)/impl/x86_64/ui.c | $(BUILD_DIR)/$(ARCH)
