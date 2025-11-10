@@ -91,14 +91,6 @@ The latest ISO file can always be found in the `dist/x86_64` folder.
 *   **Build Environment:** Portable Makefile and Docker-based build environment for easy setup.
 *   **Emulation:** QEMU virtualization for easy testing and development.
 
-## Roadmap
-
-*   [ ] Implement a proper memory manager.
-*   [ ] Develop a file system.
-*   [ ] Add more UI features and improve the desktop experience.
-*   [ ] Networking stack.
-*   [ ] Sound support.
-
 See the [open issues](https://github.com/chosentechies/GamerOS/issues) for a full list of proposed features (and known issues).
 
 ## License
