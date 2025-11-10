@@ -14,8 +14,8 @@ void get_time(uint8_t* hour, uint8_t* minute, uint8_t* second) {
     *minute = read_rtc_register(0x02);
     *hour = read_rtc_register(0x04);
 
-    // Convert BCD to binary
-    *second = (*second & 0x0F) + ((*second / 16) * 10);
-    *minute = (*minute & 0x0F) + ((*minute / 16) * 10);
-    *hour = ((*hour & 0x0F) + (((*hour & 0x70) / 16) * 10)) | (*hour & 0x80);
+    // Convert BCD to binary (proper implementation)
+    *second = ((*second & 0xF0) >> 4) * 10 + (*second & 0x0F);
+    *minute = ((*minute & 0xF0) >> 4) * 10 + (*minute & 0x0F);
+    *hour = (((*hour & 0x70) >> 4) * 10 + (*hour & 0x0F)) | (*hour & 0x80); // Preserve 12/24 hour bit
 }

@@ -1,6 +1,7 @@
 #include "../../intf/graphics.h"
 #include "../../intf/ui.h"
 #include "../../intf/font.h"
+#include "../../intf/ports.h"
 
 // Global video mode state
 uint32_t current_vga_width = VGA_WIDTH;
@@ -10,13 +11,13 @@ vga_mode_t current_vga_mode = VGA_MODE_13H;
 int graphics_initialized = 0; // Track if graphics mode was successfully initialized
 
 // VGA framebuffers for different modes
-static uint8_t* vga_framebuffer_13h = (uint8_t*)0xA0000;  // Mode 13h: 320x200
-static uint8_t* vga_framebuffer_12h = (uint8_t*)0xA0000;  // Mode 12h: 640x480 (planar)
-static uint8_t* vga_framebuffer_101h = (uint8_t*)0xA0000; // Mode 101h: 640x480
-static uint8_t* vga_framebuffer_103h = (uint8_t*)0xA0000; // Mode 103h: 800x600
+static uint8_t* vga_framebuffer_13h = (uint8_t*)VGA_GRAPHICS_BUFFER;  // Mode 13h: 320x200
+static uint8_t* vga_framebuffer_12h = (uint8_t*)VGA_GRAPHICS_BUFFER;  // Mode 12h: 640x480 (planar)
+static uint8_t* vga_framebuffer_101h = (uint8_t*)VGA_GRAPHICS_BUFFER; // Mode 101h: 640x480
+static uint8_t* vga_framebuffer_103h = (uint8_t*)VGA_GRAPHICS_BUFFER; // Mode 103h: 800x600
 
 // Current active framebuffer
-static uint8_t* vga_framebuffer = (uint8_t*)0xA0000;
+static uint8_t* vga_framebuffer = (uint8_t*)VGA_GRAPHICS_BUFFER;
 
 void vga_init_mode13(void) {
     // VGA mode 13h is already set in boot.asm before entering long mode
@@ -128,7 +129,7 @@ void vga_set_pixel(uint32_t x, uint32_t y, uint32_t color) {
     uint32_t offset = y * current_vga_width + x;
 
     // For VGA mode 13h (320x200x256), always use 8-bit palette mode
-    if (current_vga_mode == VGA_MODE_13H) {
+    if (current_vga_mode == VGA_MODE_13H || current_color_depth == COLOR_DEPTH_8BIT) {
         ((uint8_t*)vga_framebuffer)[offset] = (uint8_t)color;
         return;
     }
@@ -660,7 +661,10 @@ void fill_rect_software(render_buffer_t* buffer, int32_t x, int32_t y, uint32_t 
 
     for (int32_t py = start_y; py < end_y; py++) {
         for (int32_t px = start_x; px < end_x; px++) {
-            buffer->pixels[py * buffer->width + px] = color;
+            uint32_t index = (uint32_t)py * buffer->width + (uint32_t)px;
+            if (index < buffer->width * buffer->height) {
+                buffer->pixels[index] = color;
+            }
         }
     }
 }

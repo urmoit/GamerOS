@@ -3,11 +3,12 @@
 #include "../../intf/ports.h"
 
 #define IDT_ENTRIES 256
+#define IDT_BASE_ADDRESS 0x0
 
 idt_entry_t idt[IDT_ENTRIES];
 idt_ptr_t idt_ptr;
 
-extern void idt_load(uint32_t);
+extern void idt_load(uint64_t);
 
 // Interrupt service routines (ISRs) - defined in assembly
 extern void isr0();
@@ -73,7 +74,7 @@ void set_idt_entry(int n, uint64_t handler) {
 
 void idt_init() {
     idt_ptr.limit = (sizeof(idt_entry_t) * IDT_ENTRIES) - 1;
-    idt_ptr.base = (uint32_t)&idt;
+    idt_ptr.base = (uint64_t)&idt;
 
     // Clear out the IDT
     for (int i = 0; i < IDT_ENTRIES; i++) {
@@ -144,5 +145,5 @@ void idt_init() {
     set_idt_entry(46, (uint64_t)irq14); // IRQ14: Primary ATA
     set_idt_entry(47, (uint64_t)irq15); // IRQ15: Secondary ATA
 
-    idt_load((uint32_t)&idt_ptr);
+    idt_load((uint64_t)&idt_ptr);
 }

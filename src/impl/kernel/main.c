@@ -9,26 +9,39 @@
 #include "../../intf/scheduler.h"
 #include "../../intf/keyboard.h"
 #include "../../intf/mouse.h"
+#include "../../intf/ports.h"
 
 
 void process1_entry() {
+    int counter = 0;
     for(;;) {
-        // Process 1 does something
-        for (int i = 0; i < 1000000; i++) { __asm__("nop"); }
+        // Process 1: Simple counter task
+        counter++;
+        if (counter % 100000 == 0) {
+            // Yield control to other processes periodically
+            __asm__("int $32"); // Software interrupt to trigger scheduler
+        }
+        __asm__("nop");
     }
 }
 
 void process2_entry() {
+    int counter = 0;
     for(;;) {
-        // Process 2 does something else
-        for (int i = 0; i < 1000000; i++) { __asm__("nop"); }
+        // Process 2: Different counter task
+        counter--;
+        if (counter % 150000 == 0) {
+            // Yield control to other processes periodically
+            __asm__("int $32"); // Software interrupt to trigger scheduler
+        }
+        __asm__("nop");
     }
 }
 
 void kernel_main(void) {
     // Print that we reached kernel_main
     const char* msg = "Kernel main reached!";
-    char* video_memory = (char*)0xB8000;
+    char* video_memory = (char*)VGA_TEXT_BUFFER;
     for (int i = 0; msg[i] != '\0'; i++) {
         video_memory[160 + i * 2] = msg[i];     // Character
         video_memory[160 + i * 2 + 1] = 0x0A;  // Green on black

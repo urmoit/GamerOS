@@ -101,7 +101,7 @@ typedef struct {
 // Common ISR handler
 void common_isr_handler(registers_t regs) {
     // Print exception message to screen
-    char* video_memory = (char*)0xB8000;
+    char* video_memory = (char*)VGA_TEXT_BUFFER;
     const char* msg = "Exception: ";
     int i = 0;
     for (; msg[i] != '\0'; i++) {
@@ -133,6 +133,23 @@ void common_irq_handler(registers_t regs) {
     // Send reset signal to master PIC
     outb(0x20, 0x20);
 
-    // Handle specific IRQs here if needed
-    // For now, just return
+    // Handle specific IRQs
+    switch (regs.int_no) {
+        case 32: // Timer interrupt - trigger scheduler
+            // This is our software interrupt for yielding
+            extern void schedule();
+            schedule();
+            break;
+        case 33: // Keyboard interrupt
+            extern void keyboard_handler();
+            keyboard_handler();
+            break;
+        case 44: // Mouse interrupt
+            extern void mouse_handler();
+            mouse_handler();
+            break;
+        // Other IRQs can be handled here as needed
+        default:
+            break;
+    }
 }

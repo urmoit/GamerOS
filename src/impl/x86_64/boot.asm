@@ -20,6 +20,9 @@ bits 32
 
 %include "src/impl/x86_64/font.inc"
 
+; Define constants for assembly
+VGA_GRAPHICS_BUFFER equ 0xA0000
+
 global _start
 _start:
     ; Set up stack
@@ -121,7 +124,7 @@ setup_page_tables:
     ; Page offset = 0 (bits 0-20)
 
     ; So we need to set p2_table[5] to point to physical 0xA0000 with huge page flags
-    mov eax, 0xA0000
+    mov eax, VGA_GRAPHICS_BUFFER
     or eax, 0b10000011 ; Present + Writable + Huge
     mov [p2_table + 5 * 8], eax
 
@@ -183,7 +186,7 @@ start_64:
 
     ; Always use graphics mode for text rendering with custom font
     ; Clear screen to white background
-    mov rdi, 0xA0000
+    mov rdi, VGA_GRAPHICS_BUFFER
     mov rcx, 320*200  ; VGA mode 13h is 320x200
     mov al, 0x0F      ; White color
     rep stosb
@@ -315,7 +318,7 @@ draw_char_graphics:
     mov rbx, 320    ; VGA mode 13h width
     mul rbx
     add rax, rdi
-    add rax, 0xA0000  ; Framebuffer base
+    add rax, VGA_GRAPHICS_BUFFER  ; Framebuffer base
 
     mov byte [rax], 0x00  ; Black text (for now)
 

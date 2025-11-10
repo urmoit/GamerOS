@@ -59,7 +59,7 @@ void create_process(void (*entry_point)()) {
 }
 
 void schedule() {
-    if (current_process == -1) return;
+    if (current_process == -1 || next_pid <= 1) return;
 
     int next_proc = current_process;
     do {

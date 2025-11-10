@@ -93,15 +93,17 @@ void mouse_handler() {
 }
 
 void mouse_init() {
-    uint8_t _status;
+    uint8_t status_byte;
 
     // Enable the auxiliary mouse device
     mouse_wait(1);
     outb(MOUSE_STATUS, MOUSE_PS2);
+    mouse_read(); // Acknowledge
 
     // Enable the mouse interrupt
     mouse_wait(1);
     outb(MOUSE_STATUS, MOUSE_ENABLE);
+    mouse_read(); // Acknowledge
 
     // Set default settings
     mouse_write(MOUSE_DEFAULT);
