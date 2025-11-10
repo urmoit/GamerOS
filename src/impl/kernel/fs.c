@@ -36,7 +36,7 @@ file_t* fs_open_file(const char* name) {
 }
 
 void fs_write_file(file_t* file, const uint8_t* data, uint32_t size) {
-    if (!file || !file->in_use || size > MAX_FILE_SIZE) return;
+    if (!file || !file->in_use || size >= MAX_FILE_SIZE) return;
     memcpy(file->data, data, size);
     file->size = size;
 }

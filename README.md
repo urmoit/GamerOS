@@ -67,6 +67,9 @@ Before you begin, ensure you have the following installed:
 
 **GamerOS** is a 64-bit hobby operating system built entirely from scratch, featuring a Windows 11-inspired desktop environment. Written in C and x86-64 Assembly, it provides direct hardware access and a modern graphical user interface.
 
+### 🐛 Bug Tracking
+- **[Current Bugs and Issues](currentbugs.md)** - Comprehensive list of all known bugs, errors, and issues with status tracking
+
 ### 🎯 Key Features
 
 - **Custom 64-bit Kernel** - No standard library dependencies

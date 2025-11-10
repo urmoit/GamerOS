@@ -216,6 +216,8 @@ void ui_draw_clock(void) {
     uint8_t hour, minute, second;
     get_time(&hour, &minute, &second);
 
+    // Handle 12/24 hour format - assume 24-hour for now
+    // In a real OS, this would be configurable
     char time_str[9];
     time_str[0] = (hour / 10) + '0';
     time_str[1] = (hour % 10) + '0';

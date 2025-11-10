@@ -19,18 +19,13 @@ static uint8_t* vga_framebuffer_103h = (uint8_t*)0xA0000; // Mode 103h: 800x600
 static uint8_t* vga_framebuffer = (uint8_t*)0xA0000;
 
 void vga_init_mode13(void) {
-    // Switch to VGA mode 13h (320x200x256)
-    __asm__ volatile (
-        "mov $0x13, %%ah\n"
-        "int $0x10\n"
-        :
-        :
-        : "ah"
-    );
+    // VGA mode 13h is already set in boot.asm before entering long mode
+    // Just configure our variables
     vga_framebuffer = vga_framebuffer_13h;
     current_vga_width = VGA_MODE_13H_WIDTH;
     current_vga_height = VGA_MODE_13H_HEIGHT;
     current_vga_mode = VGA_MODE_13H;
+    current_color_depth = COLOR_DEPTH_8BIT;
 }
 
 void vga_init_mode12h(void) {
@@ -49,91 +44,51 @@ void vga_init_mode12h(void) {
 }
 
 int vga_init_mode101h(void) {
-    // Check if VESA mode was already set up in real mode
+    // VESA modes cannot be set in long mode - BIOS interrupts don't work
+    // This function should only be called if VESA was set in boot.asm
     extern char vesa_success[];
     if (vesa_success[0]) {
-        // VESA mode already set, just configure our variables
-        vga_framebuffer = (uint8_t*)0xA0000; // Standard VGA location, but VESA LFB might be elsewhere
+        // VESA mode was set in real mode, configure for it
+        vga_framebuffer = (uint8_t*)0xA0000; // Assume standard location
         current_vga_width = VGA_MODE_101H_WIDTH;
         current_vga_height = VGA_MODE_101H_HEIGHT;
         current_vga_mode = VGA_MODE_101H;
+        current_color_depth = COLOR_DEPTH_8BIT;
         return 1; // Success - already set
     }
-
-    // Fallback: try BIOS call (may not work in long mode)
-    uint16_t result;
-    __asm__ volatile (
-        "mov $0x4F02, %%ax\n"
-        "mov $0x101, %%bx\n"
-        "int $0x10\n"
-        "mov %%ax, %0\n"
-        : "=r"(result)
-        :
-        : "ax", "bx"
-    );
-
-    // Check if VESA call succeeded (should return 0x004F on success)
-    if ((result & 0x00FF) != 0x4F) {
-        return 0; // Failed
-    }
-
-    vga_framebuffer = vga_framebuffer_101h;
-    current_vga_width = VGA_MODE_101H_WIDTH;
-    current_vga_height = VGA_MODE_101H_HEIGHT;
-    current_vga_mode = VGA_MODE_101H;
-    return 1; // Success
+    return 0; // Cannot set VESA mode in long mode
 }
 
 int vga_init_mode103h(void) {
-    // Switch to VESA mode 103h (800x600x256)
-    uint16_t result;
-    __asm__ volatile (
-        "mov $0x4F02, %%ax\n"
-        "mov $0x103, %%bx\n"
-        "int $0x10\n"
-        "mov %%ax, %0\n"
-        : "=r"(result)
-        :
-        : "ax", "bx"
-    );
-
-    // Check if VESA call succeeded (should return 0x004F on success)
-    if ((result & 0x00FF) != 0x4F) {
-        return 0; // Failed
+    // VESA modes cannot be set in long mode - BIOS interrupts don't work
+    // This function should only be called if VESA was set in boot.asm
+    extern char vesa_success[];
+    if (vesa_success[0]) {
+        // VESA mode was set in real mode, configure for it
+        vga_framebuffer = (uint8_t*)0xA0000; // Assume standard location
+        current_vga_width = VGA_MODE_103H_WIDTH;
+        current_vga_height = VGA_MODE_103H_HEIGHT;
+        current_vga_mode = VGA_MODE_103H;
+        current_color_depth = COLOR_DEPTH_8BIT;
+        return 1; // Success - already set
     }
-
-    vga_framebuffer = vga_framebuffer_103h;
-    current_vga_width = VGA_MODE_103H_WIDTH;
-    current_vga_height = VGA_MODE_103H_HEIGHT;
-    current_color_depth = COLOR_DEPTH_8BIT;
-    current_vga_mode = VGA_MODE_103H;
-    return 1; // Success
+    return 0; // Cannot set VESA mode in long mode
 }
 
 int vga_init_mode118h(void) {
-    // Switch to VESA mode 118h (1024x768x24)
-    uint16_t result;
-    __asm__ volatile (
-        "mov $0x4F02, %%ax\n"
-        "mov $0x118, %%bx\n"
-        "int $0x10\n"
-        "mov %%ax, %0\n"
-        : "=r"(result)
-        :
-        : "ax", "bx"
-    );
-
-    // Check if VESA call succeeded (should return 0x004F on success)
-    if ((result & 0x00FF) != 0x4F) {
-        return 0; // Failed
+    // VESA modes cannot be set in long mode - BIOS interrupts don't work
+    // This function should only be called if VESA was set in boot.asm
+    extern char vesa_success[];
+    if (vesa_success[0]) {
+        // VESA mode was set in real mode, configure for it
+        vga_framebuffer = (uint8_t*)0xA0000; // Assume standard location
+        current_vga_width = VGA_MODE_118H_WIDTH;
+        current_vga_height = VGA_MODE_118H_HEIGHT;
+        current_vga_mode = VGA_MODE_118H;
+        current_color_depth = COLOR_DEPTH_24BIT;
+        return 1; // Success - already set
     }
-
-    vga_framebuffer = vga_framebuffer_13h; // Will be set by VESA
-    current_vga_width = VGA_MODE_118H_WIDTH;
-    current_vga_height = VGA_MODE_118H_HEIGHT;
-    current_color_depth = COLOR_DEPTH_24BIT;
-    current_vga_mode = VGA_MODE_118H;
-    return 1; // Success
+    return 0; // Cannot set VESA mode in long mode
 }
 
 int vga_set_mode(vga_mode_t mode) {
@@ -527,9 +482,10 @@ void vga_draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color) {
 uint32_t rgb_to_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     switch (current_color_depth) {
         case COLOR_DEPTH_8BIT:
-            // Simple palette approximation - return closest palette index
-            // This is a very basic implementation
-            return ((r + g + b) / 3) % 256;
+            // Improved palette approximation using weighted average
+            // Standard luminance formula: 0.299*R + 0.587*G + 0.114*B
+            uint32_t luminance = (r * 299 + g * 587 + b * 114) / 1000;
+            return luminance % 256;
 
         case COLOR_DEPTH_16BIT:
             // 5:6:5 RGB
@@ -774,13 +730,15 @@ uint32_t blend_colors(uint32_t src, uint32_t dst) {
     uint8_t dst_g = (dst >> 8) & 0xFF;
     uint8_t dst_b = dst & 0xFF;
 
-    // Simple alpha blending
-    uint8_t out_a = src_a + dst_a * (255 - src_a) / 255;
-    uint8_t out_r = (src_r * src_a + dst_r * dst_a * (255 - src_a) / 255) / out_a;
-    uint8_t out_g = (src_g * src_a + dst_g * dst_a * (255 - src_a) / 255) / out_a;
-    uint8_t out_b = (src_b * src_a + dst_b * dst_a * (255 - src_a) / 255) / out_a;
+    // Proper alpha blending formula
+    uint32_t out_a = src_a + dst_a * (255 - src_a) / 255;
+    if (out_a == 0) return 0; // Avoid division by zero
 
-    return (out_a << 24) | (out_r << 16) | (out_g << 8) | out_b;
+    uint32_t out_r = (src_r * src_a + dst_r * dst_a * (255 - src_a) / 255) / out_a;
+    uint32_t out_g = (src_g * src_a + dst_g * dst_a * (255 - src_a) / 255) / out_a;
+    uint32_t out_b = (src_b * src_a + dst_b * dst_a * (255 - src_a) / 255) / out_a;
+
+    return ((uint8_t)out_a << 24) | ((uint8_t)out_r << 16) | ((uint8_t)out_g << 8) | (uint8_t)out_b;
 }
 
 // Graphics acceleration optimizations

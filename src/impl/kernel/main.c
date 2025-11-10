@@ -139,18 +139,17 @@ void kernel_main(void) {
     create_process(process1_entry);
     create_process(process2_entry);
 
-text_mode_continue:
-    // Only draw UI elements if graphics mode is available
-    if (graphics_initialized) {
-        // Draw header with tabs
-        ui_draw_header();
+   // Only draw UI elements if graphics mode is available
+   if (graphics_initialized) {
+       // Draw header with tabs
+       ui_draw_header();
 
-        // Draw the taskbar
-        ui_draw_taskbar();
+       // Draw the taskbar
+       ui_draw_taskbar();
 
-        // Draw the start menu
-        ui_draw_start_menu();
-    }
+       // Draw the start menu
+       ui_draw_start_menu();
+   }
 
     // Print status message in text mode
     const char* status_msg = graphics_initialized ?
@@ -185,9 +184,9 @@ text_mode_continue:
         // Schedule next process
         schedule();
 
-        // A simple delay
-        for (int i = 0; i < 100000000; i++) {
-            __asm__("nop");
+        // A simple delay - use a timer interrupt in a real OS
+        for (volatile int i = 0; i < 1000000; i++) {
+            // Reduced delay and made i volatile to prevent optimization
         }
     }
 }

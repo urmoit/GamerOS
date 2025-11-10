@@ -21,6 +21,8 @@ void* kmalloc(size_t size) {
 }
 
 void kfree(void* ptr) {
-    // With this simple allocator, kfree does nothing
-    // A more complex allocator would mark memory as free
+    // Simple bump allocator doesn't support freeing individual blocks
+    // In a real implementation, this would mark the block as free
+    // For now, we just ignore the request
+    (void)ptr; // Suppress unused parameter warning
 }

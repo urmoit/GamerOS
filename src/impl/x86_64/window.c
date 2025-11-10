@@ -27,19 +27,23 @@ window_t* create_window(int x, int y, int width, int height, char* title) {
 
     if (window_slot == -1) return 0; // Should not happen if window_count is correct
 
-    // In a real OS, we'd use malloc
-    static window_t new_window; // This is not ideal, but we don't have memory allocation yet
-    new_window.x = x;
-    new_window.y = y;
-    new_window.width = width;
-    new_window.height = height;
-    new_window.title = title;
-    new_window.is_active = 1;
+    // Allocate memory for the window
+    window_t* new_window = (window_t*)kmalloc(sizeof(window_t));
+    if (!new_window) {
+        return 0; // Memory allocation failed
+    }
 
-    windows[window_slot] = &new_window;
+    new_window->x = x;
+    new_window->y = y;
+    new_window->width = width;
+    new_window->height = height;
+    new_window->title = title;
+    new_window->is_active = 1;
+
+    windows[window_slot] = new_window;
     window_count++;
 
-    return &new_window;
+    return new_window;
 }
 
 void draw_window(window_t* win) {

@@ -68,8 +68,12 @@ void mouse_handler() {
             break;
         case 2:
             mouse_byte[2] = mouse_read();
-            mouse_x += mouse_byte[1];
-            mouse_y -= mouse_byte[2];
+            // Clamp mouse coordinates to prevent overflow
+            mouse_x += (int8_t)mouse_byte[1];
+            mouse_y -= (int8_t)mouse_byte[2];
+            if (mouse_x < 0) mouse_x = 0;
+            if (mouse_y < 0) mouse_y = 0;
+            // Note: No upper bounds checking as screen size may vary
 
             // Handle mouse buttons
             if (mouse_byte[0] & 0x01) { // Left button

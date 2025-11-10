@@ -3,13 +3,15 @@
 
 #include "stdint.h"
 
-// Structure for an IDT entry
+// Structure for an IDT entry (64-bit)
 typedef struct {
     uint16_t isr_low;
     uint16_t kernel_cs;
     uint8_t  reserved;
     uint8_t  attributes;
     uint16_t isr_high;
+    uint32_t isr_higher;
+    uint32_t reserved2;
 } __attribute__((packed)) idt_entry_t;
 
 // Structure for the IDT register
@@ -19,7 +21,7 @@ typedef struct {
 } __attribute__((packed)) idt_ptr_t;
 
 // Function to set an IDT entry
-void set_idt_entry(int n, uint32_t handler);
+void set_idt_entry(int n, uint64_t handler);
 
 // Function to initialize the IDT
 void idt_init();

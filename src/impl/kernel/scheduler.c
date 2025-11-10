@@ -24,14 +24,16 @@ void create_process(void (*entry_point)()) {
     new_pcb->pid = next_pid;
     new_pcb->state = PROCESS_READY;
 
-    // Set up initial stack frame for 64-bit
+    // Set up initial stack frame for 64-bit x86_64 ABI
     uint64_t* stack_ptr = (uint64_t*)(new_pcb->stack + STACK_SIZE - 8); // 8-byte alignment
 
+    // Set up the stack as if we were returning from an interrupt
+    // This matches the context switching assembly
     *(--stack_ptr) = (uint64_t)0x202; // RFLAGS (Interrupts enabled)
-    *(--stack_ptr) = (uint64_t)0x8;   // CS
-    *(--stack_ptr) = (uint64_t)entry_point; // RIP
+    *(--stack_ptr) = (uint64_t)0x8;   // CS (kernel code segment)
+    *(--stack_ptr) = (uint64_t)entry_point; // RIP (instruction pointer)
 
-    // Push dummy registers
+    // Push all general-purpose registers (as saved by context switch)
     *(--stack_ptr) = 0; // RAX
     *(--stack_ptr) = 0; // RBX
     *(--stack_ptr) = 0; // RCX
