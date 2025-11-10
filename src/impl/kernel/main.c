@@ -10,6 +10,7 @@
 #include "../../intf/keyboard.h"
 #include "../../intf/mouse.h"
 
+
 void process1_entry() {
     for(;;) {
         // Process 1 does something
@@ -25,10 +26,15 @@ void process2_entry() {
 }
 
 void kernel_main(void) {
-    // Initialize VGA graphics mode with higher resolution (640x480x256)
-    vga_init_mode101h();
+    // Try to initialize VGA graphics mode with higher resolution (640x480x256)
+    // Fall back to text mode if graphics initialization fails
+    if (!vga_set_mode(VGA_MODE_101H)) {
+        // Graphics mode failed, switch to text mode and continue
+        // For now, we'll continue with basic text output
+        // In a full implementation, we'd set up text mode here
+    }
 
-    // Set the desktop background
+    // Set the desktop background (only if graphics mode succeeded)
     vga_set_desktop_background();
 
     // Initialize UI system and windowing
@@ -75,27 +81,32 @@ void kernel_main(void) {
     create_process(process1_entry);
     create_process(process2_entry);
 
-    // Draw header with tabs
-    ui_draw_header();
+    // Only draw UI elements if graphics mode is available
+    if (graphics_initialized) {
+        // Draw header with tabs
+        ui_draw_header();
 
-    // Draw the taskbar
-    ui_draw_taskbar();
+        // Draw the taskbar
+        ui_draw_taskbar();
 
-    // Draw the start menu
-    ui_draw_start_menu();
+        // Draw the start menu
+        ui_draw_start_menu();
+    }
 
     // Hang - in a real OS, you'd have a scheduler and event loop here
     for(;;) {
-        // Draw all open windows
-        for (int i = 0; i < window_count; i++) {
-            draw_window(windows[i]);
+        if (graphics_initialized) {
+            // Draw all open windows
+            for (int i = 0; i < window_count; i++) {
+                draw_window(windows[i]);
+            }
+
+            // Toggle the start menu for testing purposes
+            ui_toggle_start_menu();
+            ui_draw_start_menu();
+            ui_draw_taskbar(); // Redraw taskbar to update clock and window list
         }
 
-        // Toggle the start menu for testing purposes
-        ui_toggle_start_menu();
-        ui_draw_start_menu();
-        ui_draw_taskbar(); // Redraw taskbar to update clock and window list
-        
         // Schedule next process
         schedule();
 

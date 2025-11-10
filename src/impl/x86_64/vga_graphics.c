@@ -6,6 +6,7 @@ uint32_t current_vga_width = VGA_WIDTH;
 uint32_t current_vga_height = VGA_HEIGHT;
 uint32_t current_color_depth = COLOR_DEPTH_8BIT;
 vga_mode_t current_vga_mode = VGA_MODE_13H;
+int graphics_initialized = 0; // Track if graphics mode was successfully initialized
 
 // VGA framebuffers for different modes
 static uint8_t* vga_framebuffer_13h = (uint8_t*)0xA0000;  // Mode 13h: 320x200
@@ -46,78 +47,114 @@ void vga_init_mode12h(void) {
     current_vga_mode = VGA_MODE_12H;
 }
 
-void vga_init_mode101h(void) {
+int vga_init_mode101h(void) {
     // Switch to VESA mode 101h (640x480x256)
+    uint16_t result;
     __asm__ volatile (
         "mov $0x4F02, %%ax\n"
         "mov $0x101, %%bx\n"
         "int $0x10\n"
-        :
+        "mov %%ax, %0\n"
+        : "=r"(result)
         :
         : "ax", "bx"
     );
+
+    // Check if VESA call succeeded (should return 0x004F on success)
+    if ((result & 0x00FF) != 0x4F) {
+        return 0; // Failed
+    }
+
     vga_framebuffer = vga_framebuffer_101h;
     current_vga_width = VGA_MODE_101H_WIDTH;
     current_vga_height = VGA_MODE_101H_HEIGHT;
     current_vga_mode = VGA_MODE_101H;
+    return 1; // Success
 }
 
-void vga_init_mode103h(void) {
+int vga_init_mode103h(void) {
     // Switch to VESA mode 103h (800x600x256)
+    uint16_t result;
     __asm__ volatile (
         "mov $0x4F02, %%ax\n"
         "mov $0x103, %%bx\n"
         "int $0x10\n"
-        :
+        "mov %%ax, %0\n"
+        : "=r"(result)
         :
         : "ax", "bx"
     );
+
+    // Check if VESA call succeeded (should return 0x004F on success)
+    if ((result & 0x00FF) != 0x4F) {
+        return 0; // Failed
+    }
+
     vga_framebuffer = vga_framebuffer_103h;
     current_vga_width = VGA_MODE_103H_WIDTH;
     current_vga_height = VGA_MODE_103H_HEIGHT;
     current_color_depth = COLOR_DEPTH_8BIT;
     current_vga_mode = VGA_MODE_103H;
+    return 1; // Success
 }
 
-void vga_init_mode118h(void) {
+int vga_init_mode118h(void) {
     // Switch to VESA mode 118h (1024x768x24)
+    uint16_t result;
     __asm__ volatile (
         "mov $0x4F02, %%ax\n"
         "mov $0x118, %%bx\n"
         "int $0x10\n"
-        :
+        "mov %%ax, %0\n"
+        : "=r"(result)
         :
         : "ax", "bx"
     );
+
+    // Check if VESA call succeeded (should return 0x004F on success)
+    if ((result & 0x00FF) != 0x4F) {
+        return 0; // Failed
+    }
+
     vga_framebuffer = vga_framebuffer_13h; // Will be set by VESA
     current_vga_width = VGA_MODE_118H_WIDTH;
     current_vga_height = VGA_MODE_118H_HEIGHT;
     current_color_depth = COLOR_DEPTH_24BIT;
     current_vga_mode = VGA_MODE_118H;
+    return 1; // Success
 }
 
-void vga_set_mode(vga_mode_t mode) {
+int vga_set_mode(vga_mode_t mode) {
+    int result = 0;
     switch (mode) {
         case VGA_MODE_13H:
             vga_init_mode13();
+            result = 1; // Mode 13h always succeeds
             break;
         case VGA_MODE_12H:
             vga_init_mode12h();
+            result = 1; // Mode 12h always succeeds
             break;
         case VGA_MODE_101H:
-            vga_init_mode101h();
+            result = vga_init_mode101h();
             break;
         case VGA_MODE_103H:
-            vga_init_mode103h();
+            result = vga_init_mode103h();
             break;
         case VGA_MODE_118H:
-            vga_init_mode118h();
+            result = vga_init_mode118h();
+            break;
+        default:
+            result = 0; // Unknown mode
             break;
     }
+
+    graphics_initialized = result;
+    return result;
 }
 
 void vga_set_pixel(uint32_t x, uint32_t y, uint32_t color) {
-    if (x >= current_vga_width || y >= current_vga_height) {
+    if (!graphics_initialized || x >= current_vga_width || y >= current_vga_height) {
         return;
     }
 
@@ -215,6 +252,10 @@ void vga_draw_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint
 }
 
 void vga_set_desktop_background(void) {
+    if (!graphics_initialized) {
+        return; // Don't try to set background if graphics not initialized
+    }
+
     // Create a simple gradient background adapted to current resolution
     for (uint32_t y = 0; y < current_vga_height; y++) {
         for (uint32_t x = 0; x < current_vga_width; x++) {

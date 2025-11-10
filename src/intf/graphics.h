@@ -54,14 +54,15 @@ extern uint32_t current_vga_width;
 extern uint32_t current_vga_height;
 extern uint32_t current_color_depth;
 extern vga_mode_t current_vga_mode;
+extern int graphics_initialized;
 
 // Initialize VGA graphics modes
 void vga_init_mode13(void);
 void vga_init_mode12h(void);
-void vga_init_mode101h(void);
-void vga_init_mode103h(void);
-void vga_init_mode118h(void);
-void vga_set_mode(vga_mode_t mode);
+int vga_init_mode101h(void);
+int vga_init_mode103h(void);
+int vga_init_mode118h(void);
+int vga_set_mode(vga_mode_t mode);
 
 // Set a pixel at (x, y) with color (supports different color depths)
 void vga_set_pixel(uint32_t x, uint32_t y, uint32_t color);
