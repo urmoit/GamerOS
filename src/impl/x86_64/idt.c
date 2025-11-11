@@ -125,8 +125,11 @@ void idt_init() {
     outb(0xA1, 0x02);
     outb(0x21, 0x01);
     outb(0xA1, 0x01);
-    outb(0x21, 0x0); // Mask all interrupts on master PIC
-    outb(0xA1, 0x0); // Mask all interrupts on slave PIC
+    outb(0x21, 0xFF); // Mask all interrupts on master PIC initially
+    outb(0xA1, 0xFF); // Mask all interrupts on slave PIC initially
+
+    // Don't enable interrupts yet - let the kernel enable them when ready
+    // __asm__("sti"); // Commented out to prevent premature interrupt enabling
 
     set_idt_entry(32, (uint64_t)irq0);  // IRQ0: Timer
     set_idt_entry(33, (uint64_t)irq1);  // IRQ1: Keyboard

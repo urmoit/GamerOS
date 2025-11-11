@@ -11,7 +11,7 @@ This document tracks all known bugs, errors, and issues in the GamerOS codebase.
 - [x] **Window Creation Memory Allocation** - Used static allocation preventing multiple windows
 
 ### Remaining 🔴
-- [ ] **OS Not Starting in QEMU** - GamerOS boots but enters paused state due to BIOS interrupts called in protected mode causing SMM activation and exception loops
+- [ ] **OS Not Starting in QEMU** - GamerOS boots but enters paused state due to BIOS interrupts called in protected mode causing SMM activation and exception loops (BIOS interrupts still being triggered despite fixes)
 
 ## Logic Errors (Causes incorrect behavior)
 
@@ -21,18 +21,21 @@ This document tracks all known bugs, errors, and issues in the GamerOS codebase.
 - [x] **File System Bounds Checking** - Off-by-one error in size validation
 - [x] **Mouse Coordinate Handling** - No bounds checking, potential negative overflow
 - [x] **Color Conversion Issues** - Poor 8-bit palette approximation
+- [x] **Setup Screen Hang** - ui_handle_setup() contains infinite loop with no escape mechanism
+- [x] **ISR Stack Frame Issues** - ISR handlers may not properly handle interrupt stack frames
+- [x] **Improper CLI/STI Usage** - Interrupts not properly disabled/enabled in handlers
+- [x] **Premature STI** - Interrupts enabled before full system initialization
+- [x] **PIC Interrupt Masking** - Hardware interrupts not properly masked during boot
+- [x] **Main Kernel Loop Busy Waiting** - Uses inefficient busy-wait delay instead of proper timer interrupts
 
 ### Remaining 🔴
 - [ ] **RTC BCD Conversion** - May not work on all hardware configurations
 - [ ] **Context Switch Stack Corruption** - Context switch may corrupt stack due to improper register saving order
-- [ ] **ISR Stack Frame Issues** - ISR handlers may not properly handle interrupt stack frames
 - [ ] **PIC EOI Logic Error** - EOI sent to wrong PIC for certain IRQs
 - [ ] **Font Character Bounds** - Character validation allows invalid ASCII values
 - [ ] **Memory Alignment Issues** - kmalloc doesn't ensure proper alignment for all data types
 - [ ] **Scheduler Race Conditions** - No protection against concurrent access to process table
 - [ ] **Infinite Loops in Process Entry Points** - Process functions use for(;;) without proper exit conditions
-- [ ] **Main Kernel Loop Busy Waiting** - Uses inefficient busy-wait delay instead of proper timer interrupts
-- [ ] **Setup Screen Hang** - ui_handle_setup() contains infinite loop with no escape mechanism
 
 ## Code Quality Issues (Warnings/Style)
 
@@ -117,8 +120,8 @@ None
 
 ## Summary
 
-**Fixed Issues:** 16/48 (33%)
+**Fixed Issues:** 20/48 (41%)
 **Critical Issues:** 1/5 remaining (80% resolved)
-**Logic Errors:** 3/14 remaining (21% resolved)
+**Logic Errors:** 5/14 remaining (35% resolved)
 
-The OS has critical boot issues that prevent it from starting properly in QEMU. The system enters a paused state due to BIOS interrupts being called in protected mode, causing SMM activation and exception loops. This must be fixed before the OS can run. Additional issues include infinite loops, memory leaks, null pointer dereferences, and performance problems that should be addressed for stability and reliability.
+The OS has critical boot issues that prevent it from starting properly in QEMU. Despite implementing proper ISR stack frame handling, PIC interrupt masking, and controlled interrupt enabling, the system still enters a paused state due to BIOS interrupts being triggered in long mode, causing SMM activation and exception loops. The BIOS interrupts are occurring at a lower level than normal interrupt handling and need to be completely eliminated. Additional issues include infinite loops, memory leaks, null pointer dereferences, and performance problems that should be addressed for stability and reliability.

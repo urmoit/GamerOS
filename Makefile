@@ -134,6 +134,16 @@ $(ISO): $(KERNEL_BIN) | $(DIST_DIR)/$(ARCH)
 	cp $(TARGETS_DIR)/$(ARCH)/grub.cfg $(BUILD_DIR)/$(ARCH)/iso/boot/grub/grub.cfg
 	grub-mkrescue -o $@ $(BUILD_DIR)/$(ARCH)/iso
 
+# Build only ISO (assumes kernel is already built)
+.PHONY: build-iso
+build-iso: $(ISO)
+
+$(ISO): $(KERNEL_BIN)
+	mkdir -p $(BUILD_DIR)/$(ARCH)/iso/boot/grub
+	cp $(KERNEL_ELF) $(BUILD_DIR)/$(ARCH)/iso/boot/kernel.elf
+	cp $(TARGETS_DIR)/$(ARCH)/grub.cfg $(BUILD_DIR)/$(ARCH)/iso/boot/grub/grub.cfg
+	grub-mkrescue -o $@ $(BUILD_DIR)/$(ARCH)/iso
+
 # Clean build artifacts
 .PHONY: clean
 clean:

@@ -56,15 +56,85 @@ extern common_isr_handler
 
 %macro ISR_NOERRCODE 1
     isr%1:
-        push 0
-        push %1
-        jmp common_isr_handler
+        cli                     ; Disable interrupts
+        push 0                  ; Push dummy error code
+        push %1                 ; Push interrupt number
+        push rax
+        push rbx
+        push rcx
+        push rdx
+        push rsi
+        push rdi
+        push rbp
+        push r8
+        push r9
+        push r10
+        push r11
+        push r12
+        push r13
+        push r14
+        push r15
+        mov rdi, rsp            ; Pass pointer to registers structure
+        call common_isr_handler
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        pop r11
+        pop r10
+        pop r9
+        pop r8
+        pop rbp
+        pop rdi
+        pop rsi
+        pop rdx
+        pop rcx
+        pop rbx
+        pop rax
+        add rsp, 16             ; Clean up error code and interrupt number
+        sti                     ; Re-enable interrupts
+        iretq                   ; Return from interrupt
 %endmacro
 
 %macro ISR_ERRCODE 1
     isr%1:
-        push %1
-        jmp common_isr_handler
+        cli                     ; Disable interrupts
+        push %1                 ; Push interrupt number (error code already on stack)
+        push rax
+        push rbx
+        push rcx
+        push rdx
+        push rsi
+        push rdi
+        push rbp
+        push r8
+        push r9
+        push r10
+        push r11
+        push r12
+        push r13
+        push r14
+        push r15
+        mov rdi, rsp            ; Pass pointer to registers structure
+        call common_isr_handler
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        pop r11
+        pop r10
+        pop r9
+        pop r8
+        pop rbp
+        pop rdi
+        pop rsi
+        pop rdx
+        pop rcx
+        pop rbx
+        pop rax
+        add rsp, 16             ; Clean up error code and interrupt number
+        sti                     ; Re-enable interrupts
+        iretq                   ; Return from interrupt
 %endmacro
 
 ISR_NOERRCODE 0
@@ -105,9 +175,44 @@ extern common_irq_handler
 
 %macro IRQ 2
     irq%1:
-        push 0
-        push %2
-        jmp common_irq_handler
+        cli                     ; Disable interrupts
+        push 0                  ; Push dummy error code
+        push %2                 ; Push interrupt number
+        push rax
+        push rbx
+        push rcx
+        push rdx
+        push rsi
+        push rdi
+        push rbp
+        push r8
+        push r9
+        push r10
+        push r11
+        push r12
+        push r13
+        push r14
+        push r15
+        mov rdi, rsp            ; Pass pointer to registers structure
+        call common_irq_handler
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        pop r11
+        pop r10
+        pop r9
+        pop r8
+        pop rbp
+        pop rdi
+        pop rsi
+        pop rdx
+        pop rcx
+        pop rbx
+        pop rax
+        add rsp, 16             ; Clean up error code and interrupt number
+        sti                     ; Re-enable interrupts
+        iretq                   ; Return from interrupt
 %endmacro
 
 IRQ 0, 32

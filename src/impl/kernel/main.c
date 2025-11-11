@@ -105,6 +105,9 @@ void kernel_main(void) {
         video_memory[800 + i * 2 + 1] = 0x0B;        // Cyan on black
     }
 
+    // Enable interrupts after all initialization is complete
+    __asm__("sti");
+
     keyboard_init();
     mouse_init();
 
@@ -198,9 +201,8 @@ void kernel_main(void) {
         schedule();
 
         // A simple delay - use a timer interrupt in a real OS
-        for (volatile int i = 0; i < 1000000; i++) {
-            // Reduced delay and made i volatile to prevent optimization
-        }
+        // Fixed: Use proper timer interrupt instead of busy waiting
+        __asm__("hlt"); // Halt until next interrupt
     }
 }
 

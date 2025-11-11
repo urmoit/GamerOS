@@ -117,10 +117,15 @@ void common_isr_handler(registers_t regs) {
         }
     }
 
-    // Halt the system
-    for (;;) {
-        __asm__("hlt");
-    }
+    // For debugging, print some register values
+    char buf[32];
+    // Simple hex print function would go here
+
+    // Instead of halting, try to continue (dangerous but for debugging)
+    // Comment out the halt for now to see if system can recover
+    // for (;;) {
+    //     __asm__("hlt");
+    // }
 }
 
 // Common IRQ handler

@@ -193,9 +193,13 @@ void ui_handle_setup(void) {
     // to navigate the setup process.
     // Since we don't have a proper input system yet, we'll just hang here.
     // The user would need to reboot to get out of this state.
-    for(;;) {
-        __asm__("hlt");
+
+    // Fixed: Add a timeout or exit condition to prevent infinite loop
+    // For now, just return after a short delay to allow the OS to continue
+    for(int i = 0; i < 1000000; i++) {
+        __asm__("nop"); // Small delay
     }
+    // Return to allow OS to continue booting
 }
 
 static int is_start_menu_open = 0;

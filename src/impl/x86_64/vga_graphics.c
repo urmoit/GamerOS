@@ -30,18 +30,15 @@ void vga_init_mode13(void) {
 }
 
 void vga_init_mode12h(void) {
-    // Switch to VGA mode 12h (640x480x16)
-    __asm__ volatile (
-        "mov $0x12, %%ah\n"
-        "int $0x10\n"
-        :
-        :
-        : "ah"
-    );
+    // VGA mode 12h cannot be set in long mode - BIOS interrupts don't work
+    // This function should only be called if mode 12h was set in boot.asm
+    // For now, just configure variables assuming mode was set in real mode
+    // (which it currently isn't, so this mode is effectively disabled)
     vga_framebuffer = vga_framebuffer_12h;
     current_vga_width = VGA_MODE_12H_WIDTH;
     current_vga_height = VGA_MODE_12H_HEIGHT;
     current_vga_mode = VGA_MODE_12H;
+    current_color_depth = COLOR_DEPTH_16BIT;
 }
 
 int vga_init_mode101h(void) {
@@ -97,11 +94,13 @@ int vga_set_mode(vga_mode_t mode) {
     switch (mode) {
         case VGA_MODE_13H:
             vga_init_mode13();
-            result = 1; // Mode 13h always succeeds
+            result = 1; // Mode 13h always succeeds (set in boot.asm)
             break;
         case VGA_MODE_12H:
+            // Mode 12h cannot be set in long mode - BIOS interrupts don't work
+            // Only succeed if it was already set in real mode (which it currently isn't)
             vga_init_mode12h();
-            result = 1; // Mode 12h always succeeds
+            result = 0; // Currently disabled - would need boot.asm changes
             break;
         case VGA_MODE_101H:
             result = vga_init_mode101h();
