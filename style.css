@@ -12414,3 +12414,150 @@ main {
 }
 
 @media (max-width: 768px) {.changelog-hero h1 {font-size: 3rem;}.tech-specs-modern {grid-template-columns: 1fr;}.issues-grid-modern {grid-template-columns: 1fr;}.feature-cards-grid {grid-template-columns: 1fr;}.overview-highlights {grid-template-columns: 1fr;}.release-info-modern {flex-direction: column;gap: 1rem;}.hero-actions {flex-direction: column;align-items: center;}}
+
+/* Resolution Status Section */
+.resolution-section {
+    margin: 4rem 0;
+    padding: 3rem;
+    background: linear-gradient(135deg, rgba(0, 170, 255, 0.05) 0%, rgba(0, 255, 170, 0.05) 100%);
+    border-radius: 20px;
+    border: 1px solid rgba(0, 170, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.resolution-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #00aaff, #00ffaa, #00aaff);
+    background-size: 200% 100%;
+    animation: gradientShift 3s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+.resolution-section h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 3rem;
+    text-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
+}
+
+.resolution-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.resolution-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    border: 1px solid rgba(0, 170, 255, 0.1);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.resolution-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #00aaff, #00ffaa);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.resolution-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0, 170, 255, 0.2);
+    border-color: rgba(0, 170, 255, 0.3);
+}
+
+.resolution-item:hover::before {
+    opacity: 1;
+}
+
+.resolution-icon {
+    font-size: 2rem;
+    color: #00ffaa;
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+    text-shadow: 0 0 15px rgba(0, 255, 170, 0.5);
+    animation: checkmarkPulse 2s ease-in-out infinite;
+}
+
+@keyframes checkmarkPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.resolution-text {
+    flex: 1;
+    color: #e0e0e0;
+    line-height: 1.6;
+}
+
+.resolution-text strong {
+    display: block;
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.resolution-text div {
+    font-size: 1rem;
+    color: #cccccc;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .resolution-section {
+        margin: 2rem 0;
+        padding: 2rem 1rem;
+    }
+
+    .resolution-section h2 {
+        font-size: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .resolution-content {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .resolution-item {
+        padding: 1.5rem;
+        gap: 1rem;
+    }
+
+    .resolution-icon {
+        font-size: 1.5rem;
+    }
+
+    .resolution-text strong {
+        font-size: 1rem;
+    }
+}
