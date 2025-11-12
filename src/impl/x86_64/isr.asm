@@ -51,8 +51,13 @@ section .text
     global irq14
     global irq15
 
+    global syscall_stub
+
 ; Common ISR handler
 extern common_isr_handler
+
+; System call handler
+extern syscall_handler
 
 %macro ISR_NOERRCODE 1
     isr%1:
@@ -231,3 +236,49 @@ IRQ 12, 44
 IRQ 13, 45
 IRQ 14, 46
 IRQ 15, 47
+
+; System call interrupt handler
+global syscall_stub
+syscall_stub:
+    ; Save registers
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    ; Call syscall handler with arguments
+    mov rdi, rax    ; syscall number
+    mov rsi, rbx    ; arg1
+    mov rdx, rcx    ; arg2
+    mov rcx, rdx    ; arg3
+    call syscall_handler
+
+    ; Restore registers
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+
+    iretq

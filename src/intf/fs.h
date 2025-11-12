@@ -12,6 +12,7 @@ typedef struct {
     uint8_t  data[MAX_FILE_SIZE];
     uint32_t size;
     uint8_t  in_use;
+    uint32_t disk_sector;
 } file_t;
 
 void fs_init();

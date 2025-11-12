@@ -57,8 +57,9 @@ _start:
     test edx, 1 << 29
     jz .no_long_mode
 
-    ; Try to set up VESA graphics mode before entering long mode
-    call try_vesa_mode
+    ; Skip VESA setup entirely - BIOS interrupts in protected mode cause SMM activation
+    ; Just assume VGA mode 13h is set by bootloader (which it should be for GRUB)
+    mov byte [vesa_success], 0
 
     ; Set up paging
     call setup_page_tables
@@ -89,7 +90,7 @@ error:
     hlt
 
 setup_page_tables:
-    ; Identity map first 2MB
+    ; Identity map first 4MB (2 pages) to ensure kernel has enough mapped memory
     mov eax, p3_table
     or eax, 0b11 ; Present + Writable
     mov [p4_table], eax
@@ -98,17 +99,15 @@ setup_page_tables:
     or eax, 0b11
     mov [p3_table], eax
 
-    ; Map each P2 entry to a 2MB page
-    mov ecx, 0
-.map_p2_table:
-    mov eax, 0x200000
-    mul ecx
+    ; Map first P2 entry (0-2MB)
+    mov eax, 0x0
     or eax, 0b10000011 ; Present + Writable + Huge
-    mov [p2_table + ecx * 8], eax
+    mov [p2_table + 0 * 8], eax
 
-    inc ecx
-    cmp ecx, 512
-    jne .map_p2_table
+    ; Map second P2 entry (2-4MB)
+    mov eax, 0x200000
+    or eax, 0b10000011 ; Present + Writable + Huge
+    mov [p2_table + 1 * 8], eax
 
     ; Map VGA memory region (0xA0000 - 0xBFFFF) for graphics
     ; VGA memory is at physical address 0xA0000, we want to map it to virtual address 0xA0000
@@ -153,14 +152,7 @@ enable_paging:
     
     ret
 
-try_vesa_mode:
-    ; VGA mode 13h will be assumed to be set by the bootloader or default
-    ; BIOS interrupts in protected mode can cause SMM activation in QEMU
-    ; which leads to exception loops and system pauses
-
-    ; For now, assume mode 13h is already set and mark as successful
-    mov byte [vesa_success], 1
-    ret
+; try_vesa_mode function removed - BIOS interrupts cause SMM activation in QEMU
 
 bits 64
 start_64:
@@ -175,57 +167,35 @@ start_64:
     ; Set up stack
     mov rsp, stack_top_64
 
-    ; Always use graphics mode for text rendering with custom font
-    ; Clear screen to white background
-    mov rdi, VGA_GRAPHICS_BUFFER
-    mov rcx, 320*200  ; VGA mode 13h is 320x200
-    mov al, 0x0F      ; White color
-    rep stosb
-
-    ; Draw "64-bit mode reached!" using graphics font
-    mov rsi, graphics_message
-    mov rbx, 10  ; x position
-    mov rcx, 10  ; y position
-
-.draw_message:
-    lodsb
-    test al, al
-    jz .draw_custom_font_message
-
-    call draw_char_graphics
-    add rbx, 8  ; Move to next character position
-    jmp .draw_message
-
-.draw_custom_font_message:
-    ; Draw "Custom font loaded successfully!" on next line
-    mov rsi, custom_font_message
-    mov rbx, 10  ; x position
-    mov rcx, 26  ; y position (10 + 16 for line spacing)
-
-.draw_custom_message:
-    lodsb
-    test al, al
-    jz .text_done
-
-    call draw_char_graphics
-    add rbx, 8  ; Move to next character position
-    jmp .draw_custom_message
-
-.text_done:
-
-    ; Draw VESA status message using graphics font
-    mov rsi, vesa_status_message
-    mov rbx, 10  ; x position
-    mov rcx, 42  ; y position (further down)
-
-.draw_vesa_status:
-    lodsb
-    test al, al
-    jz .vesa_done
-    call draw_char_graphics
-    add rbx, 8
-    jmp .draw_vesa_status
-.vesa_done:
+    ; Simple text output to indicate we've reached 64-bit mode
+    mov byte [0xB8000], '6'
+    mov byte [0xB8001], 0x0A  ; Green on black
+    mov byte [0xB8002], '4'
+    mov byte [0xB8003], 0x0A
+    mov byte [0xB8004], '-'
+    mov byte [0xB8005], 0x0A
+    mov byte [0xB8006], 'b'
+    mov byte [0xB8007], 0x0A
+    mov byte [0xB8008], 'i'
+    mov byte [0xB8009], 0x0A
+    mov byte [0xB800A], 't'
+    mov byte [0xB800B], 0x0A
+    mov byte [0xB800C], ' '
+    mov byte [0xB800D], 0x0A
+    mov byte [0xB800E], 'm'
+    mov byte [0xB800F], 0x0A
+    mov byte [0xB8010], 'o'
+    mov byte [0xB8011], 0x0A
+    mov byte [0xB8012], 'd'
+    mov byte [0xB8013], 0x0A
+    mov byte [0xB8014], 'e'
+    mov byte [0xB8015], 0x0A
+    mov byte [0xB8016], ' '
+    mov byte [0xB8017], 0x0A
+    mov byte [0xB8018], 'O'
+    mov byte [0xB8019], 0x0A
+    mov byte [0xB801A], 'K'
+    mov byte [0xB801B], 0x0A
 
     ; Call kernel main
     extern kernel_main
@@ -253,7 +223,7 @@ vesa_info:
 vesa_mode_info:
     resb 256
 vesa_success:
-    resb 1
+    db 0
 
 stack_bottom:
     resb 16384

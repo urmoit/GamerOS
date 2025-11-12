@@ -4,6 +4,24 @@
 
 #define IDT_ENTRIES 256
 #define IDT_BASE_ADDRESS 0x0
+#define PIC_MASTER_COMMAND 0x20
+#define PIC_MASTER_DATA 0x21
+#define PIC_SLAVE_COMMAND 0xA0
+#define PIC_SLAVE_DATA 0xA1
+#define PIC_MASTER_OFFSET 0x20
+#define PIC_SLAVE_OFFSET 0x28
+#define PIC_ICW1_ICW4 0x01
+#define PIC_ICW1_INIT 0x10
+#define PIC_ICW1_INTERVAL4 0x04
+#define PIC_ICW1_SINGLE 0x02
+#define PIC_ICW1_LEVEL 0x08
+#define PIC_ICW4_8086 0x01
+#define PIC_ICW4_AUTO 0x02
+#define PIC_ICW4_BUF_SLAVE 0x08
+#define PIC_ICW4_BUF_MASTER 0x0C
+#define PIC_ICW4_SFNM 0x10
+#define KERNEL_CODE_SEGMENT 0x08
+#define INTERRUPT_GATE_64BIT 0x8E
 
 idt_entry_t idt[IDT_ENTRIES];
 idt_ptr_t idt_ptr;
@@ -62,11 +80,15 @@ extern void irq13();
 extern void irq14();
 extern void irq15();
 
+// System call handler
+extern void syscall_stub();
+
 void set_idt_entry(int n, uint64_t handler) {
+    if (n < 0 || n >= IDT_ENTRIES) return; // Bounds check
     idt[n].isr_low = handler & 0xFFFF;
-    idt[n].kernel_cs = 0x08; // Kernel code segment
+    idt[n].kernel_cs = KERNEL_CODE_SEGMENT;
     idt[n].reserved = 0;
-    idt[n].attributes = 0x8E; // 64-bit interrupt gate
+    idt[n].attributes = INTERRUPT_GATE_64BIT;
     idt[n].isr_high = (handler >> 16) & 0xFFFF;
     idt[n].isr_higher = (handler >> 32) & 0xFFFFFFFF;
     idt[n].reserved2 = 0;
@@ -117,16 +139,16 @@ void idt_init() {
 
     // Set up IRQs (hardware interrupts)
     // Remap PIC
-    outb(0x20, 0x11);
-    outb(0xA0, 0x11);
-    outb(0x21, 0x20); // Master PIC offset 0x20
-    outb(0xA1, 0x28); // Slave PIC offset 0x28
-    outb(0x21, 0x04);
-    outb(0xA1, 0x02);
-    outb(0x21, 0x01);
-    outb(0xA1, 0x01);
-    outb(0x21, 0xFF); // Mask all interrupts on master PIC initially
-    outb(0xA1, 0xFF); // Mask all interrupts on slave PIC initially
+    outb(PIC_MASTER_COMMAND, PIC_ICW1_INIT | PIC_ICW1_ICW4);
+    outb(PIC_SLAVE_COMMAND, PIC_ICW1_INIT | PIC_ICW1_ICW4);
+    outb(PIC_MASTER_DATA, PIC_MASTER_OFFSET); // Master PIC offset
+    outb(PIC_SLAVE_DATA, PIC_SLAVE_OFFSET); // Slave PIC offset
+    outb(PIC_MASTER_DATA, 0x04); // Tell master about slave
+    outb(PIC_SLAVE_DATA, 0x02); // Tell slave about master
+    outb(PIC_MASTER_DATA, PIC_ICW4_8086);
+    outb(PIC_SLAVE_DATA, PIC_ICW4_8086);
+    outb(PIC_MASTER_DATA, 0xFF); // Mask all interrupts on master PIC initially
+    outb(PIC_SLAVE_DATA, 0xFF); // Mask all interrupts on slave PIC initially
 
     // Don't enable interrupts yet - let the kernel enable them when ready
     // __asm__("sti"); // Commented out to prevent premature interrupt enabling
@@ -147,6 +169,9 @@ void idt_init() {
     set_idt_entry(45, (uint64_t)irq13); // IRQ13: FPU
     set_idt_entry(46, (uint64_t)irq14); // IRQ14: Primary ATA
     set_idt_entry(47, (uint64_t)irq15); // IRQ15: Secondary ATA
+
+    // Set up system call interrupt (int 0x80)
+    set_idt_entry(0x80, (uint64_t)syscall_stub);
 
     idt_load((uint64_t)&idt_ptr);
 }

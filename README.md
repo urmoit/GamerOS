@@ -12,14 +12,14 @@
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chosentechies/GamerOS)
 [![Version](https://img.shields.io/badge/version-1.1-blue.svg)](https://github.com/chosentechies/GamerOS)
-[![Build](https://img.shields.io/badge/build-0.0.0.1530-orange.svg)](https://github.com/chosentechies/GamerOS)
+[![Build](https://img.shields.io/badge/build-0.0.0.1600-orange.svg)](https://github.com/chosentechies/GamerOS)
 [![License](https://img.shields.io/badge/license-Custom-red.svg)](https://github.com/chosentechies/GamerOS/blob/main/LICENSE)
 
 > ⚠️ **WORK IN PROGRESS** ⚠️
 >
 > This operating system project is under heavy development. Features may change, break, or be incomplete at any time. The name "GamerOS" is a placeholder and will be changed upon release.
 >
-> **Current Build: 0.0.0.1530** | See [Changelog](changelog/Build0.0.0.1530.md) for details.
+> **Current Build: 0.0.0.1600** | See [Changelog](changelog/Build0.0.0.1600.md) for details.
 
 ## 🚀 Getting Started
 
@@ -86,13 +86,19 @@ GamerOS/
 ├── src/                    # Source code
 │   ├── intf/              # Interfaces and headers
 │   └── impl/              # Implementations
+│       ├── drivers/       # Hardware drivers
+│       ├── filesystem/    # File system implementation
+│       ├── graphics/      # Graphics and rendering
+│       ├── kernel/        # Core kernel components
+│       ├── ui_system/     # User interface system
+│       └── x86_64/        # x86-64 specific code
 ├── build/                 # Build artifacts
-├── dist/                  # Distribution files
+├── buildenv/              # Docker build environment
 ├── targets/               # Build targets
 └── changelog/             # Version history
 ```
 
-**Latest Release**: Build 0.0.0.1420 | [📋 Changelog](changelog/Build0.0.0.1420.md)
+**Latest Release**: Build 0.0.0.1600 | [📋 Changelog](changelog/Build0.0.0.1600.md)
 
 ## ✨ Current Features
 

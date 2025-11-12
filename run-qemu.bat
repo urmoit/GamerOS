@@ -17,5 +17,5 @@ if not exist "dist\x86_64\kernel.iso" (
     exit /b 1
 )
 
-REM Run QEMU with debugging options to prevent immediate exit
-"C:\Program Files\qemu\qemu-system-x86_64.exe" -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -d int
+REM Run QEMU with debugging options to prevent immediate exit and disable SMM
+"C:\Program Files\qemu\qemu-system-x86_64.exe" -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -d int -machine pc,accel=tcg,smm=off -monitor stdio > qemu_log.txt 2>&1

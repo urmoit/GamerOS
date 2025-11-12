@@ -1,5 +1,51 @@
 // isr.c - Interrupt Service Routine handlers
 #include "../../intf/stdint.h"
+#include "../../intf/ports.h"
+#include "../../intf/pic.h"
+
+#define VGA_TEXT_BUFFER 0xB8000
+#define EXCEPTION_COUNT 32
+#define TIMER_IRQ 32
+#define KEYBOARD_IRQ 33
+#define MOUSE_IRQ 44
+
+// Global system tick counter for proper timer interrupts
+volatile uint64_t system_ticks = 0;
+
+// System call interface
+#define SYSCALL_READ    0
+#define SYSCALL_WRITE   1
+#define SYSCALL_OPEN    2
+#define SYSCALL_CLOSE   3
+#define SYSCALL_EXIT    4
+
+// System call handler (declared as extern in isr.asm)
+void syscall_handler(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
+    switch (syscall_num) {
+        case SYSCALL_WRITE:
+            // Simple write syscall - for now just handle to stdout (screen)
+            // In a real system, this would write to files, etc.
+            if (arg1 == 1) { // stdout
+                const char* str = (const char*)arg2;
+                // Simple screen output (would be more sophisticated in real OS)
+                char* video_memory = (char*)0xB8000;
+                for (size_t i = 0; str[i] && i < (size_t)arg3; i++) {
+                    video_memory[i * 2] = str[i];
+                    video_memory[i * 2 + 1] = 0x07; // White on black
+                }
+            }
+            break;
+        case SYSCALL_EXIT:
+            // Process exit syscall
+            extern void terminate_process(int);
+            terminate_process((int)arg1); // arg1 = process ID
+            break;
+        // Other syscalls would be implemented here
+        default:
+            // Unknown syscall
+            break;
+    }
+}
 
 // Forward declarations for ISR handlers
 extern void isr0();
@@ -98,63 +144,73 @@ typedef struct {
     uint64_t rip, cs, rflags, rsp, ss;
 } registers_t;
 
-// Common ISR handler
+// Common ISR handler (declared as extern in isr.asm)
 void common_isr_handler(registers_t regs) {
     // Print exception message to screen
     char* video_memory = (char*)VGA_TEXT_BUFFER;
     const char* msg = "Exception: ";
-    int i = 0;
+    size_t i = 0;
     for (; msg[i] != '\0'; i++) {
         video_memory[i * 2] = msg[i];
         video_memory[i * 2 + 1] = 0x4F; // White on red
     }
 
-    if (regs.int_no < 32) {
+    if (regs.int_no < EXCEPTION_COUNT) {
         const char* exc_msg = exception_messages[regs.int_no];
-        for (int j = 0; exc_msg[j] != '\0'; j++) {
-            video_memory[(i + j) * 2] = exc_msg[j];
-            video_memory[(i + j) * 2 + 1] = 0x4F;
+        if (exc_msg) { // NULL check
+            size_t j = 0;
+            for (; exc_msg[j] != '\0'; j++) {
+                video_memory[(i + j) * 2] = exc_msg[j];
+                video_memory[(i + j) * 2 + 1] = 0x4F;
+            }
         }
     }
 
-    // For debugging, print some register values
-    char buf[32];
-    // Simple hex print function would go here
+    // Handle page faults specifically - try to continue instead of halting
+    if (regs.int_no == 14) { // Page fault
+        // For now, just print and continue - in a real OS we'd handle this properly
+        const char* pf_msg = " Page Fault Handled";
+        size_t k = 0;
+        for (; pf_msg[k] != '\0'; k++) {
+            video_memory[(i + 20 + k) * 2] = pf_msg[k];
+            video_memory[(i + 20 + k) * 2 + 1] = 0x4E; // Yellow on red
+        }
+        return; // Continue execution instead of halting
+    }
 
-    // Instead of halting, try to continue (dangerous but for debugging)
-    // Comment out the halt for now to see if system can recover
-    // for (;;) {
-    //     __asm__("hlt");
-    // }
+    // For other exceptions, halt the system
+    for (;;) {
+        __asm__("hlt");
+    }
 }
 
-// Common IRQ handler
+// Common IRQ handler (declared as extern in isr.asm)
 void common_irq_handler(registers_t regs) {
-    // Send EOI to PIC
-    if (regs.int_no >= 40) {
-        // Send reset signal to slave PIC
-        outb(0xA0, 0x20);
-    }
-    // Send reset signal to master PIC
-    outb(0x20, 0x20);
+    // Send EOI to PIC using proper function
+    pic_eoi(regs.int_no - 32); // Convert interrupt number to IRQ number
 
     // Handle specific IRQs
     switch (regs.int_no) {
-        case 32: // Timer interrupt - trigger scheduler
-            // This is our software interrupt for yielding
+        case TIMER_IRQ: // Timer interrupt - proper timer handling
+            // Increment system tick counter
+            extern volatile uint64_t system_ticks;
+            system_ticks++;
+
+            // Trigger scheduler for preemptive multitasking
             extern void schedule();
             schedule();
             break;
-        case 33: // Keyboard interrupt
+        case KEYBOARD_IRQ: // Keyboard interrupt
             extern void keyboard_handler();
             keyboard_handler();
             break;
-        case 44: // Mouse interrupt
+        case MOUSE_IRQ: // Mouse interrupt
             extern void mouse_handler();
             mouse_handler();
             break;
         // Other IRQs can be handled here as needed
         default:
+            // No action needed for unhandled IRQs
             break;
     }
 }

@@ -24,8 +24,8 @@ void mm_init() {
 }
 
 void* kmalloc(size_t size) {
-    // Align size to 8 bytes and add block overhead
-    size = (size + 7) & ~7; // 8-byte alignment
+    // Ensure proper alignment for all data types (16-byte alignment for SIMD)
+    size = (size + 15) & ~15; // 16-byte alignment
     size_t total_size = size + BLOCK_SIZE;
 
     block_t* current = free_list;
