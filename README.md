@@ -93,6 +93,7 @@ GamerOS/
 │       ├── ui_system/     # User interface system
 │       └── x86_64/        # x86-64 specific code
 ├── build/                 # Build artifacts
+├── dist/                  # Distribution files
 ├── buildenv/              # Docker build environment
 ├── targets/               # Build targets
 └── changelog/             # Version history
