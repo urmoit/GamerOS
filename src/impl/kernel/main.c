@@ -10,6 +10,11 @@
 #include "../../intf/keyboard.h"
 #include "../../intf/mouse.h"
 #include "../../intf/ports.h"
+#include "../../intf/idt.h"
+#include "../../intf/pic.h"
+#include "../../intf/gui_app.h"
+#include "../../intf/scheduler.h"
+#include "../../intf/ui_widgets.h"
 
 
 void process1_entry() {
@@ -53,22 +58,40 @@ void process2_entry() {
 }
 
 void kernel_main(void) {
-    // Simple kernel main - just print a message and loop
-    char* video_memory = (char*)0xB8000;
+    // Test mm_init
+    mm_init();
 
-    // Print "Kernel running!" message
-    const char* msg = "Kernel running!";
-    for (size_t i = 0; msg[i] != '\0'; i++) {
-        video_memory[160 + i * 2] = msg[i];
-        video_memory[160 + i * 2 + 1] = 0x0A; // Green on black
-    }
+    // Test vga_set_mode
+    vga_set_mode(VGA_MODE_13H);
 
-    // Simple main loop
+    // Test idt_init
+    idt_init();
+
+    // Unmask timer interrupt (IRQ0) for scheduling
+    outb(0x21, 0xFE);
+
+    // Test init_windowing
+    init_windowing();
+
+    // Test ui_init
+    ui_init();
+
+    // Initialize UI widgets system
+    ui_widgets_init();
+
+    // Initialize scheduler
+    scheduler_init();
+
+    // Create GUI application process
+    create_process(gui_app_entry);
+
+    // Enable interrupts
+    __asm__("sti");
+
+    // Main kernel loop - let GUI application handle display
     for(;;) {
-        // Just busy wait - no complex initialization
-        for (volatile int i = 0; i < 100000; i++) {
-            // Do nothing
-        }
+        // Yield control to allow GUI application to run
+        __asm__("nop");
     }
 }
 

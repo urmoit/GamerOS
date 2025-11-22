@@ -37,7 +37,8 @@ void create_process(void (*entry_point)()) {
     new_pcb->state = PROCESS_READY;
 
     // Set up initial stack frame for 64-bit x86_64 ABI
-    uint64_t* stack_ptr = (uint64_t*)(new_pcb->stack + STACK_SIZE - 8); // 8-byte alignment
+    // Ensure 16-byte stack alignment for SSE/AVX compatibility
+    uint64_t* stack_ptr = (uint64_t*)(((uint64_t)(new_pcb->stack + STACK_SIZE) & ~15) - 8);
 
     // Set up the stack as if we were returning from an interrupt
     // This matches the context switching assembly

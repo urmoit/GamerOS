@@ -27,6 +27,19 @@ void vga_init_mode13(void) {
     current_vga_height = VGA_MODE_13H_HEIGHT;
     current_vga_mode = VGA_MODE_13H;
     current_color_depth = COLOR_DEPTH_8BIT;
+
+    // Clear the text buffer to remove any leftover text from boot
+    uint16_t* text_buffer = (uint16_t*)0xB8000;
+    for (int i = 0; i < 80 * 25; i++) {
+        text_buffer[i] = 0x0000; // Clear character and attribute
+    }
+
+    // Test graphics by drawing a visible pattern
+    for (uint32_t y = 0; y < 50; y++) {
+        for (uint32_t x = 0; x < 50; x++) {
+            vga_set_pixel(x, y, 0x0F); // White pixels in top-left corner
+        }
+    }
 }
 
 void vga_init_mode12h(void) {
@@ -859,5 +872,326 @@ void present_buffer(double_buffer_t* db) {
     if (current) {
         vga_blit_buffer(current, db->width, db->height, 0, 0, db->width, db->height);
     }
+}
+
+// Advanced graphics primitives implementation
+
+void vga_draw_gradient_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                           uint32_t color_start, uint32_t color_end, uint8_t vertical) {
+    if (!graphics_initialized) return;
+
+    for (uint32_t py = y; py < y + height && py < current_vga_height; py++) {
+        for (uint32_t px = x; px < x + width && px < current_vga_width; px++) {
+            float factor;
+            if (vertical) {
+                factor = (float)(py - y) / (float)height;
+            } else {
+                factor = (float)(px - x) / (float)width;
+            }
+
+            // Interpolate between start and end colors
+            uint8_t r = ((color_start >> 16) & 0xFF) * (1.0f - factor) + ((color_end >> 16) & 0xFF) * factor;
+            uint8_t g = ((color_start >> 8) & 0xFF) * (1.0f - factor) + ((color_end >> 8) & 0xFF) * factor;
+            uint8_t b = (color_start & 0xFF) * (1.0f - factor) + (color_end & 0xFF) * factor;
+
+            uint32_t color = rgb_to_color(r, g, b, 255);
+            vga_set_pixel(px, py, color);
+        }
+    }
+}
+
+void vga_draw_radial_gradient(uint32_t center_x, uint32_t center_y, uint32_t radius,
+                             uint32_t color_center, uint32_t color_edge) {
+    if (!graphics_initialized) return;
+
+    for (uint32_t y = center_y - radius; y <= center_y + radius && y < current_vga_height; y++) {
+        for (uint32_t x = center_x - radius; x <= center_x + radius && x < current_vga_width; x++) {
+            int32_t dx = x - center_x;
+            int32_t dy = y - center_y;
+            uint32_t distance = (uint32_t)(dx * dx + dy * dy);
+
+            if (distance <= radius * radius) {
+                float factor = (float)distance / (float)(radius * radius);
+
+                uint8_t r = ((color_center >> 16) & 0xFF) * (1.0f - factor) + ((color_edge >> 16) & 0xFF) * factor;
+                uint8_t g = ((color_center >> 8) & 0xFF) * (1.0f - factor) + ((color_edge >> 8) & 0xFF) * factor;
+                uint8_t b = (color_center & 0xFF) * (1.0f - factor) + (color_edge & 0xFF) * factor;
+
+                uint32_t color = rgb_to_color(r, g, b, 255);
+                vga_set_pixel(x, y, color);
+            }
+        }
+    }
+}
+
+void vga_draw_shadow(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                    uint32_t shadow_color, uint8_t blur_radius) {
+    if (!graphics_initialized || blur_radius == 0) return;
+
+    for (uint32_t py = y; py < y + height + blur_radius && py < current_vga_height; py++) {
+        for (uint32_t px = x; px < x + width + blur_radius && px < current_vga_width; px++) {
+            // Simple shadow effect - could be enhanced with proper blur
+            uint32_t alpha = 128; // Semi-transparent
+            uint32_t existing = vga_get_pixel(px, py);
+            uint32_t blended = blend_colors((shadow_color & 0xFFFFFF) | (alpha << 24), existing);
+            vga_set_pixel(px, py, blended);
+        }
+    }
+}
+
+void vga_draw_glow(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                  uint32_t glow_color, uint8_t intensity) {
+    if (!graphics_initialized) return;
+
+    for (int32_t py = y - intensity; py < (int32_t)(y + height + intensity) && py < (int32_t)current_vga_height; py++) {
+        for (int32_t px = x - intensity; px < (int32_t)(x + width + intensity) && px < (int32_t)current_vga_width; px++) {
+            if (px < 0 || py < 0) continue;
+
+            int32_t dx = px - x;
+            int32_t dy = py - y;
+            uint32_t distance = (uint32_t)(dx * dx + dy * dy);
+
+            if (distance <= intensity * intensity) {
+                float factor = 1.0f - (float)distance / (float)(intensity * intensity);
+                uint32_t alpha = (uint32_t)(factor * 255.0f);
+                uint32_t existing = vga_get_pixel(px, py);
+                uint32_t blended = blend_colors((glow_color & 0xFFFFFF) | (alpha << 24), existing);
+                vga_set_pixel(px, py, blended);
+            }
+        }
+    }
+}
+
+void vga_draw_rounded_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                          uint32_t radius, uint8_t color) {
+    if (!graphics_initialized || radius == 0) {
+        vga_draw_rect(x, y, width, height, color);
+        return;
+    }
+
+    // Draw straight lines
+    vga_draw_horizontal_line(x + radius, y, width - 2 * radius, color); // Top
+    vga_draw_horizontal_line(x + radius, y + height - 1, width - 2 * radius, color); // Bottom
+    vga_draw_vertical_line(x, y + radius, height - 2 * radius, color); // Left
+    vga_draw_vertical_line(x + width - 1, y + radius, height - 2 * radius, color); // Right
+
+    // Draw corners (quarter circles)
+    // Top-left corner
+    for (uint32_t py = 0; py < radius; py++) {
+        for (uint32_t px = 0; px < radius; px++) {
+            uint32_t dist_sq = (px * px) + (py * py);
+            if (dist_sq <= radius * radius) {
+                vga_set_pixel(x + radius - px, y + radius - py, color);
+            }
+        }
+    }
+
+    // Top-right corner
+    for (uint32_t py = 0; py < radius; py++) {
+        for (uint32_t px = 0; px < radius; px++) {
+            uint32_t dist_sq = (px * px) + (py * py);
+            if (dist_sq <= radius * radius) {
+                vga_set_pixel(x + width - radius + px, y + radius - py, color);
+            }
+        }
+    }
+
+    // Bottom-left corner
+    for (uint32_t py = 0; py < radius; py++) {
+        for (uint32_t px = 0; px < radius; px++) {
+            uint32_t dist_sq = (px * px) + (py * py);
+            if (dist_sq <= radius * radius) {
+                vga_set_pixel(x + radius - px, y + height - radius + py, color);
+            }
+        }
+    }
+
+    // Bottom-right corner
+    for (uint32_t py = 0; py < radius; py++) {
+        for (uint32_t px = 0; px < radius; px++) {
+            uint32_t dist_sq = (px * px) + (py * py);
+            if (dist_sq <= radius * radius) {
+                vga_set_pixel(x + width - radius + px, y + height - radius + py, color);
+            }
+        }
+    }
+}
+
+void vga_fill_rounded_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                          uint32_t radius, uint8_t color) {
+    if (!graphics_initialized) return;
+
+    // Fill center rectangle
+    vga_fill_rect(x + radius, y, width - 2 * radius, height, color);
+    vga_fill_rect(x, y + radius, radius, height - 2 * radius, color);
+    vga_fill_rect(x + width - radius, y + radius, radius, height - 2 * radius, color);
+
+    // Fill corners
+    for (uint32_t py = 0; py < radius; py++) {
+        for (uint32_t px = 0; px < radius; px++) {
+            uint32_t dist_sq = (px * px) + (py * py);
+            if (dist_sq <= radius * radius) {
+                vga_set_pixel(x + radius - px, y + radius - py, color);
+                vga_set_pixel(x + width - radius + px, y + radius - py, color);
+                vga_set_pixel(x + radius - px, y + height - radius + py, color);
+                vga_set_pixel(x + width - radius + px, y + height - radius + py, color);
+            }
+        }
+    }
+}
+
+void vga_draw_bezier_curve(uint32_t x1, uint32_t y1, uint32_t cx1, uint32_t cy1,
+                          uint32_t cx2, uint32_t cy2, uint32_t x2, uint32_t y2,
+                          uint8_t color, uint8_t thickness) {
+    if (!graphics_initialized) return;
+
+    const uint32_t steps = 100; // Number of points to draw
+
+    for (uint32_t i = 0; i <= steps; i++) {
+        float t = (float)i / (float)steps;
+
+        // Cubic Bezier formula
+        float u = 1.0f - t;
+        float tt = t * t;
+        float uu = u * u;
+        float uuu = uu * u;
+        float ttt = tt * t;
+
+        float px = uuu * x1 + 3 * uu * t * cx1 + 3 * u * tt * cx2 + ttt * x2;
+        float py = uuu * y1 + 3 * uu * t * cy1 + 3 * u * tt * cy2 + ttt * y2;
+
+        // Draw point with thickness
+        for (int32_t dy = -thickness/2; dy <= (int32_t)thickness/2; dy++) {
+            for (int32_t dx = -thickness/2; dx <= (int32_t)thickness/2; dx++) {
+                vga_set_pixel((uint32_t)px + dx, (uint32_t)py + dy, color);
+            }
+        }
+    }
+}
+
+void vga_draw_aa_line(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color) {
+    // Simple anti-aliased line - Wu's algorithm would be better but this is a basic implementation
+    vga_draw_line(x1, y1, x2, y2, color);
+}
+
+void vga_draw_aa_circle(uint32_t center_x, uint32_t center_y, uint32_t radius, uint32_t color) {
+    // Simple anti-aliased circle - proper implementation would use Wu's algorithm
+    vga_draw_circle(center_x, center_y, radius, color);
+}
+
+void vga_draw_text_shadow(uint32_t x, uint32_t y, const char* str, uint8_t text_color, uint8_t shadow_color) {
+    if (!str) return;
+
+    // Draw shadow first
+    vga_draw_string(x + 1, y + 1, str, shadow_color);
+    // Draw text on top
+    vga_draw_string(x, y, str, text_color);
+}
+
+void vga_draw_text_outline(uint32_t x, uint32_t y, const char* str, uint8_t text_color, uint8_t outline_color) {
+    if (!str) return;
+
+    // Draw outline by drawing text in all 8 directions
+    vga_draw_string(x-1, y-1, str, outline_color);
+    vga_draw_string(x-1, y, str, outline_color);
+    vga_draw_string(x-1, y+1, str, outline_color);
+    vga_draw_string(x, y-1, str, outline_color);
+    vga_draw_string(x, y+1, str, outline_color);
+    vga_draw_string(x+1, y-1, str, outline_color);
+    vga_draw_string(x+1, y, str, outline_color);
+    vga_draw_string(x+1, y+1, str, outline_color);
+
+    // Draw text on top
+    vga_draw_string(x, y, str, text_color);
+}
+
+// Image and sprite support
+image_t* create_image(uint32_t width, uint32_t height) {
+    image_t* img = (image_t*)kmalloc(sizeof(image_t));
+    if (!img) return 0;
+
+    img->width = width;
+    img->height = height;
+    img->pixels = (uint32_t*)kmalloc(width * height * sizeof(uint32_t));
+
+    if (!img->pixels) {
+        kfree(img);
+        return 0;
+    }
+
+    return img;
+}
+
+void destroy_image(image_t* img) {
+    if (img) {
+        if (img->pixels) kfree(img->pixels);
+        kfree(img);
+    }
+}
+
+void draw_image(uint32_t x, uint32_t y, image_t* img) {
+    if (!img || !img->pixels || !graphics_initialized) return;
+
+    for (uint32_t py = 0; py < img->height; py++) {
+        for (uint32_t px = 0; px < img->width; px++) {
+            uint32_t screen_x = x + px;
+            uint32_t screen_y = y + py;
+
+            if (screen_x < current_vga_width && screen_y < current_vga_height) {
+                uint32_t color = img->pixels[py * img->width + px];
+                if ((color >> 24) & 0xFF) { // If not fully transparent
+                    uint32_t existing = vga_get_pixel(screen_x, screen_y);
+                    uint32_t blended = blend_pixel(color, existing);
+                    vga_set_pixel(screen_x, screen_y, blended);
+                }
+            }
+        }
+    }
+}
+
+void draw_image_scaled(uint32_t x, uint32_t y, uint32_t dest_width, uint32_t dest_height, image_t* img) {
+    if (!img || !img->pixels || !graphics_initialized) return;
+
+    for (uint32_t dy = 0; dy < dest_height; dy++) {
+        for (uint32_t dx = 0; dx < dest_width; dx++) {
+            uint32_t screen_x = x + dx;
+            uint32_t screen_y = y + dy;
+
+            if (screen_x < current_vga_width && screen_y < current_vga_height) {
+                // Bilinear scaling
+                uint32_t sx = (dx * img->width) / dest_width;
+                uint32_t sy = (dy * img->height) / dest_height;
+
+                if (sx < img->width && sy < img->height) {
+                    uint32_t color = img->pixels[sy * img->width + sx];
+                    if ((color >> 24) & 0xFF) { // If not fully transparent
+                        uint32_t existing = vga_get_pixel(screen_x, screen_y);
+                        uint32_t blended = blend_pixel(color, existing);
+                        vga_set_pixel(screen_x, screen_y, blended);
+                    }
+                }
+            }
+        }
+    }
+}
+
+uint32_t blend_pixel(uint32_t src, uint32_t dst) {
+    uint8_t src_a = (src >> 24) & 0xFF;
+    uint8_t src_r = (src >> 16) & 0xFF;
+    uint8_t src_g = (src >> 8) & 0xFF;
+    uint8_t src_b = src & 0xFF;
+
+    uint8_t dst_r = (dst >> 16) & 0xFF;
+    uint8_t dst_g = (dst >> 8) & 0xFF;
+    uint8_t dst_b = dst & 0xFF;
+
+    float alpha = (float)src_a / 255.0f;
+    float inv_alpha = 1.0f - alpha;
+
+    uint8_t r = (uint8_t)(src_r * alpha + dst_r * inv_alpha);
+    uint8_t g = (uint8_t)(src_g * alpha + dst_g * inv_alpha);
+    uint8_t b = (uint8_t)(src_b * alpha + dst_b * inv_alpha);
+
+    return rgb_to_color(r, g, b, 255);
 }
 

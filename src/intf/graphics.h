@@ -125,9 +125,9 @@ uint32_t blend_colors(uint32_t src, uint32_t dst);
 
 // Graphics acceleration optimizations
 void vga_blit_buffer(uint32_t* src_buffer, uint32_t src_width, uint32_t src_height,
-                     uint32_t dest_x, uint32_t dest_y, uint32_t width, uint32_t height);
+                      uint32_t dest_x, uint32_t dest_y, uint32_t width, uint32_t height);
 void vga_blit_buffer_scaled(uint32_t* src_buffer, uint32_t src_width, uint32_t src_height,
-                           uint32_t dest_x, uint32_t dest_y, uint32_t dest_width, uint32_t dest_height);
+                            uint32_t dest_x, uint32_t dest_y, uint32_t dest_width, uint32_t dest_height);
 
 // Fast memory operations
 void vga_memcpy_fast(void* dest, const void* src, uint32_t count);
@@ -147,6 +147,54 @@ void destroy_double_buffer(double_buffer_t* db);
 void swap_buffers(double_buffer_t* db);
 uint32_t* get_current_buffer(double_buffer_t* db);
 void present_buffer(double_buffer_t* db);
+
+// Advanced graphics primitives for UI framework
+
+// Gradient fills
+void vga_draw_gradient_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                           uint32_t color_start, uint32_t color_end, uint8_t vertical);
+void vga_draw_radial_gradient(uint32_t center_x, uint32_t center_y, uint32_t radius,
+                             uint32_t color_center, uint32_t color_edge);
+
+// Shadow and glow effects
+void vga_draw_shadow(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                    uint32_t shadow_color, uint8_t blur_radius);
+void vga_draw_glow(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                  uint32_t glow_color, uint8_t intensity);
+
+// Rounded rectangles and advanced shapes
+void vga_draw_rounded_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                          uint32_t radius, uint8_t color);
+void vga_fill_rounded_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+                          uint32_t radius, uint8_t color);
+
+// Bezier curves for smooth shapes
+void vga_draw_bezier_curve(uint32_t x1, uint32_t y1, uint32_t cx1, uint32_t cy1,
+                          uint32_t cx2, uint32_t cy2, uint32_t x2, uint32_t y2,
+                          uint8_t color, uint8_t thickness);
+
+// Anti-aliased lines and circles
+void vga_draw_aa_line(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color);
+void vga_draw_aa_circle(uint32_t center_x, uint32_t center_y, uint32_t radius, uint32_t color);
+
+// Text effects
+void vga_draw_text_shadow(uint32_t x, uint32_t y, const char* str, uint8_t text_color, uint8_t shadow_color);
+void vga_draw_text_outline(uint32_t x, uint32_t y, const char* str, uint8_t text_color, uint8_t outline_color);
+
+// Image and sprite support
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+    uint32_t* pixels;  // RGBA pixels
+} image_t;
+
+image_t* create_image(uint32_t width, uint32_t height);
+void destroy_image(image_t* img);
+void draw_image(uint32_t x, uint32_t y, image_t* img);
+void draw_image_scaled(uint32_t x, uint32_t y, uint32_t dest_width, uint32_t dest_height, image_t* img);
+
+// Alpha blending for transparency
+uint32_t blend_pixel(uint32_t src, uint32_t dst);
 
 #endif
 
