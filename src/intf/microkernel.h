@@ -9,4 +9,7 @@
 // Microkernel initialization
 void microkernel_init();
 
+// Process management
+void terminate_process(int pid);
+
 #endif

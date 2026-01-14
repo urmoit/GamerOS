@@ -1,31 +1,31 @@
 # GamerOS Bug Tracking List
 
 ## Summary
-- **Total Bugs Found:** 16
-- **Critical Issues:** 3
-- **High Priority:** 3
-- **Medium Priority:** 5
+- **Total Bugs Found:** 20
+- **Critical Issues:** 1
+- **High Priority:** 2
+- **Medium Priority:** 6
 - **Low Priority:** 5
-- **Resolved:** 0
+- **Resolved:** 5
 
 ## Bug Categories
 
 ### 🔴 Critical (System Breaking)
-- [ ] Duplicate scheduler.h include causing compilation issues
-- [ ] Missing terminate_process function declaration
 - [ ] DEXLFOK boot hang - OS shows "DEXLFOK" in yellow and pauses, preventing boot
 
 ### 🟠 High Priority (Major Functionality Impact)
-- [ ] Unused process functions (process1_entry, process2_entry) wasting memory
 - [ ] Incomplete UI framework implementation
 - [ ] Missing executive services initialization
 
 ### 🟡 Medium Priority (Feature Limitations)
-- [ ] Potential division by zero in GUI tab calculations
-- [ ] Uninitialized kernel_counter variable
 - [ ] TODO comments indicating incomplete implementations (4 files)
 - [ ] Missing null pointer checks in some functions
 - [ ] Potential race conditions in scheduler
+- [ ] Implicit function declarations in GUI app (strlen, workstation_create_desktop)
+- [ ] Implicit function declarations in user mode init functions
+- [ ] Color value overflow in GUI functions (32-bit to 8-bit conversion)
+- [ ] Missing kmalloc/kfree declarations in object manager
+- [ ] Unused variables (prev in memory.c)
 
 ### 🟢 Low Priority (Minor Issues)
 - [ ] Code style inconsistencies
@@ -35,49 +35,14 @@
 - [ ] Inefficient string operations
 
 ### ✅ Resolved
-- [ ] None found
+- [x] Duplicate scheduler.h include
+- [x] Missing terminate_process function declaration
+- [x] Unused process functions
+- [x] Potential division by zero in GUI tab calculations
+- [x] Uninitialized kernel_counter variable
 
 ## Detailed Bug Reports
 
-### File: src/impl/kernel/main.c
-**Issue:** Duplicate include of scheduler.h (lines 9 and 16)
-**Severity:** Critical
-**Location:** Lines 9, 16
-**Impact:** Compilation warnings/errors, potential symbol conflicts
-**Suggested Fix:** Remove duplicate include on line 16
-**Status:** Open
-
-### File: src/impl/kernel/main.c
-**Issue:** process1_entry and process2_entry functions defined but never called
-**Severity:** High
-**Location:** Lines 23-41, 43-61
-**Impact:** Wasted memory and code space, potential confusion
-**Suggested Fix:** Remove unused functions or implement proper process spawning
-**Status:** Open
-
-### File: src/impl/kernel/main.c
-**Issue:** terminate_process function declared as extern but may not exist
-**Severity:** Critical
-**Location:** Lines 36-37, 56-57
-**Impact:** Linker errors if function not implemented, undefined behavior
-**Suggested Fix:** Implement terminate_process function or remove calls
-**Status:** Open
-
-### File: src/impl/kernel/main.c
-**Issue:** kernel_counter variable not properly initialized before use
-**Severity:** Medium
-**Location:** Line 100
-**Impact:** Undefined behavior on first iteration
-**Suggested Fix:** Initialize kernel_counter = 0; before the loop
-**Status:** Open
-
-### File: src/impl/gui_app.c
-**Issue:** Potential division by zero in tab width calculation
-**Severity:** Medium
-**Location:** Line 104
-**Impact:** Crash if TAB_COUNT is 0 or if calculation results in zero
-**Suggested Fix:** Add safety check: if (TAB_COUNT == 0) return;
-**Status:** Open
 
 ### File: src/executive/executive.c
 **Issue:** TODO comment indicates incomplete executive services initialization
@@ -165,6 +130,46 @@
 **Location:** CPU detection and paging setup code
 **Impact:** System hangs immediately after CPU detection, preventing full boot
 **Suggested Fix:** Need to investigate further - fixed memory addresses for paging tables did not resolve the issue
+**Status:** Open
+
+### File: src/impl/gui_app.c
+**Issue:** Implicit function declarations for strlen and workstation_create_desktop
+**Severity:** Medium
+**Location:** Lines 119, 160
+**Impact:** Compilation warnings, potential runtime issues if functions not properly linked
+**Suggested Fix:** Add strlen declaration to string.h header and declare workstation_create_desktop function
+**Status:** Open
+
+### File: src/impl/gui_app.c
+**Issue:** Color value overflow when converting 32-bit values to 8-bit parameters
+**Severity:** Medium
+**Location:** Lines 163-174
+**Impact:** Colors may display incorrectly, overflow warnings during compilation
+**Suggested Fix:** Use proper 8-bit color values instead of 32-bit values
+**Status:** Open
+
+### File: src/impl/kernel_mode/microkernel/memory.c
+**Issue:** Unused variable 'prev' in kmalloc function
+**Severity:** Low
+**Location:** Line 32
+**Impact:** Compilation warning, minor code cleanliness issue
+**Suggested Fix:** Remove unused variable or use it in the logic
+**Status:** Open
+
+### File: src/executive/object_manager/object_manager.c
+**Issue:** Implicit declarations of kmalloc and kfree functions
+**Severity:** Medium
+**Location:** Lines 80, 95
+**Impact:** Compilation warnings, potential linking issues
+**Suggested Fix:** Include proper header file declaring kmalloc/kfree or add declarations
+**Status:** Open
+
+### File: src/user_mode/user_mode.c
+**Issue:** Multiple implicit function declarations for subsystem init/shutdown functions
+**Severity:** Medium
+**Location:** Lines 27-38, 44-51
+**Impact:** Compilation warnings, potential linking issues with subsystem implementations
+**Suggested Fix:** Add proper function declarations or include appropriate headers
 **Status:** Open
 
 ---

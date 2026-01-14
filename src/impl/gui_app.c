@@ -101,6 +101,7 @@ void draw_header(int win_x, int win_y) {
 
 // Draw tab bar
 void draw_tab_bar(int win_x, int win_y) {
+    if (TAB_COUNT == 0) return; // Safety check to prevent division by zero
     int tab_width = (APP_WINDOW_WIDTH - 20) / TAB_COUNT;
 
     for (int i = 0; i < TAB_COUNT; i++) {

@@ -13,52 +13,14 @@
 #include "../../intf/idt.h"
 #include "../../intf/pic.h"
 #include "../../intf/gui_app.h"
-#include "../../intf/scheduler.h"
 #include "../../intf/ui_widgets.h"
 #include "../../intf/microkernel.h"
 #include "../../intf/executive.h"
 #include "../../user_mode/interfaces/user_mode.h"
 
 
-void process1_entry() {
-    int counter = 0;
-    for(;;) {
-        // Process 1: Simple counter task
-        counter++;
-        if (counter % 100000 == 0) {
-            // Yield control to other processes periodically
-            // __asm__("int $32"); // Temporarily disable software interrupts
-        }
-        __asm__("nop");
-
-        // Add exit condition to prevent infinite loop
-        if (counter >= 10000000) { // Exit after 10 million iterations
-            extern void terminate_process(int);
-            terminate_process(0); // Terminate this process cleanly
-            break;
-        }
-    }
-}
-
-void process2_entry() {
-    int counter = 0;
-    for(;;) {
-        // Process 2: Different counter task
-        counter--;
-        if (counter % 150000 == 0) {
-            // Yield control to other processes periodically
-            // __asm__("int $32"); // Temporarily disable software interrupts
-        }
-        __asm__("nop");
-
-        // Add exit condition to prevent infinite loop
-        if (counter <= -10000000) { // Exit after 10 million iterations
-            extern void terminate_process(int);
-            terminate_process(1); // Terminate this process cleanly
-            break;
-        }
-    }
-}
+// Note: process1_entry and process2_entry functions removed as they were unused
+// and only served as example code that wasted memory
 
 void kernel_main(void) {
     // Layered OS Architecture Initialization
@@ -97,7 +59,7 @@ void kernel_main(void) {
     vga_draw_string(10, 80, "INTERRUPTS ENABLED", 0x0F);
 
     // Main kernel loop - let GUI application handle display
-    int kernel_counter = 0;
+    int kernel_counter = 0; // Initialize counter for activity indicator
     for(;;) {
         // Yield control to allow GUI application to run
         __asm__("nop");
