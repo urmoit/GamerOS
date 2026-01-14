@@ -15,6 +15,9 @@
 #include "../../intf/gui_app.h"
 #include "../../intf/scheduler.h"
 #include "../../intf/ui_widgets.h"
+#include "../../intf/microkernel.h"
+#include "../../intf/executive.h"
+#include "../../user_mode/interfaces/user_mode.h"
 
 
 void process1_entry() {
@@ -58,29 +61,24 @@ void process2_entry() {
 }
 
 void kernel_main(void) {
-    // Test mm_init
-    mm_init();
+    // Layered OS Architecture Initialization
 
-    // Test vga_set_mode
+    // 1. HAL initialization (already done in boot.asm)
+
+    // Initialize graphics mode
     vga_set_mode(VGA_MODE_13H);
 
-    // Test idt_init
-    idt_init();
+    // 2. Microkernel initialization (process, memory, IPC)
+    microkernel_init();
+
+    // 3. Executive Layer initialization (Object Manager, all Executive Services)
+    executive_init();
+
+    // 4. User Mode Layer initialization (all subsystems)
+    user_mode_init();
 
     // Unmask timer interrupt (IRQ0) for scheduling
     outb(0x21, 0xFE);
-
-    // Test init_windowing
-    init_windowing();
-
-    // Test ui_init
-    ui_init();
-
-    // Initialize UI widgets system
-    ui_widgets_init();
-
-    // Initialize scheduler
-    scheduler_init();
 
     // Create GUI application process
     create_process(gui_app_entry);

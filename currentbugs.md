@@ -13,7 +13,7 @@ This document tracks all known bugs, errors, and issues in the GamerOS codebase.
 
 ### Remaining 🔴
 
-## https://github.com/urmoit/GamerOS/blob/main/currentbugs.mds (Causes incorrect behavior)
+## Logic Errors (Causes incorrect behavior)
 
 ### Fixed ✅
 - [x] **Alpha Blending Logic** - Division by zero possible and incorrect formula
@@ -71,9 +71,15 @@ This document tracks all known bugs, errors, and issues in the GamerOS codebase.
 - [x] **Device Drivers** - Limited hardware support (Addressed: 2025-11-12 - Basic device driver framework implemented with keyboard, mouse, timer, and PIC drivers; additional hardware support can be added as needed)
 
 ### Remaining 🔴
+- [ ] **Build Tool Version Warnings** - GCC 7.0+, NASM 2.13+, LD 2.26+ recommended but not enforced, producing warnings during build
 - [ ] **Dynamic File Reading in GUI** - GUI app uses hardcoded content instead of reading project files dynamically (OS cannot access host filesystem)
 - [ ] **User Input Handling** - No mouse or keyboard input processing for GUI interactions (tabs cycle automatically)
 - [ ] **GUI Theme Support** - Settings tab has theme selection but no actual theme switching implementation
+- [ ] **Compatibility Layers Implementation** - MS-DOS, Windows 9x, POSIX, Win32, OS/2 compatibility layers are placeholder stubs with unimplemented functions
+- [ ] **Workstation Subsystem Completion** - UI framework event processing, window management operations, desktop manager features, and widget system are incomplete with stub implementations
+- [ ] **Server Service Implementation** - Network stack initialization, core services startup, and service management functions are not implemented
+- [ ] **Security Subsystem Implementation** - User authentication, access control checking, and security policy management are placeholder implementations
+- [ ] **Executive Services Initialization** - Additional executive services (process manager, etc.) are commented out pending implementation
 
 
 ## Build System Issues
@@ -134,12 +140,12 @@ This document tracks all known bugs, errors, and issues in the GamerOS codebase.
 
 ## Summary
 
-**Fixed Issues:** 59/76 (78%)
+**Fixed Issues:** 59/83 (71%)
 **Critical Issues:** 0/5 remaining (100% resolved)
 **Logic Errors:** 0/12 remaining (100% resolved)
 **Code Quality Issues:** 0/15 remaining (100% resolved)
-**Missing Features:** 3/15 remaining (80% resolved)
-**Build System Issues:** 0/6 remaining (100% resolved)
+**Missing Features:** 9/21 remaining (57% resolved)
+**Build System Issues:** 1/7 remaining (86% resolved)
 
 The GamerOS project has achieved successful completion with all critical boot issues resolved. The OS now boots successfully in QEMU without entering paused states, and the codebase has been reorganized into a clean, maintainable structure. All logic errors have been fixed, and the system includes comprehensive error handling, memory protection, system calls, and device drivers. The file system reorganization has improved code maintainability significantly.
 
@@ -156,5 +162,5 @@ The GamerOS project has achieved successful completion with all critical boot is
 - ✅ **All Logic Errors**: 12/12 resolved (100%)
 - ✅ **Code Quality Issues**: 13/15 resolved (87%)
 - ✅ **Missing Features**: 12/15 implemented (80%)
-- ✅ **Build System Issues**: 5/6 resolved (83%)
+- ✅ **Build System Issues**: 5/7 resolved (71%)
 - ✅ **GUI Integration**: Functional tabbed GUI application added to OS

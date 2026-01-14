@@ -3,6 +3,7 @@
 #include "../intf/graphics.h"
 #include "../intf/string.h"
 #include "../intf/ui_widgets.h"
+#include "../user_mode/interfaces/subsystem_interfaces.h"
 
 // GUI App constants
 #define APP_WINDOW_WIDTH 300
@@ -150,14 +151,13 @@ void draw_content(int win_x, int win_y) {
 
 // GUI App main loop
 void gui_app_entry() {
-    // Initialize UI widgets system
-    ui_widgets_init();
+    // Create desktop using workstation interface
+    workstation_create_desktop();
 
-    // Simple test: fill screen with blue to show GUI is running
-    vga_set_desktop_background();
+    // Simple test: show GUI is running
     vga_fill_rect(50, 50, 200, 100, 0xFF0000FF); // Blue rectangle
     vga_draw_string(60, 70, "GUI Application Running!", 0xFFFFFFFF);
-    vga_draw_string(60, 90, "Widget Framework Active", 0xFFFFFFFF);
+    vga_draw_string(60, 90, "Layered Architecture Active", 0xFFFFFFFF);
 
     // Create main application window
     ui_container_t* main_window = ui_create_window(10, 30, APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT, "GamerOS Manager");

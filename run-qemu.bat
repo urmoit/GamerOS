@@ -41,5 +41,17 @@ if not exist "dist\x86_64\kernel.iso" (
 
 REM Run QEMU with debugging options to prevent immediate exit and disable SMM
 REM Serial output goes to console, default VGA display
+REM Create/overwrite log file (deletes old one if exists)
 echo Starting QEMU with ISO: dist\x86_64\kernel.iso
-%QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -d int -machine pc,accel=tcg,smm=off -cpu qemu64 -serial stdio
+if exist qemu.log (
+    echo Overwriting existing qemu.log
+    del qemu.log >nul 2>&1
+)
+echo Creating new qemu.log file...
+echo QEMU Boot Log - %date% %time% > qemu.log
+echo ======================================== >> qemu.log
+echo Starting QEMU with ISO: dist\x86_64\kernel.iso >> qemu.log
+echo Command: %QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu qemu64 -serial stdio -D qemu.log >> qemu.log
+echo. >> qemu.log
+REM Run QEMU and capture output. QEMU internal debug log goes to qemu-debug.log, main output goes to qemu.log
+%QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu qemu64 -serial stdio -D qemu-debug.log > qemu.log 2>&1

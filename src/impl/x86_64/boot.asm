@@ -18,7 +18,7 @@ header_end:
 section .text
 bits 32
 
-%include "src/impl/x86_64/font.inc"
+%include "src/impl/graphics/font.inc"
 
 ; Define constants for assembly
 VGA_GRAPHICS_BUFFER equ 0xA0000
@@ -61,14 +61,69 @@ _start:
     ; Just assume VGA mode 13h is set by bootloader (which it should be for GRUB)
     mov byte [vesa_success], 0
 
-    ; Set up paging
-    call setup_page_tables
-    call enable_paging
+    ; CRITICAL: Set up paging tables DIRECTLY in assembly before calling hal_init
+    ; We can't rely on C code for this because we need paging enabled before 64-bit mode
     
-    ; Load GDT
-    lgdt [gdt_descriptor]
+    ; Set up page tables in BSS section (they're already allocated)
+    ; P4 table at p4_table, P3 at p3_table, P2 at p2_table
+    extern p4_table
+    extern p3_table
+    extern p2_table
     
-    ; Jump to 64-bit code segment
+    ; Zero out page tables first (safety)
+    mov edi, p4_table
+    mov ecx, 512 * 3     ; Clear P4, P3, P2 tables (512 entries each)
+    xor eax, eax
+    rep stosd
+    
+    ; Set up P4 table: entry 0 points to P3 table
+    mov eax, p3_table
+    or eax, 0b11         ; Present + Writable
+    mov [p4_table], eax
+    
+    ; Set up P3 table: entry 0 points to P2 table
+    mov eax, p2_table
+    or eax, 0b11         ; Present + Writable
+    mov [p3_table], eax
+    
+    ; Set up P2 table: entry 0 maps 0-2MB (2MB huge page)
+    mov eax, 0x0
+    or eax, 0b10000011   ; Present + Writable + Huge (bit 7)
+    mov [p2_table], eax
+    
+    ; Set up P2 table: entry 1 maps 2-4MB (2MB huge page)
+    mov eax, 0x200000
+    or eax, 0b10000011   ; Present + Writable + Huge
+    mov [p2_table + 8], eax
+    
+    ; CRITICAL: Enable paging BEFORE entering 64-bit mode
+    ; x86_64 REQUIRES paging to be enabled - without it, CPU will triple fault
+    
+    ; Step 1: Enable PAE (Physical Address Extension) - required for 64-bit paging
+    mov eax, cr4
+    or eax, 1 << 5       ; Set PAE bit (bit 5)
+    mov cr4, eax
+    
+    ; Step 2: Load CR3 with P4 table address
+    mov eax, p4_table
+    mov cr3, eax
+    
+    ; Step 3: Enable long mode (EFER.LME)
+    mov ecx, 0xC0000080  ; EFER MSR
+    rdmsr
+    or eax, 1 << 8       ; Set LME bit (bit 8) - Enable Long Mode
+    wrmsr
+    
+    ; Step 4: Enable paging (CR0.PG) - THIS IS THE CRITICAL MISSING STEP!
+    mov eax, cr0
+    or eax, 1 << 31      ; Set PG bit (bit 31) - ENABLE PAGING
+    mov cr0, eax
+
+    ; Initialize HAL (GDT/IDT setup - page tables already done above)
+    extern hal_init
+    call hal_init
+
+    ; Step 5: Now we can safely jump to 64-bit code segment
     jmp 0x08:start_64
     
 .no_multiboot:
@@ -89,83 +144,25 @@ error:
     mov byte  [0xB800A], al
     hlt
 
-setup_page_tables:
-    ; Identity map first 4MB (2 pages) to ensure kernel has enough mapped memory
-    mov eax, p3_table
-    or eax, 0b11 ; Present + Writable
-    mov [p4_table], eax
-
-    mov eax, p2_table
-    or eax, 0b11
-    mov [p3_table], eax
-
-    ; Map first P2 entry (0-2MB)
-    mov eax, 0x0
-    or eax, 0b10000011 ; Present + Writable + Huge
-    mov [p2_table + 0 * 8], eax
-
-    ; Map second P2 entry (2-4MB)
-    mov eax, 0x200000
-    or eax, 0b10000011 ; Present + Writable + Huge
-    mov [p2_table + 1 * 8], eax
-
-    ; Map VGA memory region (0xA0000 - 0xBFFFF) for graphics
-    ; VGA memory is at physical address 0xA0000, we want to map it to virtual address 0xA0000
-    ; This requires setting up the page tables correctly for the VGA region
-
-    ; For identity mapping of VGA memory, we need to map virtual 0xA0000 to physical 0xA0000
-    ; Since we're using 2MB huge pages, we need to find which P2 entry corresponds to 0xA0000
-
-    ; Virtual address 0xA0000 breaks down as:
-    ; P4 index = 0 (bits 39-47)
-    ; P3 index = 0 (bits 30-38)
-    ; P2 index = 5 (bits 21-29: 0xA0000 >> 21 = 5)
-    ; Page offset = 0 (bits 0-20)
-
-    ; So we need to set p2_table[5] to point to physical 0xA0000 with huge page flags
-    mov eax, VGA_GRAPHICS_BUFFER
-    or eax, 0b10000011 ; Present + Writable + Huge
-    mov [p2_table + 5 * 8], eax
-
-    ret
-
-enable_paging:
-    ; Load P4 to cr3
-    mov eax, p4_table
-    mov cr3, eax
-    
-    ; Enable PAE
-    mov eax, cr4
-    or eax, 1 << 5
-    mov cr4, eax
-    
-    ; Enable long mode
-    mov ecx, 0xC0000080
-    rdmsr
-    or eax, 1 << 8
-    wrmsr
-    
-    ; Enable paging
-    mov eax, cr0
-    or eax, 1 << 31
-    mov cr0, eax
-    
-    ret
 
 ; try_vesa_mode function removed - BIOS interrupts cause SMM activation in QEMU
 
 bits 64
 start_64:
-    ; Update segment registers
-    mov ax, 0
+    ; Update segment registers for 64-bit mode
+    ; In 64-bit mode, segment registers are mostly ignored (except FS/GS for TLS)
+    ; Setting to 0 is fine, but 0x10 (data segment) is also valid
+    mov ax, 0x10        ; Data segment selector
     mov ss, ax
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
 
-    ; Set up stack
+    ; Set up stack (must be 16-byte aligned for x86_64 ABI)
     mov rsp, stack_top_64
+    ; Ensure 16-byte alignment (required for SSE/AVX and C function calls)
+    and rsp, 0xFFFFFFFFFFFFFFF0
 
     ; Simple text output to indicate we've reached 64-bit mode
     mov byte [0xB8000], '6'
@@ -205,13 +202,6 @@ start_64:
     hlt
 
 section .bss
-align 4096
-p4_table:
-    resb 4096
-p3_table:
-    resb 4096
-p2_table:
-    resb 4096
 
 ; VESA information storage
 global vesa_info
@@ -316,12 +306,4 @@ custom_font_message:
 vesa_status_message:
     db "Graphics mode initialized", 0
 
-gdt_64:
-    dq 0 ; Null descriptor
-    dq (1 << 43) | (1 << 44) | (1 << 47) | (1 << 53) ; Code segment
-    dq (1 << 44) | (1 << 47) ; Data segment
-
-gdt_descriptor:
-    dw $ - gdt_64 - 1
-    dq gdt_64
 
