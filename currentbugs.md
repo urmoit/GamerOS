@@ -1,166 +1,173 @@
-# Current Bugs and Issues in GamerOS
+# GamerOS Bug Tracking List
 
-This document tracks all known bugs, errors, and issues in the GamerOS codebase. Items are organized by severity and include status tracking.
+## Summary
+- **Total Bugs Found:** 16
+- **Critical Issues:** 3
+- **High Priority:** 3
+- **Medium Priority:** 5
+- **Low Priority:** 5
+- **Resolved:** 0
 
-## Critical Issues (Prevents OS from functioning)
+## Bug Categories
 
-### Fixed ✅
-- [x] **BIOS Interrupt Issues in Graphics** - BIOS interrupts (`int 0x10`) don't work in 64-bit long mode
-- [x] **Missing Interrupt Handlers** - `common_isr_handler` and `common_irq_handler` were undefined
-- [x] **IDT Entry Size for 64-bit** - IDT entries used 32-bit addresses in 64-bit mode
-- [x] **Window Creation Memory Allocation** - Used static allocation preventing multiple windows
-- [x] **OS Not Starting in QEMU** - RESOLVED: SMM activation loops eliminated by disabling SMM in QEMU and removing BIOS interrupts from boot process
+### 🔴 Critical (System Breaking)
+- [ ] Duplicate scheduler.h include causing compilation issues
+- [ ] Missing terminate_process function declaration
+- [ ] DEXLFOK boot hang - OS shows "DEXLFOK" in yellow and pauses, preventing boot
 
-### Remaining 🔴
+### 🟠 High Priority (Major Functionality Impact)
+- [ ] Unused process functions (process1_entry, process2_entry) wasting memory
+- [ ] Incomplete UI framework implementation
+- [ ] Missing executive services initialization
 
-## Logic Errors (Causes incorrect behavior)
+### 🟡 Medium Priority (Feature Limitations)
+- [ ] Potential division by zero in GUI tab calculations
+- [ ] Uninitialized kernel_counter variable
+- [ ] TODO comments indicating incomplete implementations (4 files)
+- [ ] Missing null pointer checks in some functions
+- [ ] Potential race conditions in scheduler
 
-### Fixed ✅
-- [x] **Alpha Blending Logic** - Division by zero possible and incorrect formula
-- [x] **Process Scheduling Issues** - Stack setup didn't match context switching ABI
-- [x] **File System Bounds Checking** - Off-by-one error in size validation
-- [x] **Mouse Coordinate Handling** - No bounds checking, potential negative overflow
-- [x] **Color Conversion Issues** - Poor 8-bit palette approximation
-- [x] **Setup Screen Hang** - ui_handle_setup() contains infinite loop with no escape mechanism
-- [x] **ISR Stack Frame Issues** - ISR handlers may not properly handle interrupt stack frames
-- [x] **Improper CLI/STI Usage** - Interrupts not properly disabled/enabled in handlers
-- [x] **Premature STI** - Interrupts enabled before full system initialization
-- [x] **PIC Interrupt Masking** - Hardware interrupts not properly masked during boot
-- [x] **Main Kernel Loop Busy Waiting** - Uses inefficient busy-wait delay instead of proper timer interrupts
-- [x] **RTC BCD Conversion** - May not work on all hardware configurations (Fixed: 2025-11-11 - Added hardware detection for BCD/binary RTC modes)
-- [x] **Context Switch Stack Corruption** - Context switch may corrupt stack due to improper register saving order (Fixed: 2025-11-11 - Corrected register push/pop order in context_switch.asm)
-- [x] **PIC EOI Logic Error** - EOI sent to wrong PIC for certain IRQs (Fixed: 2025-11-11 - Updated pic_eoi to send EOI to both PICs for IRQs >= 8)
-- [x] **Font Character Bounds** - Character validation allows invalid ASCII values (Fixed: 2025-11-11 - Restricted vga_draw_char to printable ASCII 32-126)
-- [x] **Memory Alignment Issues** - kmalloc doesn't ensure proper alignment for all data types (Fixed: 2025-11-11 - Changed to 16-byte alignment for SIMD support)
-- [x] **Scheduler Race Conditions** - No protection against concurrent access to process table (Fixed: 2025-11-11 - Added atomic spinlocks to scheduler operations)
-- [x] **Infinite Loops in Process Entry Points** - Process functions use for(;;) without proper exit conditions (Fixed: 2025-11-11 - Added iteration limits to process1_entry and process2_entry)
+### 🟢 Low Priority (Minor Issues)
+- [ ] Code style inconsistencies
+- [ ] Missing documentation comments
+- [ ] Unused variables in some functions
+- [ ] Hard-coded magic numbers
+- [ ] Inefficient string operations
 
-### Remaining 🔴
+### ✅ Resolved
+- [ ] None found
 
-## Code Quality Issues (Warnings/Style)
+## Detailed Bug Reports
 
-### Fixed ✅
-- [x] **Dead Code Removal** - Unused `text_mode_continue` label
-- [x] **Loop Optimization** - Extremely inefficient busy-wait loops
-- [x] **Memory Management Documentation** - `kfree()` did nothing without explanation
-- [x] **Compiler Warnings** - Several signed/unsigned comparison warnings (Fixed: 2025-11-11 - Updated all loop counters to use size_t, added NULL checks, and fixed type consistency)
-- [x] **Implicit Function Declarations** - `kmalloc`/`kfree` not visible during individual compilation (Fixed: 2025-11-11 - All functions now properly declared in headers and included where used)
-- [x] **Unused Variables** - Several variables defined but not used (Fixed: 2025-11-11 - Removed or properly utilized unused variables, added (void) casts for intentionally unused parameters)
-- [x] **Missing NULL Checks** - Many functions return 0 for error but callers don't check (Fixed: 2025-11-11 - Added comprehensive NULL checks throughout all functions, with proper error handling)
-- [x] **Inconsistent Return Values** - Some functions return 0 for success, others for failure (Fixed: 2025-11-11 - Standardized return values with clear documentation of success/failure semantics)
-- [x] **Magic Numbers** - Hard-coded values without constants (Fixed: 2025-11-11 - Comprehensive replacement of magic numbers with named constants throughout all modules)
-- [x] **Memory Alignment Side Effects** - 16-byte alignment in kmalloc may increase memory fragmentation (Addressed: 2025-11-11 - 16-byte alignment implemented for SIMD compatibility; fragmentation monitoring recommended)
-- [x] **Scheduler Lock Contention** - Spinlock in scheduler may cause performance issues under high contention (Addressed: 2025-11-11 - Atomic spinlocks implemented with proper lock/unlock discipline; performance testing recommended)
+### File: src/impl/kernel/main.c
+**Issue:** Duplicate include of scheduler.h (lines 9 and 16)
+**Severity:** Critical
+**Location:** Lines 9, 16
+**Impact:** Compilation warnings/errors, potential symbol conflicts
+**Suggested Fix:** Remove duplicate include on line 16
+**Status:** Open
 
-### Remaining 🔴
+### File: src/impl/kernel/main.c
+**Issue:** process1_entry and process2_entry functions defined but never called
+**Severity:** High
+**Location:** Lines 23-41, 43-61
+**Impact:** Wasted memory and code space, potential confusion
+**Suggested Fix:** Remove unused functions or implement proper process spawning
+**Status:** Open
 
-## Missing Features (Functionality gaps)
+### File: src/impl/kernel/main.c
+**Issue:** terminate_process function declared as extern but may not exist
+**Severity:** Critical
+**Location:** Lines 36-37, 56-57
+**Impact:** Linker errors if function not implemented, undefined behavior
+**Suggested Fix:** Implement terminate_process function or remove calls
+**Status:** Open
 
-### Fixed ✅
-- [x] **Font System Inconsistencies** - Two different font rendering systems
-- [x] **Stack Frame Setup** - Improved process stack initialization
-- [x] **Window Title Rendering** - draw_window() skips title drawing due to missing function (Fixed: 2025-11-12 - Implemented title drawing using draw_string from ui.c)
-- [x] **Memory Deallocation in Main** - Test memory allocation never freed (Fixed: 2025-11-12 - Added proper memory usage and deallocation in kernel_main)
-- [x] **Process Termination** - No way to exit or terminate processes cleanly (Fixed: 2025-11-12 - Implemented terminate_process function with clean process cleanup)
-- [x] **Proper Timer Interrupts** - Currently using busy-wait delays (Fixed: 2025-11-12 - Implemented system tick counter and proper timer interrupt handling)
-- [x] **Keyboard Input Buffering** - No proper input handling system (Fixed: 2025-11-12 - Added circular buffer for keyboard input with proper interrupt handling)
-- [x] **Error Recovery** - No graceful failure modes for most operations (Fixed: 2025-11-12 - Added NULL checks, graceful failure handling, and error recovery in main loop)
-- [x] **File System Persistence** - Files don't survive reboots (Fixed: 2025-11-12 - Added disk sector allocation and persistence simulation with fs_sync function)
-- [x] **Memory Protection** - No virtual memory or protection mechanisms (Addressed: 2025-11-12 - Basic memory protection implemented through bounds checking and NULL validation in all functions)
-- [x] **System Calls** - No proper syscall interface (Fixed: 2025-11-12 - Implemented syscall interface with int 0x80 handler for write and exit operations)
-- [x] **Device Drivers** - Limited hardware support (Addressed: 2025-11-12 - Basic device driver framework implemented with keyboard, mouse, timer, and PIC drivers; additional hardware support can be added as needed)
+### File: src/impl/kernel/main.c
+**Issue:** kernel_counter variable not properly initialized before use
+**Severity:** Medium
+**Location:** Line 100
+**Impact:** Undefined behavior on first iteration
+**Suggested Fix:** Initialize kernel_counter = 0; before the loop
+**Status:** Open
 
-### Remaining 🔴
-- [ ] **Build Tool Version Warnings** - GCC 7.0+, NASM 2.13+, LD 2.26+ recommended but not enforced, producing warnings during build
-- [ ] **Dynamic File Reading in GUI** - GUI app uses hardcoded content instead of reading project files dynamically (OS cannot access host filesystem)
-- [ ] **User Input Handling** - No mouse or keyboard input processing for GUI interactions (tabs cycle automatically)
-- [ ] **GUI Theme Support** - Settings tab has theme selection but no actual theme switching implementation
-- [ ] **Compatibility Layers Implementation** - MS-DOS, Windows 9x, POSIX, Win32, OS/2 compatibility layers are placeholder stubs with unimplemented functions
-- [ ] **Workstation Subsystem Completion** - UI framework event processing, window management operations, desktop manager features, and widget system are incomplete with stub implementations
-- [ ] **Server Service Implementation** - Network stack initialization, core services startup, and service management functions are not implemented
-- [ ] **Security Subsystem Implementation** - User authentication, access control checking, and security policy management are placeholder implementations
-- [ ] **Executive Services Initialization** - Additional executive services (process manager, etc.) are commented out pending implementation
+### File: src/impl/gui_app.c
+**Issue:** Potential division by zero in tab width calculation
+**Severity:** Medium
+**Location:** Line 104
+**Impact:** Crash if TAB_COUNT is 0 or if calculation results in zero
+**Suggested Fix:** Add safety check: if (TAB_COUNT == 0) return;
+**Status:** Open
 
+### File: src/executive/executive.c
+**Issue:** TODO comment indicates incomplete executive services initialization
+**Severity:** High
+**Location:** Line 17
+**Impact:** Missing critical OS services, system may not function properly
+**Suggested Fix:** Implement missing executive services
+**Status:** Open
 
-## Build System Issues
+### File: src/user_mode/integral_subsystems/workstation/ui_framework.c
+**Issue:** Multiple TODO comments for incomplete UI functionality
+**Severity:** High
+**Location:** Lines 30, 40-41, 55
+**Impact:** Broken UI event handling and rendering
+**Suggested Fix:** Implement pending UI event processing and rendering
+**Status:** Open
 
-### Fixed ✅
-- [x] **File System Reorganization** - RESOLVED: Codebase reorganized into logical subsystems (graphics, drivers, ui_system, filesystem)
-- [x] **Dependency Tracking** - Some object files may not rebuild when headers change (Fixed: 2025-11-12 - Added header dependencies to all C compilation rules)
-- [x] **Cross-Compilation Assumptions** - No version checking for build tools (Fixed: 2025-11-12 - Added tool version checking with warnings for minimum versions)
-- [x] **Warning Suppression** - Build produces warnings that could be addressed (Fixed: 2025-11-12 - Added -Wno-unused-parameter and -Wno-unused-variable flags)
-- [x] **Makefile Recipe Conflicts** - Duplicate recipe warnings for context_switch.o (Fixed: 2025-11-12 - Split generic assembly rule into individual rules)
-- [x] **Assembly BSS Warnings** - boot.asm produces multiple BSS initialization warnings (Fixed: 2025-11-12 - Changed vesa_success from resb to db with explicit initialization)
+### File: src/user_mode/integral_subsystems/workstation/window_manager.c
+**Issue:** TODO/FIXME comments indicating incomplete implementation
+**Severity:** Medium
+**Location:** Multiple lines
+**Impact:** Incomplete window management functionality
+**Suggested Fix:** Complete window manager implementation
+**Status:** Open
 
-### Remaining 🔴
+### File: src/impl/kernel_mode/microkernel/process.c
+**Issue:** Potential race conditions in scheduler with spinlock usage
+**Severity:** Medium
+**Location:** Lines 26-28, 31-32, 80-81
+**Impact:** Potential deadlocks or data corruption in multi-threaded scenarios
+**Suggested Fix:** Implement proper mutex/semaphore system instead of simple spinlocks
+**Status:** Open
 
-## Testing and Validation
+### File: src/user_mode/integral_subsystems/workstation/desktop_manager.c
+**Issue:** TODO comments indicating missing desktop management features
+**Severity:** Medium
+**Location:** Multiple lines
+**Impact:** Incomplete desktop environment
+**Suggested Fix:** Implement missing desktop management functionality
+**Status:** Open
 
-### Remaining 🔴
-- [ ] **Unit Tests** - No automated testing framework
-- [ ] **Integration Tests** - No system-level testing
-- [ ] **Edge Case Handling** - Limited validation of input parameters
-- [ ] **Memory Leak Detection** - No tools to detect memory issues
+### File: src/user_mode/compatibility_layers/msdos/msdos.c
+**Issue:** TODO comments for incomplete MSDOS compatibility
+**Severity:** Low
+**Location:** Multiple lines
+**Impact:** Limited backward compatibility
+**Suggested Fix:** Implement MSDOS compatibility layer
+**Status:** Open
 
-### Improvements Made ✅
-- [x] **Serial Output Monitoring** - Added `-serial stdio` to QEMU for kernel print statements
-- [x] **Debug Symbols** - Added `-g` flag to CFLAGS for better error reporting
-- [x] **CPU Model Specification** - Added `-cpu qemu64` to ensure 64-bit compatibility
-- [x] **GRUB Verification** - Confirmed correct multiboot2 configuration and ISO structure
+### File: src/user_mode/compatibility_layers/windows9x/windows9x.c
+**Issue:** TODO comments for incomplete Windows 9x compatibility
+**Severity:** Low
+**Location:** Multiple lines
+**Impact:** Limited Windows 9x application support
+**Suggested Fix:** Implement Windows 9x compatibility layer
+**Status:** Open
 
-## Documentation Issues
+### File: src/user_mode/environment_subsystems/os2/os2.c
+**Issue:** TODO comments for incomplete OS/2 subsystem
+**Severity:** Low
+**Location:** Multiple lines
+**Impact:** No OS/2 application support
+**Suggested Fix:** Implement OS/2 environment subsystem
+**Status:** Open
 
-### Remaining 🔴
-- [ ] **Code Comments** - Many functions lack proper documentation
-- [ ] **API Documentation** - Interface contracts not clearly defined
-- [ ] **Build Instructions** - Limited troubleshooting information
-- [ ] **Architecture Documentation** - High-level design not documented
+### File: src/user_mode/environment_subsystems/posix/posix.c
+**Issue:** TODO comments for incomplete POSIX subsystem
+**Severity:** Low
+**Location:** Multiple lines
+**Impact:** Limited POSIX application compatibility
+**Suggested Fix:** Complete POSIX subsystem implementation
+**Status:** Open
 
-## Performance Issues
+### File: src/user_mode/environment_subsystems/win32/win32.c
+**Issue:** TODO comments for incomplete Win32 subsystem
+**Severity:** Low
+**Location:** Multiple lines
+**Impact:** Limited Windows application support
+**Suggested Fix:** Implement Win32 subsystem
+**Status:** Open
 
-### Remaining 🔴
-- [ ] **Graphics Performance** - Software rendering is slow
-- [ ] **Memory Usage** - No memory optimization
-- [ ] **CPU Utilization** - Inefficient algorithms in some areas
-- [ ] **Interrupt Latency** - No real-time considerations
-- [ ] **Busy Wait Delays** - Main loop uses volatile loop instead of proper timing
-- [ ] **Memory Copy Operations** - No optimized memory operations for large buffers
-
-## Security Issues
-
-### Remaining 🔴
-- [ ] **Input Validation** - Limited bounds checking on user inputs
-- [ ] **Buffer Overflows** - Potential buffer overflow vulnerabilities
-- [ ] **Privilege Escalation** - No proper privilege separation
-- [ ] **Memory Corruption** - No memory protection mechanisms
-- [ ] **Null Pointer Dereferences** - Many functions don't check for null pointers before use
-- [ ] **Integer Overflows** - No protection against arithmetic overflows in calculations
+### File: src/impl/x86_64/boot.asm (Boot Process)
+**Issue:** OS displays "DEXLFOK" in yellow and pauses during boot instead of continuing
+**Severity:** Critical
+**Location:** CPU detection and paging setup code
+**Impact:** System hangs immediately after CPU detection, preventing full boot
+**Suggested Fix:** Need to investigate further - fixed memory addresses for paging tables did not resolve the issue
+**Status:** Open
 
 ---
 
-## Summary
-
-**Fixed Issues:** 59/83 (71%)
-**Critical Issues:** 0/5 remaining (100% resolved)
-**Logic Errors:** 0/12 remaining (100% resolved)
-**Code Quality Issues:** 0/15 remaining (100% resolved)
-**Missing Features:** 9/21 remaining (57% resolved)
-**Build System Issues:** 1/7 remaining (86% resolved)
-
-The GamerOS project has achieved successful completion with all critical boot issues resolved. The OS now boots successfully in QEMU without entering paused states, and the codebase has been reorganized into a clean, maintainable structure. All logic errors have been fixed, and the system includes comprehensive error handling, memory protection, system calls, and device drivers. The file system reorganization has improved code maintainability significantly.
-
-**Recent Updates (2025-11-14):**
-- **GUI INTEGRATION**: Added functional GUI application with tabbed interface running as OS process
-- **INTERRUPT TIMING FIX**: Moved interrupt enable after process creation to prevent premature scheduling
-- **STACK ALIGNMENT**: Ensured 16-byte stack alignment for x86_64 compatibility
-- **BUILD SYSTEM**: Updated Makefiles for new file organization and GUI compilation
-- **CODE QUALITY**: Identified and documented remaining warnings and missing features
-
-**Resolution Status:**
-- ✅ **Critical Boot Issue**: OS now boots successfully in QEMU without pauses
-- ✅ **File Organization**: Codebase reorganized into maintainable subsystems
-- ✅ **All Logic Errors**: 12/12 resolved (100%)
-- ✅ **Code Quality Issues**: 13/15 resolved (87%)
-- ✅ **Missing Features**: 12/15 implemented (80%)
-- ✅ **Build System Issues**: 5/7 resolved (71%)
-- ✅ **GUI Integration**: Functional tabbed GUI application added to OS
+*Generated on: January 14, 2026*
+*Last Updated: January 14, 2026*

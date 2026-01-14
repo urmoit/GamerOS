@@ -32,22 +32,145 @@ _start:
     ; Temporarily skip multiboot check to isolate the issue
     ; Assume we're loaded correctly by GRUB
 
-    ; Debug: Boot sequence - M B O K P G Z T E L P H J 6 4 !
-    mov byte [0xB8000], 'M'     ; Multiboot started
+; CPU Detection Function
+; Returns: CF=1 if CPU unsupported, CF=0 if OK
+detect_cpu:
+    ; Debug: CPU detection started
+    mov byte [0xB8000], 'D'
     mov byte [0xB8001], 0x0E
-    mov byte [0xB8002], 'B'     ; Boot
+    ; Simplified: Assume CPUID is available on modern systems
+    ; Skip the CPUID availability test for now
+
+    ; CPUID supported, get vendor string
+    xor eax, eax
+    cpuid
+    mov [cpu_vendor], ebx
+    mov [cpu_vendor+4], edx
+    mov [cpu_vendor+8], ecx
+
+    ; Debug: Testing extended CPUID
+    mov byte [0xB8002], 'E'
     mov byte [0xB8003], 0x0E
-    mov byte [0xB8004], 'O'     ; OK
+
+    ; Check for extended CPUID functions
+    mov eax, 0x80000000
+    cpuid
+    cmp eax, 0x80000001
+    jb .no_ext_cpuid
+
+    ; Debug: Extended CPUID OK
+    mov byte [0xB8004], 'X'
     mov byte [0xB8005], 0x0E
-    mov byte [0xB8006], 'K'     ; OK
+
+    ; Check for long mode support
+    mov eax, 0x80000001
+    cpuid
+    test edx, (1 << 29)     ; Long Mode bit
+    jz .no_long_mode
+
+    ; Debug: Long mode OK
+    mov byte [0xB8006], 'L'
     mov byte [0xB8007], 0x0E
+
+    ; Check for basic CPUID functions
+    xor eax, eax
+    cpuid
+    test eax, eax           ; Function 1 supported?
+    jz .no_basic_features
+
+    ; Check for required features in function 1
+    mov eax, 1
+    cpuid
+    test edx, (1 << 0)      ; FPU
+    jz .no_fpu
+    test edx, (1 << 6)      ; PAE
+    jz .no_pae
+
+    ; Debug: CPU features OK
+    mov byte [0xB8008], 'F'
+    mov byte [0xB8009], 0x0E
+
+    ; CPU is supported!
+    ; Debug: CPU detection successful
+    mov byte [0xB800A], 'O'
+    mov byte [0xB800B], 0x0E
+    mov byte [0xB800C], 'K'
+    mov byte [0xB800D], 0x0E
+
+    clc                     ; Clear carry flag (success)
+    ret
+
+.no_cpuid:
+    mov byte [0xB8000], 'N' ; No CPUID
+    mov byte [0xB8001], 0x0C
+    mov byte [0xB8002], 'C'
+    mov byte [0xB8003], 0x0C
+    stc
+    ret
+
+.no_ext_cpuid:
+    mov byte [0xB8000], 'N' ; No extended CPUID
+    mov byte [0xB8001], 0x0C
+    mov byte [0xB8002], 'E'
+    mov byte [0xB8003], 0x0C
+    stc
+    ret
+
+.no_long_mode:
+    mov byte [0xB8000], 'N' ; No long mode
+    mov byte [0xB8001], 0x0C
+    mov byte [0xB8002], 'L'
+    mov byte [0xB8003], 0x0C
+    stc
+    ret
+
+.no_basic_features:
+    mov byte [0xB8000], 'N' ; No basic features
+    mov byte [0xB8001], 0x0C
+    mov byte [0xB8002], 'B'
+    mov byte [0xB8003], 0x0C
+    stc
+    ret
+
+.no_fpu:
+    mov byte [0xB8000], 'N' ; No FPU
+    mov byte [0xB8001], 0x0C
+    mov byte [0xB8002], 'F'
+    mov byte [0xB8003], 0x0C
+    stc
+    ret
+
+.no_pae:
+    mov byte [0xB8000], 'N' ; No PAE
+    mov byte [0xB8001], 0x0C
+    mov byte [0xB8002], 'P'
+    mov byte [0xB8003], 0x0C
+    stc
+    ret
+
+    ; Debug: Boot sequence - C M B O K P G Z T E L P H J 6 4 !
+    ; CPU detection already wrote status to 0xB8000-0xB8003
+    mov byte [0xB8004], 'M'     ; Multiboot started
+    mov byte [0xB8005], 0x0E
+    mov byte [0xB8006], 'B'     ; Boot
+    mov byte [0xB8007], 0x0E
+    mov byte [0xB8008], 'O'     ; OK
+    mov byte [0xB8009], 0x0E
+    mov byte [0xB800A], 'K'     ; OK
+    mov byte [0xB800B], 0x0E
     
-    ; Simplified CPU detection - assume modern CPU supports required features
-    ; Skip CPUID checks for now to avoid compatibility issues
-    ; mov eax, 0x80000001
-    ; cpuid
-    ; test edx, 1 << 29
-    ; jz .no_long_mode
+    ; Comprehensive CPU detection for x86/x64 and Intel/AMD CPUs
+    call detect_cpu
+
+    ; Debug: After CPU detection call
+    mov byte [0xB800E], 'A'
+    mov byte [0xB800F], 0x0E
+
+    jc .cpu_unsupported
+
+    ; Debug: CPU detection passed, continuing
+    mov byte [0xB8010], 'C'
+    mov byte [0xB8011], 0x0E
 
     ; Skip VESA setup entirely - BIOS interrupts in protected mode cause SMM activation
     ; Just assume VGA mode 13h is set by bootloader (which it should be for GRUB)
@@ -63,71 +186,35 @@ _start:
     mov byte [0xB800C], 'Z'     ; Zero
     mov byte [0xB800D], 0x0E
 
-    ; CRITICAL: Set up paging tables DIRECTLY in assembly before calling hal_init
-    ; We can't rely on C code for this because we need paging enabled before 64-bit mode
-    
-    ; Set up page tables in BSS section (they're already allocated)
-    ; P4 table at p4_table, P3 at p3_table, P2 at p2_table
-    extern p4_table
-    extern p3_table
-    extern p2_table
-    
+    ; CRITICAL: Set up paging tables in FIXED memory locations
+    ; Use safe addresses that are definitely accessible in 32-bit mode
+
+    ; Fixed addresses for page tables (right after kernel at 2MB)
+    %define P4_TABLE 0x200000   ; 2MB
+    %define P3_TABLE 0x201000   ; 2MB + 4KB
+    %define P2_TABLE 0x202000   ; 2MB + 8KB
+
     ; Zero out page tables first (safety)
-    mov edi, p4_table
+    mov edi, P4_TABLE
     mov ecx, 512 * 3     ; Clear P4, P3, P2 tables (512 entries each)
     xor eax, eax
     rep stosd
     
     ; Set up P4 table: entry 0 points to P3 table
-    mov eax, p3_table
+    mov eax, P3_TABLE
     or eax, 0b11         ; Present + Writable
-    mov [p4_table], eax
-    
+    mov [P4_TABLE], eax
+
     ; Set up P3 table: entry 0 points to P2 table
-    mov eax, p2_table
+    mov eax, P2_TABLE
     or eax, 0b11         ; Present + Writable
-    mov [p3_table], eax
-    
-    ; Set up P2 table: identity map first 1GB of memory with 2MB huge pages
+    mov [P3_TABLE], eax
+
+    ; Set up P2 table: identity map first 2MB only (simplified)
     ; Entry 0: 0-2MB
     mov eax, 0x0
     or eax, 0b10000011   ; Present + Writable + Huge (bit 7)
-    mov [p2_table], eax
-
-    ; Entry 1: 2-4MB
-    mov eax, 0x200000
-    or eax, 0b10000011   ; Present + Writable + Huge
-    mov [p2_table + 8], eax
-
-    ; Entry 2: 4-6MB
-    mov eax, 0x400000
-    or eax, 0b10000011   ; Present + Writable + Huge
-    mov [p2_table + 16], eax
-
-    ; Entry 3: 6-8MB
-    mov eax, 0x600000
-    or eax, 0b10000011   ; Present + Writable + Huge
-    mov [p2_table + 24], eax
-
-    ; Entry 4: 8-10MB
-    mov eax, 0x800000
-    or eax, 0b10000011   ; Present + Writable + Huge
-    mov [p2_table + 32], eax
-
-    ; Entry 5: 10-12MB
-    mov eax, 0xA00000
-    or eax, 0b10000011   ; Present + Writable + Huge
-    mov [p2_table + 40], eax
-
-    ; Entry 6: 12-14MB
-    mov eax, 0xC00000
-    or eax, 0b10000011   ; Present + Writable + Huge
-    mov [p2_table + 48], eax
-
-    ; Entry 7: 14-16MB
-    mov eax, 0xE00000
-    or eax, 0b10000011   ; Present + Writable + Huge
-    mov [p2_table + 56], eax
+    mov [P2_TABLE], eax
 
     ; Debug: Page tables set up
     mov byte [0xB800E], 'T'
@@ -146,7 +233,7 @@ _start:
     mov cr4, eax
 
     ; Step 2: Load CR3 with P4 table address
-    mov eax, p4_table
+    mov eax, P4_TABLE
     mov cr3, eax
 
     ; Step 3: Enable long mode (EFER.LME)
@@ -172,10 +259,9 @@ _start:
     mov byte [0xB8016], 'H'
     mov byte [0xB8017], 0x0E
 
-    ; TEMPORARILY DISABLE HAL INIT TO TEST
     ; Initialize HAL (GDT/IDT setup - page tables already done above)
-    ; extern hal_init
-    ; call hal_init
+    extern hal_init
+    call hal_init
 
     ; Debug: HAL initialized, jumping to 64-bit
     mov byte [0xB8018], 'J'
@@ -184,14 +270,12 @@ _start:
     ; Step 5: Now we can safely jump to 64-bit code segment
     jmp 0x08:start_64
     
+.cpu_unsupported:
+    ; CPU not supported - halt
+    hlt
+
 .no_multiboot:
     mov al, "M"
-    jmp error
-.no_cpuid:
-    mov al, "C"
-    jmp error
-.no_long_mode:
-    mov al, "L"
     jmp error
 
 error:
@@ -266,6 +350,11 @@ start_64:
     hlt
 
 section .bss
+
+; CPU information
+global cpu_vendor
+cpu_vendor:
+    resb 12         ; Space for 12-byte vendor string
 
 ; VESA information storage
 global vesa_info
