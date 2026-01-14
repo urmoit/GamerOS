@@ -1,0 +1,6 @@
+// this is cursor worktrees json file
+{
+  "setup-worktree": [
+    "npm install"
+  ]
+}
