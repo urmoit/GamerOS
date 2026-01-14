@@ -1,0 +1,5 @@
+QEMU Boot Log - Wed 01/14/2026 16:01:14.33 
+======================================== 
+Starting QEMU with ISO: dist\x86_64\kernel.iso 
+Command: "C:\Program Files\qemu\qemu-system-x86_64.exe" -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -d cpu_reset -D qemu-debug.log 
+ 

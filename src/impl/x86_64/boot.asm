@@ -1,18 +1,13 @@
 ; x86_64 boot assembly code
 ; This sets up the processor in long mode (64-bit) and jumps to the kernel
 
+; Multiboot header (must be within first 8KB of file)
 section .multiboot_header
-align 4
+align 8
 header_start:
-    dd 0xE85250D6                ; Magic number (multiboot 2)
-    dd 0                         ; Architecture (i386)
-    dd header_end - header_start ; Header length
-    dd 0x100000000 - (0xE85250D6 + 0 + (header_end - header_start)) ; Checksum
-    
-    ; End tag
-    dw 0    ; Type
-    dw 0    ; Flags
-    dd 8    ; Size
+    dd 0x1BADB002                ; Magic number (multiboot 1)
+    dd 0x00000003                ; Flags (page align + memory info)
+    dd 0xE4524FFB                ; Checksum: -(0x1BADB002 + 0x00000003)
 header_end:
 
 section .text
@@ -28,38 +23,45 @@ _start:
     ; Set up stack
     mov esp, stack_top
     
-    ; Check if multiboot is supported (magic number in EAX)
-    cmp eax, 0x36D76289  ; Multiboot 1/2 magic number
-    jne .no_multiboot
-    
-    ; Check CPUID
-    pushfd
-    pop eax
-    mov ecx, eax
-    xor eax, 1 << 21
-    push eax
-    popfd
-    pushfd
-    pop eax
-    push ecx
-    popfd
-    cmp eax, ecx
-    je .no_cpuid
-    
-    ; Check for long mode
-    mov eax, 0x80000000
-    cpuid
-    cmp eax, 0x80000001
-    jb .no_long_mode
+    ; Debug: Indicate we've started
+    mov byte [0xB8000], 'M'
+    mov byte [0xB8001], 0x0E  ; Yellow on black
+    mov byte [0xB8002], 'B'
+    mov byte [0xB8003], 0x0E
 
-    mov eax, 0x80000001
-    cpuid
-    test edx, 1 << 29
-    jz .no_long_mode
+    ; Temporarily skip multiboot check to isolate the issue
+    ; Assume we're loaded correctly by GRUB
+
+    ; Debug: Boot sequence - M B O K P G Z T E L P H J 6 4 !
+    mov byte [0xB8000], 'M'     ; Multiboot started
+    mov byte [0xB8001], 0x0E
+    mov byte [0xB8002], 'B'     ; Boot
+    mov byte [0xB8003], 0x0E
+    mov byte [0xB8004], 'O'     ; OK
+    mov byte [0xB8005], 0x0E
+    mov byte [0xB8006], 'K'     ; OK
+    mov byte [0xB8007], 0x0E
+    
+    ; Simplified CPU detection - assume modern CPU supports required features
+    ; Skip CPUID checks for now to avoid compatibility issues
+    ; mov eax, 0x80000001
+    ; cpuid
+    ; test edx, 1 << 29
+    ; jz .no_long_mode
 
     ; Skip VESA setup entirely - BIOS interrupts in protected mode cause SMM activation
     ; Just assume VGA mode 13h is set by bootloader (which it should be for GRUB)
     mov byte [vesa_success], 0
+
+    ; Continue debug sequence
+    mov byte [0xB8008], 'P'     ; Paging
+    mov byte [0xB8009], 0x0E
+    mov byte [0xB800A], 'G'     ; setup
+    mov byte [0xB800B], 0x0E
+
+    ; Debug: Zeroing page tables
+    mov byte [0xB800C], 'Z'     ; Zero
+    mov byte [0xB800D], 0x0E
 
     ; CRITICAL: Set up paging tables DIRECTLY in assembly before calling hal_init
     ; We can't rely on C code for this because we need paging enabled before 64-bit mode
@@ -86,42 +88,98 @@ _start:
     or eax, 0b11         ; Present + Writable
     mov [p3_table], eax
     
-    ; Set up P2 table: entry 0 maps 0-2MB (2MB huge page)
+    ; Set up P2 table: identity map first 1GB of memory with 2MB huge pages
+    ; Entry 0: 0-2MB
     mov eax, 0x0
     or eax, 0b10000011   ; Present + Writable + Huge (bit 7)
     mov [p2_table], eax
-    
-    ; Set up P2 table: entry 1 maps 2-4MB (2MB huge page)
+
+    ; Entry 1: 2-4MB
     mov eax, 0x200000
     or eax, 0b10000011   ; Present + Writable + Huge
     mov [p2_table + 8], eax
-    
+
+    ; Entry 2: 4-6MB
+    mov eax, 0x400000
+    or eax, 0b10000011   ; Present + Writable + Huge
+    mov [p2_table + 16], eax
+
+    ; Entry 3: 6-8MB
+    mov eax, 0x600000
+    or eax, 0b10000011   ; Present + Writable + Huge
+    mov [p2_table + 24], eax
+
+    ; Entry 4: 8-10MB
+    mov eax, 0x800000
+    or eax, 0b10000011   ; Present + Writable + Huge
+    mov [p2_table + 32], eax
+
+    ; Entry 5: 10-12MB
+    mov eax, 0xA00000
+    or eax, 0b10000011   ; Present + Writable + Huge
+    mov [p2_table + 40], eax
+
+    ; Entry 6: 12-14MB
+    mov eax, 0xC00000
+    or eax, 0b10000011   ; Present + Writable + Huge
+    mov [p2_table + 48], eax
+
+    ; Entry 7: 14-16MB
+    mov eax, 0xE00000
+    or eax, 0b10000011   ; Present + Writable + Huge
+    mov [p2_table + 56], eax
+
+    ; Debug: Page tables set up
+    mov byte [0xB800E], 'T'
+    mov byte [0xB800F], 0x0E
+
     ; CRITICAL: Enable paging BEFORE entering 64-bit mode
     ; x86_64 REQUIRES paging to be enabled - without it, CPU will triple fault
-    
+
+    ; Debug: About to enable paging
+    mov byte [0xB8010], 'E'
+    mov byte [0xB8011], 0x0E
+
     ; Step 1: Enable PAE (Physical Address Extension) - required for 64-bit paging
     mov eax, cr4
     or eax, 1 << 5       ; Set PAE bit (bit 5)
     mov cr4, eax
-    
+
     ; Step 2: Load CR3 with P4 table address
     mov eax, p4_table
     mov cr3, eax
-    
+
     ; Step 3: Enable long mode (EFER.LME)
     mov ecx, 0xC0000080  ; EFER MSR
     rdmsr
     or eax, 1 << 8       ; Set LME bit (bit 8) - Enable Long Mode
     wrmsr
-    
+
+    ; Debug: Long mode enabled
+    mov byte [0xB8012], 'L'
+    mov byte [0xB8013], 0x0E
+
     ; Step 4: Enable paging (CR0.PG) - THIS IS THE CRITICAL MISSING STEP!
     mov eax, cr0
     or eax, 1 << 31      ; Set PG bit (bit 31) - ENABLE PAGING
     mov cr0, eax
 
+    ; Debug: Paging enabled
+    mov byte [0xB8014], 'P'
+    mov byte [0xB8015], 0x0E
+
+    ; Debug: About to init HAL
+    mov byte [0xB8016], 'H'
+    mov byte [0xB8017], 0x0E
+
+    ; TEMPORARILY DISABLE HAL INIT TO TEST
     ; Initialize HAL (GDT/IDT setup - page tables already done above)
-    extern hal_init
-    call hal_init
+    ; extern hal_init
+    ; call hal_init
+
+    ; Debug: HAL initialized, jumping to 64-bit
+    mov byte [0xB8018], 'J'
+    mov byte [0xB8019], 0x0E
 
     ; Step 5: Now we can safely jump to 64-bit code segment
     jmp 0x08:start_64
@@ -149,6 +207,14 @@ error:
 
 bits 64
 start_64:
+    ; Debug: Indicate we've reached 64-bit mode
+    mov byte [0xB8010], '6'
+    mov byte [0xB8011], 0x0A  ; Green on black
+    mov byte [0xB8012], '4'
+    mov byte [0xB8013], 0x0A
+    mov byte [0xB8014], '!'
+    mov byte [0xB8015], 0x0A
+
     ; Update segment registers for 64-bit mode
     ; In 64-bit mode, segment registers are mostly ignored (except FS/GS for TLS)
     ; Setting to 0 is fine, but 0x10 (data segment) is also valid
@@ -164,35 +230,33 @@ start_64:
     ; Ensure 16-byte alignment (required for SSE/AVX and C function calls)
     and rsp, 0xFFFFFFFFFFFFFFF0
 
-    ; Simple text output to indicate we've reached 64-bit mode
-    mov byte [0xB8000], '6'
-    mov byte [0xB8001], 0x0A  ; Green on black
-    mov byte [0xB8002], '4'
-    mov byte [0xB8003], 0x0A
-    mov byte [0xB8004], '-'
-    mov byte [0xB8005], 0x0A
-    mov byte [0xB8006], 'b'
-    mov byte [0xB8007], 0x0A
-    mov byte [0xB8008], 'i'
-    mov byte [0xB8009], 0x0A
-    mov byte [0xB800A], 't'
-    mov byte [0xB800B], 0x0A
+    ; Debug: Print that we've reached the kernel
+    mov byte [0xB8000], 'K'
+    mov byte [0xB8001], 0x0C  ; Red on black
+    mov byte [0xB8002], 'E'
+    mov byte [0xB8003], 0x0C
+    mov byte [0xB8004], 'R'
+    mov byte [0xB8005], 0x0C
+    mov byte [0xB8006], 'N'
+    mov byte [0xB8007], 0x0C
+    mov byte [0xB8008], 'E'
+    mov byte [0xB8009], 0x0C
+    mov byte [0xB800A], 'L'
+    mov byte [0xB800B], 0x0C
     mov byte [0xB800C], ' '
-    mov byte [0xB800D], 0x0A
-    mov byte [0xB800E], 'm'
-    mov byte [0xB800F], 0x0A
-    mov byte [0xB8010], 'o'
-    mov byte [0xB8011], 0x0A
-    mov byte [0xB8012], 'd'
-    mov byte [0xB8013], 0x0A
-    mov byte [0xB8014], 'e'
-    mov byte [0xB8015], 0x0A
-    mov byte [0xB8016], ' '
-    mov byte [0xB8017], 0x0A
-    mov byte [0xB8018], 'O'
-    mov byte [0xB8019], 0x0A
-    mov byte [0xB801A], 'K'
-    mov byte [0xB801B], 0x0A
+    mov byte [0xB800D], 0x0C
+    mov byte [0xB800E], 'L'
+    mov byte [0xB800F], 0x0C
+    mov byte [0xB8010], 'O'
+    mov byte [0xB8011], 0x0C
+    mov byte [0xB8012], 'A'
+    mov byte [0xB8013], 0x0C
+    mov byte [0xB8014], 'D'
+    mov byte [0xB8015], 0x0C
+    mov byte [0xB8016], 'E'
+    mov byte [0xB8017], 0x0C
+    mov byte [0xB8018], 'D'
+    mov byte [0xB8019], 0x0C
 
     ; Call kernel main
     extern kernel_main

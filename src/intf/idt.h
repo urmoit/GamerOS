@@ -14,10 +14,10 @@ typedef struct {
     uint32_t reserved2;
 } __attribute__((packed)) idt_entry_t;
 
-// Structure for the IDT register
+// Structure for the IDT register (64-bit)
 typedef struct {
     uint16_t limit;
-    uint32_t base;
+    uint64_t base;
 } __attribute__((packed)) idt_ptr_t;
 
 // Function to set an IDT entry

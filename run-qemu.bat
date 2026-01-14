@@ -51,7 +51,7 @@ echo Creating new qemu.log file...
 echo QEMU Boot Log - %date% %time% > qemu.log
 echo ======================================== >> qemu.log
 echo Starting QEMU with ISO: dist\x86_64\kernel.iso >> qemu.log
-echo Command: %QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu qemu64 -serial stdio -D qemu.log >> qemu.log
+echo Command: %QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -d cpu_reset -D qemu-debug.log >> qemu.log
 echo. >> qemu.log
 REM Run QEMU and capture output. QEMU internal debug log goes to qemu-debug.log, main output goes to qemu.log
-%QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu qemu64 -serial stdio -D qemu-debug.log > qemu.log 2>&1
+%QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -d cpu_reset -D qemu-debug.log

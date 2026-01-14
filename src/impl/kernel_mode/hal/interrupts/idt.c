@@ -96,7 +96,7 @@ void set_idt_entry(int n, uint64_t handler) {
 
 void idt_init() {
     idt_ptr.limit = (sizeof(idt_entry_t) * IDT_ENTRIES) - 1;
-    idt_ptr.base = (uint64_t)&idt;
+    idt_ptr.base = (uint64_t)&idt;  // Full 64-bit address
 
     // Clear out the IDT
     for (int i = 0; i < IDT_ENTRIES; i++) {
