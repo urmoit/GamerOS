@@ -21,6 +21,7 @@ environment_interface_t* os2_env = 0;
 compatibility_interface_t* windows9x_compat = 0;
 compatibility_interface_t* msdos_compat = 0;
 
+
 // User Mode initialization
 void user_mode_init(void) {
     // Initialize integral subsystems

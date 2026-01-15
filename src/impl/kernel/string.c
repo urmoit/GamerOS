@@ -25,6 +25,22 @@ void* memset(void* dest, int val, size_t count) {
     return dest;
 }
 
+size_t strlen(const char* str) {
+    if (!str) return 0; // NULL check
+    size_t len = 0;
+    while (str[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+
+char* strcpy(char* dest, const char* src) {
+    if (!dest || !src) return dest; // NULL checks
+    char* d = dest;
+    while ((*d++ = *src++));
+    return dest;
+}
+
 int strcmp(const char* str1, const char* str2) {
     if (!str1 || !str2) return str1 ? 1 : (str2 ? -1 : 0); // NULL checks
     while (*str1 && (*str1 == *str2)) {

@@ -2,20 +2,7 @@
 #include "../../intf/mm.h"
 #include "../../intf/string.h"
 
-// Simple string functions for freestanding environment
-size_t strlen(const char* str) {
-    if (!str) return 0;
-    size_t len = 0;
-    while (str[len]) len++;
-    return len;
-}
-
-char* strcpy(char* dest, const char* src) {
-    if (!dest || !src) return dest;
-    char* d = dest;
-    while ((*d++ = *src++));
-    return dest;
-}
+// Note: strlen and strcpy are now in string.h/string.c
 
 // Global theme
 ui_theme_t current_theme;

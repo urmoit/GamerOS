@@ -1,17 +1,17 @@
 # GamerOS Bug Tracking List
 
 ## Summary
-- **Total Bugs Found:** 20
-- **Critical Issues:** 1
+- **Total Bugs Found:** 19
+- **Critical Issues:** 0
 - **High Priority:** 2
 - **Medium Priority:** 6
 - **Low Priority:** 5
-- **Resolved:** 5
+- **Resolved:** 6
 
 ## Bug Categories
 
 ### 🔴 Critical (System Breaking)
-- [ ] DEXLFOK boot hang - OS shows "DEXLFOK" in yellow and pauses, preventing boot
+- [ ] none
 
 ### 🟠 High Priority (Major Functionality Impact)
 - [ ] Incomplete UI framework implementation
@@ -40,6 +40,7 @@
 - [x] Unused process functions
 - [x] Potential division by zero in GUI tab calculations
 - [x] Uninitialized kernel_counter variable
+- [x] DEXLFOK boot hang - OS shows "DEXLFOK" in yellow and pauses, preventing boot
 
 ## Detailed Bug Reports
 
@@ -174,5 +175,4 @@
 
 ---
 
-*Generated on: January 14, 2026*
-*Last Updated: January 14, 2026*
+*Last Updated: January 15, 2026*

@@ -23,6 +23,9 @@ _start:
     ; Set up stack
     mov esp, stack_top
     
+    ; Jump over helper functions to main 32-bit boot logic
+    jmp boot_main32
+
     ; Debug: Indicate we've started
     mov byte [0xB8000], 'M'
     mov byte [0xB8001], 0x0E  ; Yellow on black
@@ -148,10 +151,246 @@ detect_cpu:
     stc
     ret
 
+; Set VGA mode 13h (320x200x256) via direct register writes
+; Proper VGA mode 13h setup requires configuring multiple register groups
+set_vga_mode13h:
+    ; Save registers
+    push eax
+    push edx
+    push edi
+    push ecx
+    
+    ; Unlock CRTC registers (required before modifying CRTC)
+    mov dx, 0x3D4
+    mov al, 0x11
+    out dx, al
+    mov dx, 0x3D5
+    in al, dx
+    and al, 0x7F  ; Clear bit 7 to unlock
+    out dx, al
+    
+    ; Sequencer registers - configure for mode 13h
+    mov dx, 0x3C4
+    
+    ; Sequencer: Reset Register
+    mov al, 0x00
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x03  ; Synchronous reset
+    out dx, al
+    
+    ; Sequencer: Clocking Mode Register
+    mov dx, 0x3C4
+    mov al, 0x01
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x01  ; 8-dot character clock
+    out dx, al
+    
+    ; Sequencer: Map Mask Register - enable all planes
+    mov dx, 0x3C4
+    mov al, 0x02
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x0F  ; Enable all 4 planes
+    out dx, al
+    
+    ; Sequencer: Character Map Select Register
+    mov dx, 0x3C4
+    mov al, 0x03
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x00
+    out dx, al
+    
+    ; Sequencer: Memory Mode Register - CRITICAL for mode 13h
+    mov dx, 0x3C4
+    mov al, 0x04
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x06  ; Chain-4 mode (bit 2), odd/even disabled (bit 1)
+    out dx, al
+    
+    ; Sequencer: Reset Register - end reset
+    mov dx, 0x3C4
+    mov al, 0x00
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x03  ; End reset
+    out dx, al
+    
+    ; Graphics Controller registers
+    mov dx, 0x3CE
+    
+    ; Graphics Controller: Set/Reset Register
+    mov al, 0x00
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00
+    out dx, al
+    
+    ; Graphics Controller: Enable Set/Reset Register
+    mov dx, 0x3CE
+    mov al, 0x01
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00
+    out dx, al
+    
+    ; Graphics Controller: Color Compare Register
+    mov dx, 0x3CE
+    mov al, 0x02
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00
+    out dx, al
+    
+    ; Graphics Controller: Data Rotate Register
+    mov dx, 0x3CE
+    mov al, 0x03
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00
+    out dx, al
+    
+    ; Graphics Controller: Read Map Select Register
+    mov dx, 0x3CE
+    mov al, 0x04
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00
+    out dx, al
+    
+    ; Graphics Controller: Mode Register - CRITICAL for mode 13h
+    mov dx, 0x3CE
+    mov al, 0x05
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x40  ; 256 color mode (bit 6), write mode 0
+    out dx, al
+    
+    ; Graphics Controller: Miscellaneous Register - CRITICAL for mode 13h
+    mov dx, 0x3CE
+    mov al, 0x06
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x05  ; Chain-4 (bit 2), graphics mode (bit 0)
+    out dx, al
+    
+    ; Graphics Controller: Color Don't Care Register
+    mov dx, 0x3CE
+    mov al, 0x07
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x0F  ; Don't care about all planes
+    out dx, al
+    
+    ; Graphics Controller: Bit Mask Register
+    mov dx, 0x3CE
+    mov al, 0x08
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0xFF  ; All bits
+    out dx, al
+    
+    ; Initialize VGA palette with standard colors
+    ; VGA palette is at ports 0x3C8 (write index) and 0x3C9 (write data)
+    ; Each color has 3 bytes: Red, Green, Blue (each 0-63, but we use 0-255 and shift right by 2)
+    
+    ; Set palette index 0x01 (Blue)
+    mov dx, 0x3C8
+    mov al, 0x01
+    out dx, al
+    mov dx, 0x3C9
+    mov al, 0x00  ; R
+    out dx, al
+    mov al, 0x00  ; G
+    out dx, al
+    mov al, 0x3F  ; B (63 = max blue)
+    out dx, al
+    
+    ; Set palette index 0x02 (Green)
+    mov dx, 0x3C8
+    mov al, 0x02
+    out dx, al
+    mov dx, 0x3C9
+    mov al, 0x00  ; R
+    out dx, al
+    mov al, 0x3F  ; G (63 = max green)
+    out dx, al
+    mov al, 0x00  ; B
+    out dx, al
+    
+    ; Set palette index 0x04 (Red)
+    mov dx, 0x3C8
+    mov al, 0x04
+    out dx, al
+    mov dx, 0x3C9
+    mov al, 0x3F  ; R (63 = max red)
+    out dx, al
+    mov al, 0x00  ; G
+    out dx, al
+    mov al, 0x00  ; B
+    out dx, al
+    
+    ; Set palette index 0x0F (White)
+    mov dx, 0x3C8
+    mov al, 0x0F
+    out dx, al
+    mov dx, 0x3C9
+    mov al, 0x3F  ; R (63 = max red)
+    out dx, al
+    mov al, 0x3F  ; G (63 = max green)
+    out dx, al
+    mov al, 0x3F  ; B (63 = max blue)
+    out dx, al
+    
+    ; Fill framebuffer with colored bars (so we can see if graphics mode is working)
+    mov edi, 0xA0000
+    
+    ; White bar (top 50 rows = 16000 bytes)
+    mov ecx, 320 * 50
+    mov eax, 0x0F  ; White (palette 15)
+    rep stosb
+    
+    ; Red bar (next 50 rows)
+    mov ecx, 320 * 50
+    mov eax, 0x04  ; Red (palette 4)
+    rep stosb
+    
+    ; Green bar (next 50 rows)
+    mov ecx, 320 * 50
+    mov eax, 0x02  ; Green (palette 2)
+    rep stosb
+    
+    ; Blue bar (bottom 50 rows)
+    mov ecx, 320 * 50
+    mov eax, 0x01  ; Blue (palette 1)
+    rep stosb
+    
+    ; Restore registers
+    pop ecx
+    pop edi
+    pop edx
+    pop eax
+    ret
+
     ; Debug: Boot sequence - C M B O K P G Z T E L P H J 6 4 !
     ; CPU detection already wrote status to 0xB8000-0xB8003
     mov byte [0xB8004], 'M'     ; Multiboot started
     mov byte [0xB8005], 0x0E
+
+boot_main32:
+    ; Main 32-bit boot code starts here
+    ; (Debug characters at 0xB8004-0xB800B already written above)
+
+    ; Explicitly DISABLE Non-Maskable Interrupts (NMI) via CMOS port 0x70.
+    ; Bit 7 controls NMI (1 = disabled, 0 = enabled). Ensure it is set to 1
+    ; to avoid spurious NMIs during early boot.
+    in  al, 0x70
+    or  al, 0x80
+    out 0x70, al
+
     mov byte [0xB8006], 'B'     ; Boot
     mov byte [0xB8007], 0x0E
     mov byte [0xB8008], 'O'     ; OK
@@ -172,10 +411,10 @@ detect_cpu:
     mov byte [0xB8010], 'C'
     mov byte [0xB8011], 0x0E
 
-    ; Skip VESA setup entirely - BIOS interrupts in protected mode cause SMM activation
-    ; Just assume VGA mode 13h is set by bootloader (which it should be for GRUB)
-    mov byte [vesa_success], 0
-
+    ; Set VGA mode 13h via direct register writes (no BIOS needed)
+    ; This sets 320x200x256 color mode
+    call set_vga_mode13h
+    
     ; Continue debug sequence
     mov byte [0xB8008], 'P'     ; Paging
     mov byte [0xB8009], 0x0E
@@ -193,7 +432,7 @@ detect_cpu:
     %define P4_TABLE 0x200000   ; 2MB
     %define P3_TABLE 0x201000   ; 2MB + 4KB
     %define P2_TABLE 0x202000   ; 2MB + 8KB
-
+    
     ; Zero out page tables first (safety)
     mov edi, P4_TABLE
     mov ecx, 512 * 3     ; Clear P4, P3, P2 tables (512 entries each)
@@ -204,38 +443,50 @@ detect_cpu:
     mov eax, P3_TABLE
     or eax, 0b11         ; Present + Writable
     mov [P4_TABLE], eax
-
+    
     ; Set up P3 table: entry 0 points to P2 table
     mov eax, P2_TABLE
     or eax, 0b11         ; Present + Writable
     mov [P3_TABLE], eax
-
+    
     ; Set up P2 table: identity map first 2MB only (simplified)
     ; Entry 0: 0-2MB
     mov eax, 0x0
     or eax, 0b10000011   ; Present + Writable + Huge (bit 7)
     mov [P2_TABLE], eax
-
+    
     ; Debug: Page tables set up
     mov byte [0xB800E], 'T'
     mov byte [0xB800F], 0x0E
+    
+    ; ------------------------------------------------------------------
+    ; Set up a temporary 64-bit compatible GDT for the long mode jump
+    ; ------------------------------------------------------------------
+    ; This GDT provides:
+    ;  - 0x00: null descriptor
+    ;  - 0x08: 64-bit kernel code segment
+    ;  - 0x10: 64-bit kernel data segment
+    lgdt [gdt64_descriptor]
 
-    ; CRITICAL: Enable paging BEFORE entering 64-bit mode
-    ; x86_64 REQUIRES paging to be enabled - without it, CPU will triple fault
+    ; ------------------------------------------------------------------
+    ; Enable paging and long mode BEFORE entering 64-bit mode
+    ; x86_64 REQUIRES paging + long mode to be enabled - without it,
+    ; the CPU will triple fault on the 64-bit jump.
+    ; ------------------------------------------------------------------
 
     ; Debug: About to enable paging
     mov byte [0xB8010], 'E'
     mov byte [0xB8011], 0x0E
-
+    
     ; Step 1: Enable PAE (Physical Address Extension) - required for 64-bit paging
     mov eax, cr4
     or eax, 1 << 5       ; Set PAE bit (bit 5)
     mov cr4, eax
-
+    
     ; Step 2: Load CR3 with P4 table address
     mov eax, P4_TABLE
     mov cr3, eax
-
+    
     ; Step 3: Enable long mode (EFER.LME)
     mov ecx, 0xC0000080  ; EFER MSR
     rdmsr
@@ -245,7 +496,7 @@ detect_cpu:
     ; Debug: Long mode enabled
     mov byte [0xB8012], 'L'
     mov byte [0xB8013], 0x0E
-
+    
     ; Step 4: Enable paging (CR0.PG) - THIS IS THE CRITICAL MISSING STEP!
     mov eax, cr0
     or eax, 1 << 31      ; Set PG bit (bit 31) - ENABLE PAGING
@@ -255,25 +506,13 @@ detect_cpu:
     mov byte [0xB8014], 'P'
     mov byte [0xB8015], 0x0E
 
-    ; Debug: About to init HAL
-    mov byte [0xB8016], 'H'
-    mov byte [0xB8017], 0x0E
-
-    ; Initialize HAL (GDT/IDT setup - page tables already done above)
-    extern hal_init
-    call hal_init
-
-    ; Debug: HAL initialized, jumping to 64-bit
-    mov byte [0xB8018], 'J'
-    mov byte [0xB8019], 0x0E
-
     ; Step 5: Now we can safely jump to 64-bit code segment
     jmp 0x08:start_64
     
 .cpu_unsupported:
     ; CPU not supported - halt
     hlt
-
+    
 .no_multiboot:
     mov al, "M"
     jmp error
@@ -313,6 +552,19 @@ start_64:
     mov rsp, stack_top_64
     ; Ensure 16-byte alignment (required for SSE/AVX and C function calls)
     and rsp, 0xFFFFFFFFFFFFFFF0
+
+    ; Initialize HAL (GDT/IDT setup) now that we are safely in 64-bit mode
+    extern hal_init
+
+    ; Debug: About to init HAL
+    mov byte [0xB8016], 'H'
+    mov byte [0xB8017], 0x0E
+
+    call hal_init
+
+    ; Debug: HAL initialized, kernel entry next
+    mov byte [0xB8018], 'J'
+    mov byte [0xB8019], 0x0E
 
     ; Debug: Print that we've reached the kernel
     mov byte [0xB8000], 'K'
@@ -452,6 +704,19 @@ draw_char_graphics:
     ret
 
 section .data
+; ----------------------------------------------------------------------
+; Temporary 64-bit compatible GDT for the initial long mode transition
+; ----------------------------------------------------------------------
+gdt64:
+    dq 0x0000000000000000         ; Null descriptor
+    dq 0x00AF9A000000FFFF         ; 0x08: 64-bit kernel code segment
+    dq 0x00AF92000000FFFF         ; 0x10: 64-bit kernel data segment
+
+gdt64_descriptor:
+    dw gdt64_descriptor_end - gdt64 - 1
+    dd gdt64                     ; Base (fits in 32 bits; below 4GB)
+gdt64_descriptor_end:
+
 graphics_message:
     db "64-bit mode reached!", 0
 custom_font_message:

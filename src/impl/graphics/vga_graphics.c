@@ -129,7 +129,13 @@ int vga_set_mode(vga_mode_t mode) {
             break;
     }
 
-    graphics_initialized = result;
+    // VGA mode 13h is now set in boot.asm via direct register writes
+    // Enable graphics mode now that hardware is configured
+    if (mode == VGA_MODE_13H) {
+        graphics_initialized = 1;
+    } else {
+        graphics_initialized = 0;
+    }
     return result;
 }
 
@@ -463,6 +469,19 @@ void vga_fast_clear(uint8_t color) {
 // Font data is now in font.c and included via font.h
 
 void vga_draw_char(uint32_t x, uint32_t y, char c, uint8_t color) {
+    // Fallback: if graphics mode is not initialized, render using VGA text mode (0xB8000)
+    // so that debug strings are still visible even without a proper graphics mode.
+    if (!graphics_initialized) {
+        if ((uint8_t)c < 32 || (uint8_t)c > 126) return; // printable ASCII only
+        uint32_t col = x / 8;
+        uint32_t row = y / 10;
+        if (col >= 80 || row >= 25) return;
+        volatile uint16_t* text_buffer = (uint16_t*)0xB8000;
+        uint16_t attr = 0x0F; // White on black
+        text_buffer[row * 80 + col] = ((uint16_t)attr << 8) | (uint8_t)c;
+        return;
+    }
+
     if ((uint8_t)c < 32 || (uint8_t)c > 126) return; // Only printable ASCII (32-126, excluding DEL)
 
     const uint8_t* char_bitmap = font_8x8[(uint8_t)c - 32];

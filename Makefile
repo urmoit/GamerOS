@@ -22,6 +22,7 @@ C_SRC = $(SRC_DIR)/impl/kernel/main.c \
         $(SRC_DIR)/impl/drivers/pic.c \
         $(SRC_DIR)/impl/drivers/mouse.c \
         $(SRC_DIR)/impl/gui_app.c \
+        $(SRC_DIR)/impl/kernel_mode/hal/hal.c \
         $(SRC_DIR)/impl/kernel_mode/hal/cpu/gdt.c \
         $(SRC_DIR)/impl/kernel_mode/hal/interrupts/idt.c \
         $(SRC_DIR)/impl/kernel_mode/hal/interrupts/isr.c \
@@ -64,6 +65,7 @@ C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/pic.o \
         $(BUILD_DIR)/$(ARCH)/mouse.o \
         $(BUILD_DIR)/$(ARCH)/gui_app.o \
+        $(BUILD_DIR)/$(ARCH)/hal.o \
         $(BUILD_DIR)/$(ARCH)/gdt.o \
         $(BUILD_DIR)/$(ARCH)/hal_idt.o \
         $(BUILD_DIR)/$(ARCH)/hal_isr.o \
@@ -216,6 +218,9 @@ $(BUILD_DIR)/$(ARCH)/hal_idt.o: $(SRC_DIR)/impl/kernel_mode/hal/interrupts/idt.c
 $(BUILD_DIR)/$(ARCH)/hal_isr.o: $(SRC_DIR)/impl/kernel_mode/hal/interrupts/isr.c $(SRC_DIR)/intf/*.h | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/hal.o: $(SRC_DIR)/impl/kernel_mode/hal/hal.c $(SRC_DIR)/intf/*.h | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 $(BUILD_DIR)/$(ARCH)/hal_ports.o: $(SRC_DIR)/impl/kernel_mode/hal/io/ports.c $(SRC_DIR)/intf/*.h | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
@@ -288,6 +293,7 @@ $(KERNEL_ELF): $(BUILD_DIR)/$(ARCH)/boot.o \
                $(BUILD_DIR)/$(ARCH)/pic.o \
                $(BUILD_DIR)/$(ARCH)/mouse.o \
                $(BUILD_DIR)/$(ARCH)/gui_app.o \
+               $(BUILD_DIR)/$(ARCH)/hal.o \
                $(BUILD_DIR)/$(ARCH)/gdt.o \
                $(BUILD_DIR)/$(ARCH)/hal_idt.o \
                $(BUILD_DIR)/$(ARCH)/hal_isr.o \

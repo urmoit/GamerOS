@@ -9,7 +9,11 @@
 #define RTC_STATUS_B 0x0B
 
 static uint8_t read_rtc_register(uint8_t reg) {
-    outb(CMOS_ADDRESS, reg);
+    // Preserve the NMI enable/disable bit (bit 7) when selecting CMOS register.
+    // Writing directly to 0x70 without preserving bit 7 can unintentionally
+    // unmask NMIs and cause spurious "Non Maskable Interrupt" exceptions.
+    uint8_t prev = inb(CMOS_ADDRESS);
+    outb(CMOS_ADDRESS, (prev & 0x80) | reg);
     return inb(CMOS_DATA);
 }
 

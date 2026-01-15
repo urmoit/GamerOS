@@ -33,13 +33,3 @@ void setup_page_tables() {
     // VGA memory (0xA0000) is already mapped in the first 2MB (p2_table[0])
     // Kernel code/data is also in the first 4MB, so this covers everything
 }
-
-void hal_init() {
-    setup_page_tables();
-    // Note: Paging is enabled in boot.asm after this function returns
-    // This is necessary because paging must be enabled before jumping to 64-bit mode
-    extern void gdt_init();
-    gdt_init();
-    extern void idt_init();
-    idt_init();
-}

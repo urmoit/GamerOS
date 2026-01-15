@@ -31,34 +31,27 @@ void gdt_init() {
     gdt[0].granularity = 0;
     gdt[0].base_high = 0;
 
-    // Code segment
+    // Code segment (64-bit)
     gdt[1].limit_low = 0xFFFF;
-    gdt[1].base_low = 0;
-    gdt[1].base_middle = 0;
+    gdt[1].base_low = 0x0000;
+    gdt[1].base_middle = 0x00;
     gdt[1].access = 0x9A; // Present, ring 0, code segment, executable, readable
-    gdt[1].granularity = 0xAF; // 64-bit, 4KB granularity
-    gdt[1].base_high = 0;
+    gdt[1].granularity = 0xAF; // 64-bit code segment
+    gdt[1].base_high = 0x00;
 
-    // Data segment (must be 64-bit compatible)
+    // Data segment (64-bit)
     gdt[2].limit_low = 0xFFFF;
-    gdt[2].base_low = 0;
-    gdt[2].base_middle = 0;
+    gdt[2].base_low = 0x0000;
+    gdt[2].base_middle = 0x00;
     gdt[2].access = 0x92; // Present, ring 0, data segment, writable
-    gdt[2].granularity = 0xAF; // 64-bit, 4KB granularity (was 0xCF - wrong for 64-bit!)
-    gdt[2].base_high = 0;
+    gdt[2].granularity = 0xCF; // 64-bit data segment
+    gdt[2].base_high = 0x00;
 
     gdt_ptr.limit = sizeof(gdt) - 1;
     gdt_ptr.base = (uint64_t)&gdt;
 
     gdt_load((uint64_t)&gdt_ptr);
 
-    // Reload segment registers with data segment selector
-    __asm__ volatile (
-        "mov $0x10, %ax\n"
-        "mov %ax, %ds\n"
-        "mov %ax, %es\n"
-        "mov %ax, %fs\n"
-        "mov %ax, %gs\n"
-        "mov %ax, %ss\n"
-    );
+    // Note: Segment registers are not reloaded in 32-bit mode to avoid issues with 64-bit descriptors
+    // They will be set appropriately in 64-bit mode
 }

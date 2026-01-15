@@ -30,9 +30,13 @@ void kernel_main(void) {
     // Debug: Kernel main started
     vga_draw_string(10, 10, "KERNEL MAIN STARTED", 0x0F);
 
-    // Initialize graphics mode
+    // Initialize graphics mode (already set in boot.asm, just configure state)
     vga_set_mode(VGA_MODE_13H);
-    vga_draw_string(10, 20, "VGA MODE SET", 0x0F);
+    
+    // Clear screen with black background
+    if (graphics_initialized) {
+        vga_clear(0x00); // Black background
+    }
 
     // 2. Microkernel initialization (process, memory, IPC)
     microkernel_init();
