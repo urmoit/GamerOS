@@ -1,6 +1,7 @@
 #include "desktop_manager.h"
 #include "../../../intf/graphics.h"
 #include "../../../intf/ui.h"
+#include "../../../intf/ports.h"
 
 // Desktop state
 static desktop_config_t desktop_config;
@@ -24,8 +25,40 @@ void desktop_manager_shutdown(void) {
 }
 
 void desktop_create(void) {
-    // Set desktop background
-    vga_set_desktop_background();
+    // Draw four colored bars directly to framebuffer to test palette initialization
+    // Use volatile pointer to ensure writes are not optimized away
+    volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+    
+    // White bar (top 50 rows)
+    for (uint32_t y = 0; y < 50; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x0F; // White (palette 15)
+        }
+    }
+    
+    // Red bar (next 50 rows)
+    for (uint32_t y = 50; y < 100; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x04; // Red (palette 4)
+        }
+    }
+    
+    // Green bar (next 50 rows)
+    for (uint32_t y = 100; y < 150; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x02; // Green (palette 2)
+        }
+    }
+    
+    // Blue bar (bottom 50 rows)
+    for (uint32_t y = 150; y < 200; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x01; // Blue (palette 1)
+        }
+    }
+    
+    // Memory barrier to ensure all writes complete
+    __asm__ volatile("mfence" ::: "memory");
 
     // Draw initial desktop elements
     if (desktop_config.show_taskbar) {

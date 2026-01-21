@@ -19,6 +19,54 @@ static uint8_t* vga_framebuffer_103h = (uint8_t*)VGA_GRAPHICS_BUFFER; // Mode 10
 // Current active framebuffer
 static uint8_t* vga_framebuffer = (uint8_t*)VGA_GRAPHICS_BUFFER;
 
+// Initialize VGA palette with standard colors
+// VGA palette is at ports 0x3C8 (write index) and 0x3C9 (write data)
+// Each color has 3 bytes: Red, Green, Blue (each 0-63)
+// Note: Disable interrupts during palette writes to ensure atomicity
+static void vga_init_palette(void) {
+    // Disable interrupts during palette initialization
+    __asm__ volatile("cli");
+    
+    // Set the specific colors we need (don't clear all to black first)
+    // Set palette index 0x00 (Black)
+    outb(0x3C8, 0x00);
+    outb(0x3C9, 0x00);  // R
+    outb(0x3C9, 0x00);  // G
+    outb(0x3C9, 0x00);  // B
+    
+    // Set palette index 0x01 (Blue) - BRIGHT BLUE
+    outb(0x3C8, 0x01);
+    outb(0x3C9, 0x00);  // R
+    outb(0x3C9, 0x00);  // G
+    outb(0x3C9, 0x3F);  // B (63 = max blue)
+    
+    // Set palette index 0x02 (Green) - BRIGHT GREEN
+    outb(0x3C8, 0x02);
+    outb(0x3C9, 0x00);  // R
+    outb(0x3C9, 0x3F);  // G (63 = max green)
+    outb(0x3C9, 0x00);  // B
+    
+    // Set palette index 0x04 (Red) - BRIGHT RED
+    outb(0x3C8, 0x04);
+    outb(0x3C9, 0x3F);  // R (63 = max red)
+    outb(0x3C9, 0x00);  // G
+    outb(0x3C9, 0x00);  // B
+    
+    // Set palette index 0x0F (White) - BRIGHT WHITE
+    outb(0x3C8, 0x0F);
+    outb(0x3C9, 0x3F);  // R (63 = max red)
+    outb(0x3C9, 0x3F);  // G (63 = max green)
+    outb(0x3C9, 0x3F);  // B (63 = max blue)
+    
+    // Re-enable interrupts
+    __asm__ volatile("sti");
+    
+    // Longer delay to ensure palette writes take effect
+    for (volatile int i = 0; i < 50000; i++) {
+        __asm__ volatile("nop");
+    }
+}
+
 void vga_init_mode13(void) {
     // VGA mode 13h is already set in boot.asm before entering long mode
     // Just configure our variables
@@ -28,18 +76,19 @@ void vga_init_mode13(void) {
     current_vga_mode = VGA_MODE_13H;
     current_color_depth = COLOR_DEPTH_8BIT;
 
+    // CRITICAL: Reinitialize palette FIRST before any drawing
+    // This ensures all palette entries are set correctly
+    vga_init_palette();
+
     // Clear the text buffer to remove any leftover text from boot
     uint16_t* text_buffer = (uint16_t*)0xB8000;
     for (int i = 0; i < 80 * 25; i++) {
         text_buffer[i] = 0x0000; // Clear character and attribute
     }
-
-    // Test graphics by drawing a visible pattern
-    for (uint32_t y = 0; y < 50; y++) {
-        for (uint32_t x = 0; x < 50; x++) {
-            vga_set_pixel(x, y, 0x0F); // White pixels in top-left corner
-        }
-    }
+    
+    // DON'T clear framebuffer here - let the kernel draw the bars immediately
+    // Clearing here would overwrite the bars drawn in boot.asm
+    // The bars will be redrawn in kernel_main() after palette is initialized
 }
 
 void vga_init_mode12h(void) {
@@ -259,6 +308,9 @@ void vga_set_desktop_background(void) {
 }
 
 void vga_clear(uint8_t color) {
+    if (!graphics_initialized) {
+        return; // Don't clear if graphics not initialized
+    }
     uint32_t total_pixels = current_vga_width * current_vga_height;
     for (uint32_t i = 0; i < total_pixels; i++) {
         vga_framebuffer[i] = color;

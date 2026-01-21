@@ -18,6 +18,8 @@
 #include "../../intf/executive.h"
 #include "../../user_mode/interfaces/user_mode.h"
 
+// VGA_GRAPHICS_BUFFER is defined in ports.h
+
 
 // Note: process1_entry and process2_entry functions removed as they were unused
 // and only served as example code that wasted memory
@@ -27,15 +29,54 @@ void kernel_main(void) {
 
     // 1. HAL initialization (already done in boot.asm)
 
-    // Debug: Kernel main started
-    vga_draw_string(10, 10, "KERNEL MAIN STARTED", 0x0F);
-
-    // Initialize graphics mode (already set in boot.asm, just configure state)
+    // Initialize graphics mode FIRST (already set in boot.asm, just configure state)
+    // This will initialize the palette
     vga_set_mode(VGA_MODE_13H);
     
-    // Clear screen with black background
+    // CRITICAL: Draw colored bars IMMEDIATELY after palette initialization
+    // Use volatile pointer and ensure writes are not optimized away
+    volatile uint8_t* fb = (volatile uint8_t*)VGA_GRAPHICS_BUFFER;
+    
+    // Draw four colored bars directly to framebuffer
+    // White bar (top 50 rows, rows 0-49) - MUST be visible
+    for (uint32_t y = 0; y < 50; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x0F; // White (palette 15)
+        }
+    }
+    
+    // Red bar (next 50 rows, rows 50-99)
+    for (uint32_t y = 50; y < 100; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x04; // Red (palette 4)
+        }
+    }
+    
+    // Green bar (next 50 rows, rows 100-149)
+    for (uint32_t y = 100; y < 150; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x02; // Green (palette 2)
+        }
+    }
+    
+    // Blue bar (bottom 50 rows, rows 150-199)
+    for (uint32_t y = 150; y < 200; y++) {
+        for (uint32_t x = 0; x < 320; x++) {
+            fb[y * 320 + x] = 0x01; // Blue (palette 1)
+        }
+    }
+    
+    // Memory barrier to ensure all writes complete before continuing
+    __asm__ volatile("mfence" ::: "memory");
+    
+    // Additional delay to ensure hardware processes the writes
+    for (volatile int i = 0; i < 100000; i++) {
+        __asm__ volatile("nop");
+    }
+    
+    // Now draw debug strings (after bars are drawn)
     if (graphics_initialized) {
-        vga_clear(0x00); // Black background
+        vga_draw_string(10, 10, "KERNEL MAIN STARTED", 0x0F);
     }
 
     // 2. Microkernel initialization (process, memory, IPC)

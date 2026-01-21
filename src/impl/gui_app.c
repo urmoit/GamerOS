@@ -160,18 +160,19 @@ void gui_app_entry() {
     workstation_create_desktop();
 
     // Simple test: show GUI is running
-    vga_fill_rect(50, 50, 200, 100, 0xFF0000FF); // Blue rectangle
-    vga_draw_string(60, 70, "GUI Application Running!", 0xFFFFFFFF);
-    vga_draw_string(60, 90, "Layered Architecture Active", 0xFFFFFFFF);
+    // Note: Using 8-bit palette indices for VGA mode 13h
+    // vga_fill_rect(50, 50, 200, 100, COLOR_BLUE); // Blue rectangle (commented out - bars are drawn by desktop)
+    // vga_draw_string(60, 70, "GUI Application Running!", COLOR_WHITE);
+    // vga_draw_string(60, 90, "Layered Architecture Active", COLOR_WHITE);
 
     // Create main application window
     ui_container_t* main_window = ui_create_window(10, 30, APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT, "GamerOS Manager");
     if (!main_window) {
-        vga_draw_string(60, 110, "Failed to create window!", 0xFFFF0000);
+        vga_draw_string(60, 110, "Failed to create window!", COLOR_RED);
         return; // Failed to create window
     }
 
-    vga_draw_string(60, 110, "Window created successfully!", 0xFF00FF00);
+    vga_draw_string(60, 110, "Window created successfully!", COLOR_GREEN);
 
     // Create tab buttons (simulating a tab control)
     ui_widget_t* home_button = ui_create_button(15, GUI_HEADER_HEIGHT + 5, 130, 20, "Home");
@@ -232,11 +233,43 @@ void gui_app_entry() {
     if (changelog_desc5) ui_set_visible(changelog_desc5, 0);
 
     while (1) {
-        // Clear screen and set desktop background
-        vga_set_desktop_background();
+        // Redraw the four colored bars directly to framebuffer (desktop background)
+        // Use volatile pointer to ensure writes are not optimized away
+        volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+        
+        // White bar (top 50 rows)
+        for (uint32_t y = 0; y < 50; y++) {
+            for (uint32_t x = 0; x < 320; x++) {
+                fb[y * 320 + x] = 0x0F; // White (palette 15)
+            }
+        }
+        
+        // Red bar (next 50 rows)
+        for (uint32_t y = 50; y < 100; y++) {
+            for (uint32_t x = 0; x < 320; x++) {
+                fb[y * 320 + x] = 0x04; // Red (palette 4)
+            }
+        }
+        
+        // Green bar (next 50 rows)
+        for (uint32_t y = 100; y < 150; y++) {
+            for (uint32_t x = 0; x < 320; x++) {
+                fb[y * 320 + x] = 0x02; // Green (palette 2)
+            }
+        }
+        
+        // Blue bar (bottom 50 rows)
+        for (uint32_t y = 150; y < 200; y++) {
+            for (uint32_t x = 0; x < 320; x++) {
+                fb[y * 320 + x] = 0x01; // Blue (palette 1)
+            }
+        }
+        
+        // Memory barrier to ensure all writes complete
+        __asm__ volatile("mfence" ::: "memory");
 
-        // Render the main window and all its widgets
-        ui_render_container(main_window);
+        // Temporarily disable UI rendering to test if it's overwriting the bars
+        // ui_render_container(main_window);
 
         // Simple tab switching simulation (in real OS, would handle mouse/keyboard input)
         static int counter = 0;
