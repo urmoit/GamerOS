@@ -21,7 +21,7 @@
   <img src="https://img.shields.io/badge/architecture-64--bit-green.svg" alt="Architecture">
 
  
-  [![Repobeats analytics image](https://repobeats.axiom.co/api/embed/7a3672ae3c424e1c04e25afe6ef553652e788130.svg "Repobeats analytics image")](https://github.com/urmoit/GamerOS/pulse)
+  [![Repobeats analytics image](https://repobeats.axiom.co/api/embed/1d66b34dad5bb8f95e429c7d37c1559c50b08608.svg "Repobeats analytics image")
 
 
 > ⚠️ **WORK IN PROGRESS** ⚠️
