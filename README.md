@@ -1,9 +1,9 @@
-<div align="center">
-  <h1 align="center">GamerOS</h1>
-  <p align="center">
+<div>
+  <h1>GamerOS</h1>
+  <p>
     A simple x86_64 hobby operating system with a Windows 11-like desktop environment, built from scratch.
     <br />
-    <a href="#-getting-started"><strong>Getting Started »</strong></a>
+    <a href="#-quick-start"><strong>Getting Started »</strong></a>
     <br />
     <br />
     <a href="https://github.com/chosentechies/GamerOS/issues">Report Bug</a>
@@ -12,13 +12,15 @@
   </p>
 </div>
 
-<div align="center">
+<div>
   <img src="https://img.shields.io/badge/build-passing-brightgreen.svg" alt="Build Status">
   <img src="https://img.shields.io/badge/license-Custom-red.svg" alt="License">
   <img src="https://img.shields.io/badge/platform-x86__64-lightgrey.svg" alt="Platform">
   <br />
   <img src="https://img.shields.io/badge/language-C%20%26%20Assembly-blue.svg" alt="Languages">
   <img src="https://img.shields.io/badge/architecture-64--bit-green.svg" alt="Architecture">
+  <br />
+  [![Repobeats analytics image](https://repobeats.axiom.co/api/embed/7a3672ae3c424e1c04e25afe6ef553652e788130.svg "Repobeats analytics image")](https://github.com/JustArchiNET/ArchiSteamFarm/pulse)
 </div>
 
 > ⚠️ **WORK IN PROGRESS** ⚠️
@@ -34,9 +36,7 @@
 - [🏗️ Building and Running](#️-building-and-running)
 - [📖 About The Project](#-about-the-project)
 - [🐛 Bug Tracking](#-bug-tracking)
-- [🎯 Key Features](#-key-features)
 - [📁 Project Structure](#-project-structure)
-- [🗺️ Roadmap](#️-roadmap)
 - [🤝 Contributing](#-contributing)
 - [📚 Learning Resources](#-learning-resources)
 - [📄 License](#-license)
@@ -298,7 +298,7 @@ This project is licensed under a custom license. See [LICENSE](LICENSE) for more
 
 ---
 
-<div align="center">
+<div>
   <p>Made with ❤️ for learning and fun</p>
   <p>
     <a href="#-table-of-contents">Back to Top</a>
