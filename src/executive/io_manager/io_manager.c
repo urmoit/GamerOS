@@ -112,6 +112,7 @@ int io_ioctl(object_handle_t device, uint32_t code, void* data) {
 int io_read_async(object_handle_t device, void* buffer, uint32_t size,
                   void (*callback)(io_request_t*), void* context) {
     // For now, implement synchronously
+    // TODO: Implement true asynchronous I/O with request queuing and interrupt handling
     int result = io_read(device, buffer, size);
     if (callback) {
         io_request_t req = {
@@ -129,9 +130,15 @@ int io_read_async(object_handle_t device, void* buffer, uint32_t size,
     return result;
 }
 
+// TODO: Add timeout support for I/O operations
+// TODO: Implement I/O request cancellation
+// TODO: Add priority queuing for I/O requests
+// TODO: Implement scatter-gather I/O operations
+
 int io_write_async(object_handle_t device, const void* buffer, uint32_t size,
                    void (*callback)(io_request_t*), void* context) {
     // For now, implement synchronously
+    // TODO: Implement true asynchronous I/O with request queuing and interrupt handling
     int result = io_write(device, buffer, size);
     if (callback) {
         io_request_t req = {

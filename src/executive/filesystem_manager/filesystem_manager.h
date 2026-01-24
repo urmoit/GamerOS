@@ -40,4 +40,8 @@ typedef struct {
 
 int fs_get_file_info(object_handle_t file_handle, file_info_t* info);
 
+// TODO: Add file rename, copy, and move operations
+// TODO: Define file permission and access control structures
+// TODO: Add file timestamp support (creation, modification, access times)
+
 #endif

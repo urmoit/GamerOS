@@ -43,4 +43,8 @@ object_type_t object_get_type(object_handle_t handle);
 // Initialization
 void object_manager_init(void);
 
+// TODO: Add object_wait and object_signal functions for synchronization
+// TODO: Implement object duplication and inheritance
+// TODO: Add object attribute querying and modification
+
 #endif

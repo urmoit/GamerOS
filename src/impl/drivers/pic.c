@@ -18,3 +18,7 @@ void pic_eoi(uint8_t irq) {
         outb(PIC1_COMMAND, PIC_EOI);
     }
 }
+
+// TODO: Implement PIC initialization and remapping
+// TODO: Add support for Advanced Programmable Interrupt Controller (APIC)
+// TODO: Implement interrupt masking and unmasking functions

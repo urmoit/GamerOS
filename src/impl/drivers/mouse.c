@@ -121,3 +121,8 @@ void mouse_init() {
     // Set mouse handler in IDT (not implemented here)
     // For now, we assume IDT is set up to handle IRQ12
 }
+
+// TODO: Implement mouse cursor rendering and visibility control
+// TODO: Add mouse wheel support and scroll events
+// TODO: Implement mouse acceleration and sensitivity settings
+// TODO: Add support for multiple mouse buttons beyond left/middle/right

@@ -24,4 +24,9 @@ void msdos_init(void);
 void user_mode_shutdown(void);
 int user_mode_get_version(void);
 
+// TODO: Add user mode process creation and management APIs
+// TODO: Implement user mode inter-process communication
+// TODO: Add user mode file system access functions
+// TODO: Implement user mode networking APIs
+
 #endif

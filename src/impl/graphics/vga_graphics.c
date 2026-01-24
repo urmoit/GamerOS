@@ -348,3 +348,9 @@ void vga_init_mode12h(void) {}
 int vga_init_mode101h(void) { return 0; }
 int vga_init_mode103h(void) { return 0; }
 int vga_init_mode118h(void) { return 0; }
+
+// TODO: Implement vga_draw_line, vga_draw_circle, vga_fill_circle functions
+// TODO: Add support for higher color depths and resolutions
+// TODO: Implement double buffering for smoother graphics
+// TODO: Add hardware-accelerated graphics operations
+// TODO: Implement image loading and rendering functions

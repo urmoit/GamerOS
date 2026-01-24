@@ -102,3 +102,8 @@ uint32_t window_get_at_position(int x, int y) {
     // TODO: Find window at position
     return 0;
 }
+
+// TODO: Implement window event handling (mouse, keyboard)
+// TODO: Add window clipping and content scrolling
+// TODO: Implement window transparency and alpha blending
+// TODO: Add support for window decorations (icons, buttons)

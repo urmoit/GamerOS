@@ -109,3 +109,8 @@ char keyboard_read_char() {
 int keyboard_has_char() {
     return buffer_count > 0;
 }
+
+// TODO: Handle key releases and modifier keys (shift, ctrl, alt)
+// TODO: Implement keyboard layout switching (QWERTY, Dvorak, international)
+// TODO: Add support for special keys (arrows, function keys, etc.)
+// TODO: Implement key repeat functionality

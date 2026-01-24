@@ -286,3 +286,9 @@ void ui_draw_taskbar(void) {
     ui_draw_window_list();
 }
 
+// TODO: Implement proper font rendering instead of basic rectangles
+// TODO: Add mouse input handling for UI interactions (clicks, hovers)
+// TODO: Implement keyboard navigation and shortcuts
+// TODO: Add animation and transition effects
+// TODO: Implement theme switching and customization
+

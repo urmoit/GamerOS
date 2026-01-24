@@ -19,4 +19,7 @@ void executive_init(void) {
     // security_manager_init();
     // power_manager_init();
     // vmm_init();
+
+    // TODO: Add error handling for initialization failures
+    // TODO: Implement logging for executive layer startup
 }

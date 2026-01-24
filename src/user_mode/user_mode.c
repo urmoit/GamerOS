@@ -55,3 +55,8 @@ void user_mode_shutdown(void) {
 int user_mode_get_version(void) {
     return 0x010000; // Version 1.0.0
 }
+
+// TODO: Implement user mode process isolation and security
+// TODO: Add user mode system call interface
+// TODO: Implement user mode memory management
+// TODO: Add support for loading and executing user applications

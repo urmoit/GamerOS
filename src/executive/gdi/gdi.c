@@ -6,6 +6,7 @@
 void gdi_init(void) {
     // Initialize graphics system
     vga_set_mode(VGA_MODE_13H);
+    // TODO: Add error handling for graphics initialization failures
 }
 
 object_handle_t gdi_create_context(vga_mode_t mode) {
@@ -132,3 +133,8 @@ int gdi_blit_buffer(object_handle_t context_handle, uint32_t* src_buffer, uint32
     vga_blit_buffer(src_buffer, src_width, src_height, dest_x, dest_y, width, height);
     return 0;
 }
+
+// TODO: Implement clipping regions for drawing operations
+// TODO: Add support for alpha blending and transparency
+// TODO: Implement double buffering for smoother graphics rendering
+// TODO: Add support for hardware-accelerated graphics operations

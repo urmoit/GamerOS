@@ -105,3 +105,8 @@ void fs_sync() {
     // For now, our disk_storage array simulates persistent storage
     // Files are already written to disk_storage on write operations
 }
+
+// TODO: Implement directory creation, removal, and listing
+// TODO: Add file permissions and access control
+// TODO: Implement file system journaling for crash recovery
+// TODO: Add support for file attributes (hidden, system, read-only)

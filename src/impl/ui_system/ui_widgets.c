@@ -503,6 +503,12 @@ void ui_render_container(ui_container_t* container) {
     }
 }
 
+// TODO: Implement rendering for all widget types (textbox, scrollbar, slider, etc.)
+// TODO: Add event handling system (mouse, keyboard events)
+// TODO: Implement focus management and tab navigation
+// TODO: Add widget animation and state transitions
+// TODO: Implement accessibility features (screen reader support)
+
 // Event handling (basic implementations)
 void ui_process_mouse_event(ui_widget_t* widget, ui_event_t* event) {
     if (!widget || !widget->enabled) return;

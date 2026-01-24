@@ -197,3 +197,8 @@ const uint8_t font_8x8[96][8] = {
     // DEL (127) - using a block character
     {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 };
+
+// TODO: Add support for different font sizes (16x16, 12x12)
+// TODO: Implement Unicode and international character support
+// TODO: Add proportional font rendering
+// TODO: Implement font loading from files

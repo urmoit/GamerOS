@@ -65,4 +65,9 @@ int io_write_async(object_handle_t device, const void* buffer, uint32_t size,
 // Initialization
 void io_manager_init(void);
 
+// TODO: Add ioctl_async for asynchronous control operations
+// TODO: Implement device hot-plug detection and handling
+// TODO: Add device power management (suspend/resume)
+// TODO: Implement device driver versioning and compatibility checks
+
 #endif

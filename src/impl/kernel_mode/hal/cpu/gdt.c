@@ -55,3 +55,8 @@ void gdt_init() {
     // Note: Segment registers are not reloaded in 32-bit mode to avoid issues with 64-bit descriptors
     // They will be set appropriately in 64-bit mode
 }
+
+// TODO: Add more segment descriptors (user mode segments, TSS, LDT)
+// TODO: Implement GDT reloading in 64-bit mode with proper segment registers
+// TODO: Add support for task state segments (TSS) for multitasking
+// TODO: Implement local descriptor tables (LDT) for per-process segments

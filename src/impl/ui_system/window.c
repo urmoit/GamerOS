@@ -85,3 +85,9 @@ void move_window(window_t* win, int new_x, int new_y) {
     win->x = new_x;
     win->y = new_y;
 }
+
+// TODO: Implement window focus management and z-ordering
+// TODO: Add window resizing functionality
+// TODO: Implement window minimization and maximization
+// TODO: Add window close and minimize buttons
+// TODO: Implement drag and drop for window movement

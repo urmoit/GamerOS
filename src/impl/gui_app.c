@@ -305,3 +305,9 @@ void gui_app_entry() {
     // Cleanup (in a real application, this would be called on exit)
     // ui_destroy_widget((ui_widget_t*)main_window);
 }
+
+// TODO: Implement proper event handling for user input (mouse clicks, keyboard)
+// TODO: Add more interactive widgets (text input, checkboxes, dropdowns)
+// TODO: Implement dynamic content loading instead of hardcoded strings
+// TODO: Add window resizing and movement capabilities
+// TODO: Implement proper application lifecycle management (start, pause, resume, exit)

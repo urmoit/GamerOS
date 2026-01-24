@@ -49,6 +49,7 @@ static file_t* allocate_file_slot() {
 
 object_handle_t fs_open_file(const char* name, uint32_t flags) {
     (void)flags;  // For now, ignore flags
+    // TODO: Implement file open flags (read-only, write-only, append, create, etc.)
 
     file_t* file = find_file_by_name(name);
     if (!file) {
@@ -152,6 +153,11 @@ int fs_create_file(const char* name) {
     return 0;
 }
 
+// TODO: Add file locking mechanism for concurrent access
+// TODO: Implement file seeking operations (fs_seek_file)
+// TODO: Add support for file attributes (hidden, system, read-only)
+// TODO: Implement file system journaling for crash recovery
+
 int fs_delete_file(const char* name) {
     file_t* file = find_file_by_name(name);
     if (!file) {
@@ -169,12 +175,14 @@ int fs_delete_file(const char* name) {
 int fs_create_directory(const char* path) {
     (void)path;
     // Basic implementation - directories not fully supported yet
+    // TODO: Implement directory creation with path parsing, validation, and parent directory checks
     return -1;
 }
 
 int fs_remove_directory(const char* path) {
     (void)path;
     // Basic implementation - directories not fully supported yet
+    // TODO: Implement directory removal with checks for empty directories and recursive options
     return -1;
 }
 

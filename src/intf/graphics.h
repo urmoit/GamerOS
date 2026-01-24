@@ -196,6 +196,11 @@ void draw_image_scaled(uint32_t x, uint32_t y, uint32_t dest_width, uint32_t des
 // Alpha blending for transparency
 uint32_t blend_pixel(uint32_t src, uint32_t dst);
 
+// TODO: Add support for 3D graphics primitives (cubes, spheres)
+// TODO: Implement texture mapping and UV coordinates
+// TODO: Add particle system for effects
+// TODO: Implement GPU-accelerated rendering functions
+
 #endif
 
 

@@ -34,3 +34,8 @@ void get_time(uint8_t* hour, uint8_t* minute, uint8_t* second) {
         *hour = (((*hour & 0x70) >> 4) * 10 + (*hour & 0x0F)) | (*hour & 0x80); // Preserve 12/24 hour bit
     }
 }
+
+// TODO: Add date reading functions (day, month, year, weekday)
+// TODO: Implement time setting functionality
+// TODO: Add alarm and periodic interrupt support
+// TODO: Implement daylight saving time handling

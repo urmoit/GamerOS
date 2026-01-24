@@ -61,6 +61,7 @@ void keyboard_handler() {
         if (scancode < 0) {
             pic_eoi(KBD_IRQ); // End of interrupt for keyboard
             return; // Key release - ignore for now
+            // TODO: Handle key release events for proper key state tracking
         }
 
         // Convert scancode to ASCII
@@ -161,3 +162,8 @@ device_driver_t keyboard_driver = {
     .ioctl = keyboard_driver_ioctl,
     .shutdown = keyboard_driver_shutdown
 };
+
+// TODO: Support for special keys like arrows, function keys, modifiers (shift, ctrl, alt)
+// TODO: Implement keyboard LED control (caps lock, num lock, scroll lock)
+// TODO: Add keyboard layout switching (QWERTY, Dvorak, international)
+// TODO: Implement key repeat functionality

@@ -74,3 +74,8 @@ void kernel_main(void) {
         __asm__("hlt");
     }
 }
+
+// TODO: Add proper kernel initialization sequence with error handling
+// TODO: Implement preemptive multitasking and scheduler
+// TODO: Add memory management and virtual memory support
+// TODO: Implement system call interface and user mode switching

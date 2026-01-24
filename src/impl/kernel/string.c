@@ -41,6 +41,10 @@ char* strcpy(char* dest, const char* src) {
     return dest;
 }
 
+// TODO: Add more string functions like strstr, strncmp, sprintf
+// TODO: Implement memory-safe string operations
+// TODO: Add wide character string support
+
 int strcmp(const char* str1, const char* str2) {
     if (!str1 || !str2) return str1 ? 1 : (str2 ? -1 : 0); // NULL checks
     while (*str1 && (*str1 == *str2)) {

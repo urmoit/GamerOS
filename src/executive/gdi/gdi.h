@@ -38,4 +38,8 @@ int gdi_blit_buffer(object_handle_t context_handle, uint32_t* src_buffer, uint32
 // Initialization
 void gdi_init(void);
 
+// TODO: Add polygon drawing functions (draw_polygon, fill_polygon)
+// TODO: Implement bitmap loading and rendering functions
+// TODO: Add font management and text rendering with different fonts
+
 #endif

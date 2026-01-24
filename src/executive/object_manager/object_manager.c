@@ -112,6 +112,7 @@ int object_destroy(object_handle_t handle) {
 
     // Free object-specific resources if needed
     // For now, just free the object
+    // TODO: Implement object-specific cleanup routines for different object types
     kfree(obj);
     object_table[handle] = NULL;
 
@@ -156,3 +157,8 @@ object_type_t object_get_type(object_handle_t handle) {
     object_t* obj = get_object(handle);
     return obj ? obj->type : OBJECT_TYPE_MAX;
 }
+
+// TODO: Add object naming and lookup by name
+// TODO: Implement object security and access control checks
+// TODO: Add object enumeration and listing functionality
+// TODO: Implement object inheritance and duplication

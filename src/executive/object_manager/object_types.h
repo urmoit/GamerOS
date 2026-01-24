@@ -88,4 +88,8 @@ typedef struct {
     uint32_t size;
 } shared_memory_object_t;
 
+// TODO: Add more object types like timers, message queues, sockets
+// TODO: Implement object type registration for extensibility
+// TODO: Add object serialization and deserialization support
+
 #endif

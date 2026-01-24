@@ -87,6 +87,7 @@ void mouse_handler() {
             if (mouse_x < 0) mouse_x = 0;
             if (mouse_y < 0) mouse_y = 0;
             // Note: No upper bounds checking as screen size may vary
+            // TODO: Add screen boundary checking for mouse position based on current display resolution
 
             // Update button state
             mouse_buttons = mouse_byte[0] & 0x07;  // Lower 3 bits are buttons
@@ -199,3 +200,8 @@ device_driver_t mouse_driver = {
     .ioctl = mouse_driver_ioctl,
     .shutdown = mouse_driver_shutdown
 };
+
+// TODO: Support for scroll wheel and additional mouse buttons
+// TODO: Implement mouse acceleration and sensitivity settings
+// TODO: Add mouse cursor visibility and shape management
+// TODO: Implement double-click detection and timing
