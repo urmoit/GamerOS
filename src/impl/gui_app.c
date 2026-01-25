@@ -10,37 +10,46 @@
 #define APP_WINDOW_HEIGHT 220
 #define GUI_HEADER_HEIGHT 25
 #define TAB_BAR_HEIGHT 20
-#define TAB_COUNT 2
+#define TAB_COUNT 3
 #define CONTENT_START_Y (GUI_HEADER_HEIGHT + TAB_BAR_HEIGHT + 10)
 
 // Tab states
 typedef enum {
-    TAB_HOME,
+    TAB_INFO,
+    TAB_ABOUT,
     TAB_CHANGELOG
 } tab_type_t;
 
-static tab_type_t current_tab = TAB_HOME;
+static tab_type_t current_tab = TAB_INFO;
 
 // Embedded content
-static const char* home_content[] = {
-    "Welcome to GamerOS v1.1!",
+static const char* info_content[] = {
+    "GamerOS v1.1 System Information",
     "",
-    "Fun Facts About Your OS:",
-    "- Built from scratch in C & Assembly",
-    "- 64-bit kernel with custom paging",
-    "- Runs entirely in memory (no HDD needed!)",
-    "- Supports VGA graphics mode 13h",
-    "- Has a preemptive scheduler",
+    "Operating System: GamerOS",
+    "Version: 1.1",
+    "Architecture: x86_64",
     "",
-    "Did you know?",
-    "- This window is 300x220 pixels",
-    "- Font uses 8x8 bitmap characters",
-    "- Tabs cycle every 3 million instructions",
-    "- OS boots in under 2 seconds!"
+    "Key Features:",
+    "- Custom 64-bit kernel",
+    "- Layered OS architecture",
+    "- VGA graphics (320x200, 256 colors)",
+    "- Preemptive multitasking",
+    "- Device drivers (keyboard, mouse, RTC)",
+    "- GUI framework with windows and widgets",
+    "",
+    "Memory: Protected allocation",
+    "Scheduler: Preemptive round-robin"
 };
 
 static const char* changelog_content[] = {
     "GamerOS Development Changelog",
+    "",
+    "Latest Changes (v1.1.1)",
+    "- Enhanced VGA graphics rendering",
+    "- Improved UI with Info, About, Changelog tabs",
+    "- Updated system information display",
+    "- Better font rendering and colors",
     "",
     "v1.1 - The Great Reorganization",
     "- Fixed all critical boot issues",
@@ -53,12 +62,7 @@ static const char* changelog_content[] = {
     "- 64-bit long mode support",
     "- Basic memory management",
     "- Interrupt handling system",
-    "- VGA graphics driver",
-    "",
-    "Future Plans:",
-    "- User input handling",
-    "- Network stack",
-    "- More compatibility layers"
+    "- VGA graphics driver"
 };
 
 static const char* settings_content[] = {
@@ -115,7 +119,7 @@ void draw_tab_bar(int win_x, int win_y) {
         vga_draw_rect(tab_x, tab_y, tab_width - 2, TAB_BAR_HEIGHT, COLOR_WHITE);
 
         // Tab text
-        const char* tab_names[] = {"Home", "Changelog"};
+        const char* tab_names[] = {"Info", "About", "Changelog"};
         int text_x = tab_x + (tab_width - 2 - 6 * strlen(tab_names[i])) / 2; // Center text
         draw_string(text_x, tab_y + 5, tab_names[i], text_color);
     }
@@ -137,9 +141,13 @@ void draw_content(int win_x, int win_y) {
     int line_count;
 
     switch (current_tab) {
-        case TAB_HOME:
-            content = home_content;
-            line_count = sizeof(home_content) / sizeof(home_content[0]);
+        case TAB_INFO:
+            content = info_content;
+            line_count = sizeof(info_content) / sizeof(info_content[0]);
+            break;
+        case TAB_ABOUT:
+            content = about_content;
+            line_count = sizeof(about_content) / sizeof(about_content[0]);
             break;
         case TAB_CHANGELOG:
             content = changelog_content;
@@ -175,62 +183,76 @@ void gui_app_entry() {
     vga_draw_string(60, 110, "Window created successfully!", COLOR_GREEN);
 
     // Create tab buttons (simulating a tab control)
-    ui_widget_t* home_button = ui_create_button(15, GUI_HEADER_HEIGHT + 5, 130, 20, "Home");
-    ui_widget_t* changelog_button = ui_create_button(155, GUI_HEADER_HEIGHT + 5, 130, 20, "Changelog");
+    ui_widget_t* info_button = ui_create_button(15, GUI_HEADER_HEIGHT + 5, 90, 20, "Info");
+    ui_widget_t* about_button = ui_create_button(115, GUI_HEADER_HEIGHT + 5, 90, 20, "About");
+    ui_widget_t* changelog_button = ui_create_button(215, GUI_HEADER_HEIGHT + 5, 90, 20, "Changelog");
 
     // Create content area panel
     ui_container_t* content_panel = ui_create_panel(10, CONTENT_START_Y - 5,
                                                    APP_WINDOW_WIDTH - 20, APP_WINDOW_HEIGHT - CONTENT_START_Y - 5);
 
     // Add widgets to main window
-    if (home_button) ui_add_child(main_window, home_button);
+    if (info_button) ui_add_child(main_window, info_button);
+    if (about_button) ui_add_child(main_window, about_button);
     if (changelog_button) ui_add_child(main_window, changelog_button);
     if (content_panel) ui_add_child(main_window, (ui_widget_t*)content_panel);
 
     // Create content widgets for different tabs
-    ui_widget_t* home_label = ui_create_label(10, 10, 250, 20, "Welcome to GamerOS Manager");
-    ui_widget_t* home_desc1 = ui_create_label(10, 35, 280, 15, "A simple x86_64 hobby operating system");
-    ui_widget_t* home_desc2 = ui_create_label(10, 55, 280, 15, "with Windows 11-inspired desktop UI.");
-    ui_widget_t* home_feature1 = ui_create_label(10, 80, 280, 15, "Features: Custom kernel, multitasking,");
-    ui_widget_t* home_feature2 = ui_create_label(10, 95, 280, 15, "device drivers, and GUI framework.");
+    ui_widget_t* info_label = ui_create_label(10, 10, 250, 20, "GamerOS System Information");
+    ui_widget_t* info_desc1 = ui_create_label(10, 35, 280, 15, "Operating System: GamerOS v1.1");
+    ui_widget_t* info_desc2 = ui_create_label(10, 55, 280, 15, "Architecture: x86_64");
+    ui_widget_t* info_feature1 = ui_create_label(10, 80, 280, 15, "Features: VGA graphics, GUI framework");
+    ui_widget_t* info_feature2 = ui_create_label(10, 95, 280, 15, "Multitasking, device drivers");
+
+    ui_widget_t* about_label = ui_create_label(10, 10, 280, 20, "About GamerOS");
+    ui_widget_t* about_desc1 = ui_create_label(10, 35, 280, 15, "Created by: Chosentechies");
+    ui_widget_t* about_desc2 = ui_create_label(10, 55, 280, 15, "A hobby operating system project");
+    ui_widget_t* about_desc3 = ui_create_label(10, 75, 280, 15, "Built entirely from scratch in C");
 
     ui_widget_t* changelog_label = ui_create_label(10, 10, 280, 20, "GamerOS Development Changelog");
-    ui_widget_t* changelog_desc1 = ui_create_label(10, 35, 280, 15, "v1.1 - The Great Reorganization");
-    ui_widget_t* changelog_desc2 = ui_create_label(10, 55, 280, 15, "- Fixed all critical boot issues");
-    ui_widget_t* changelog_desc3 = ui_create_label(10, 75, 280, 15, "- Added layered OS architecture");
-    ui_widget_t* changelog_desc4 = ui_create_label(10, 95, 280, 15, "- Implemented GUI framework");
-    ui_widget_t* changelog_desc5 = ui_create_label(10, 115, 280, 15, "- Created tabbed interface");
+    ui_widget_t* changelog_desc1 = ui_create_label(10, 35, 280, 15, "v1.1.1 - UI Improvements");
+    ui_widget_t* changelog_desc2 = ui_create_label(10, 55, 280, 15, "- Enhanced VGA graphics rendering");
+    ui_widget_t* changelog_desc3 = ui_create_label(10, 75, 280, 15, "- Added Info, About, Changelog tabs");
+    ui_widget_t* changelog_desc4 = ui_create_label(10, 95, 280, 15, "- Improved system information display");
 
     // Add content widgets to content panel
     if (content_panel) {
-        ui_add_child(content_panel, home_label);
-        ui_add_child(content_panel, home_desc1);
-        ui_add_child(content_panel, home_desc2);
-        ui_add_child(content_panel, home_feature1);
-        ui_add_child(content_panel, home_feature2);
+        ui_add_child(content_panel, info_label);
+        ui_add_child(content_panel, info_desc1);
+        ui_add_child(content_panel, info_desc2);
+        ui_add_child(content_panel, info_feature1);
+        ui_add_child(content_panel, info_feature2);
+
+        ui_add_child(content_panel, about_label);
+        ui_add_child(content_panel, about_desc1);
+        ui_add_child(content_panel, about_desc2);
+        ui_add_child(content_panel, about_desc3);
 
         ui_add_child(content_panel, changelog_label);
         ui_add_child(content_panel, changelog_desc1);
         ui_add_child(content_panel, changelog_desc2);
         ui_add_child(content_panel, changelog_desc3);
         ui_add_child(content_panel, changelog_desc4);
-        ui_add_child(content_panel, changelog_desc5);
     }
 
-    // Initially show home tab content
-    if (home_label) ui_set_visible(home_label, 1);
-    if (home_desc1) ui_set_visible(home_desc1, 1);
-    if (home_desc2) ui_set_visible(home_desc2, 1);
-    if (home_feature1) ui_set_visible(home_feature1, 1);
-    if (home_feature2) ui_set_visible(home_feature2, 1);
+    // Initially show info tab content
+    if (info_label) ui_set_visible(info_label, 1);
+    if (info_desc1) ui_set_visible(info_desc1, 1);
+    if (info_desc2) ui_set_visible(info_desc2, 1);
+    if (info_feature1) ui_set_visible(info_feature1, 1);
+    if (info_feature2) ui_set_visible(info_feature2, 1);
 
-    // Hide changelog tab content initially
+    // Hide about and changelog tab content initially
+    if (about_label) ui_set_visible(about_label, 0);
+    if (about_desc1) ui_set_visible(about_desc1, 0);
+    if (about_desc2) ui_set_visible(about_desc2, 0);
+    if (about_desc3) ui_set_visible(about_desc3, 0);
+
     if (changelog_label) ui_set_visible(changelog_label, 0);
     if (changelog_desc1) ui_set_visible(changelog_desc1, 0);
     if (changelog_desc2) ui_set_visible(changelog_desc2, 0);
     if (changelog_desc3) ui_set_visible(changelog_desc3, 0);
     if (changelog_desc4) ui_set_visible(changelog_desc4, 0);
-    if (changelog_desc5) ui_set_visible(changelog_desc5, 0);
 
     while (1) {
         // Redraw the four colored bars directly to framebuffer (desktop background)
@@ -279,21 +301,26 @@ void gui_app_entry() {
             current_tab = (current_tab + 1) % TAB_COUNT;
 
             // Update visibility of content widgets based on current tab
-            uint8_t show_home = (current_tab == TAB_HOME);
+            uint8_t show_info = (current_tab == TAB_INFO);
+            uint8_t show_about = (current_tab == TAB_ABOUT);
             uint8_t show_changelog = (current_tab == TAB_CHANGELOG);
 
-            if (home_label) ui_set_visible(home_label, show_home);
-            if (home_desc1) ui_set_visible(home_desc1, show_home);
-            if (home_desc2) ui_set_visible(home_desc2, show_home);
-            if (home_feature1) ui_set_visible(home_feature1, show_home);
-            if (home_feature2) ui_set_visible(home_feature2, show_home);
+            if (info_label) ui_set_visible(info_label, show_info);
+            if (info_desc1) ui_set_visible(info_desc1, show_info);
+            if (info_desc2) ui_set_visible(info_desc2, show_info);
+            if (info_feature1) ui_set_visible(info_feature1, show_info);
+            if (info_feature2) ui_set_visible(info_feature2, show_info);
+
+            if (about_label) ui_set_visible(about_label, show_about);
+            if (about_desc1) ui_set_visible(about_desc1, show_about);
+            if (about_desc2) ui_set_visible(about_desc2, show_about);
+            if (about_desc3) ui_set_visible(about_desc3, show_about);
 
             if (changelog_label) ui_set_visible(changelog_label, show_changelog);
             if (changelog_desc1) ui_set_visible(changelog_desc1, show_changelog);
             if (changelog_desc2) ui_set_visible(changelog_desc2, show_changelog);
             if (changelog_desc3) ui_set_visible(changelog_desc3, show_changelog);
             if (changelog_desc4) ui_set_visible(changelog_desc4, show_changelog);
-            if (changelog_desc5) ui_set_visible(changelog_desc5, show_changelog);
         }
 
         // Yield to scheduler periodically
