@@ -165,7 +165,7 @@ void draw_content(int win_x, int win_y) {
 // GUI App main loop
 void gui_app_entry() {
     // Create desktop using workstation interface
-    workstation_create_desktop();
+    // workstation_create_desktop();
 
     // Simple test: show GUI is running
     // Note: Using 8-bit palette indices for VGA mode 13h

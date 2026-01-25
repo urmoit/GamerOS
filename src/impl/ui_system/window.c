@@ -27,8 +27,9 @@ window_t* create_window(int x, int y, int width, int height, char* title) {
 
     if (window_slot == -1) return 0; // Should not happen if window_count is correct
 
-    // Allocate memory for the window
-    window_t* new_window = (window_t*)kmalloc(sizeof(window_t));
+    // Use static window pool instead of kmalloc
+    static window_t window_pool[MAX_WINDOWS];
+    window_t* new_window = &window_pool[window_slot];
     if (!new_window) {
         return 0; // Memory allocation failed
     }

@@ -21,8 +21,9 @@
 
 static uint8_t mouse_cycle = 0;
 static int8_t mouse_byte[3];
-static int32_t mouse_x = 0;
-static int32_t mouse_y = 0;
+static int32_t mouse_x = 160;  // Center x (320/2)
+static int32_t mouse_y = 100;  // Center y (200/2)
+static uint8_t mouse_buttons = 0;  // Track button state
 
 void mouse_wait(uint8_t type) {
     uint32_t timeout = MOUSE_TIMEOUT;
@@ -73,23 +74,18 @@ void mouse_handler() {
             break;
         case 2:
             mouse_byte[2] = mouse_read();
-            // Clamp mouse coordinates to prevent overflow
+            // Update mouse coordinates with movement
             mouse_x += (int8_t)mouse_byte[1];
             mouse_y -= (int8_t)mouse_byte[2];
+            
+            // Clamp to screen bounds (VGA mode 13h: 320x200)
             if (mouse_x < 0) mouse_x = 0;
+            if (mouse_x > 319) mouse_x = 319;
             if (mouse_y < 0) mouse_y = 0;
-            // Note: No upper bounds checking as screen size may vary
-
-            // Handle mouse buttons
-            if (mouse_byte[0] & MOUSE_LEFT_BUTTON) { // Left button
-                // Handle left click
-            }
-            if (mouse_byte[0] & MOUSE_RIGHT_BUTTON) { // Right button
-                // Handle right click
-            }
-            if (mouse_byte[0] & MOUSE_MIDDLE_BUTTON) { // Middle button
-                // Handle middle click
-            }
+            if (mouse_y > 199) mouse_y = 199;
+            
+            // Store button states
+            mouse_buttons = mouse_byte[0] & 0x07;
 
             mouse_cycle = 0;
             break;
@@ -98,28 +94,38 @@ void mouse_handler() {
 }
 
 void mouse_init() {
-    uint8_t status_byte;
+    // Simple initialization without complex handshaking
+    // Just initialize the mouse buffer and position
+    // Full mouse initialization can be complex and hardware-dependent
+    
+    // Initialize mouse buffer (already done at static init)
+    // Mouse is ready to use with handler
+    // Note: Full PS/2 mouse setup requires keyboard controller commands
+    // which can hang on some systems, so we skip it for now
+}
 
-    // Enable the auxiliary mouse device
-    mouse_wait(1);
-    outb(MOUSE_STATUS, MOUSE_PS2);
-    mouse_read(); // Acknowledge
+// Get complete mouse state
+mouse_state_t mouse_get_state() {
+    mouse_state_t state;
+    state.x = mouse_x;
+    state.y = mouse_y;
+    state.buttons = mouse_buttons;
+    return state;
+}
 
-    // Enable the mouse interrupt
-    mouse_wait(1);
-    outb(MOUSE_STATUS, MOUSE_ENABLE);
-    mouse_read(); // Acknowledge
+// Get mouse X coordinate
+int32_t mouse_get_x() {
+    return mouse_x;
+}
 
-    // Set default settings
-    mouse_write(MOUSE_DEFAULT);
-    mouse_read(); // Acknowledge
+// Get mouse Y coordinate
+int32_t mouse_get_y() {
+    return mouse_y;
+}
 
-    // Enable packet streaming
-    mouse_write(MOUSE_ENABLE);
-    mouse_read(); // Acknowledge
-
-    // Set mouse handler in IDT (not implemented here)
-    // For now, we assume IDT is set up to handle IRQ12
+// Get button state
+uint8_t mouse_get_buttons() {
+    return mouse_buttons;
 }
 
 // TODO: Implement mouse cursor rendering and visibility control

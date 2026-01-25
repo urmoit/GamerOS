@@ -196,6 +196,11 @@ void draw_image_scaled(uint32_t x, uint32_t y, uint32_t dest_width, uint32_t des
 // Alpha blending for transparency
 uint32_t blend_pixel(uint32_t src, uint32_t dst);
 
+// Mouse cursor drawing
+void vga_draw_mouse_cursor(int32_t x, int32_t y, uint8_t color);
+void vga_draw_mouse_arrow(int32_t x, int32_t y, uint8_t color);
+void vga_erase_mouse_area(int32_t x, int32_t y);
+
 // TODO: Add support for 3D graphics primitives (cubes, spheres)
 // TODO: Implement texture mapping and UV coordinates
 // TODO: Add particle system for effects

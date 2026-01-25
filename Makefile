@@ -134,7 +134,8 @@ all: check-tools build-$(ARCH)
 
 # Build kernel for x86_64
 .PHONY: build-x86_64
-build-x86_64: $(ISO)
+build-x86_64: clean $(ISO)
+	@echo "Build complete!"
 
 # Create directories
 $(BUILD_DIR)/$(ARCH):

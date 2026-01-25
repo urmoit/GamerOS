@@ -1,28 +1,41 @@
 # GamerOS Bug Tracking List
 
 ## Summary
-- **Total Bugs Found:** 28
-- - **Resolved:** 1
-- **Critical Issues:** 0
-- **High Priority:** 3
+- **Total Bugs Found:** 29
+- **Resolved:** 0
+- **Critical Issues:** 1
+- **High Priority:** 4
 - **Medium Priority:** 11
 - **Low Priority:** 8
 
-## Recently Fixed
-- [x] VGA graphics display issue - screen shows all black or all white instead of colored bars
+## Recently Identified Issues
+- 🔴 **CRITICAL:** VGA Mode 12h - Black/white screen with zero errors (REGRESSED)
   - **Location:** `src/impl/graphics/vga_graphics.c`, `src/impl/kernel/main.c`, `src/impl/x86_64/boot.asm`
-  - **Impact:** Graphics not displaying correctly
-  - **Status:** FIXED - Palette initialization moved to boot.asm in 32-bit mode before long mode transition
-  - **Solution:** Complete VGA Mode 13h register setup with proper CRTC timing values, sequencer configuration, graphics controller mode settings, and palette initialization in boot.asm
+  - **Impact:** Graphics not displaying at all - screen remains black
+  - **Status:** OPEN - Pixel writing logic or bootloader initialization broken
+  - **Details:** Bootloader initializes mode 12h correctly but kernel pixel operations not working
+  - **Priority:** CRITICAL - System appears non-functional to user
 
 ## Bug Categories
 
 ### 🔴 Critical (System Breaking)
+- [ ] **VGA Mode 12h Black Screen Issue**
+  - Bootloader successfully sets up 640x480 mode
+  - Test pattern in bootloader (5 color stripes) may or may not display
+  - Kernel vga_clear(0x0F) fills with white but appears as black
+  - All subsequent graphics operations fail
+  - Possible causes:
+    - Sequencer plane masking not working correctly
+    - Graphics controller set/reset not functioning as expected
+    - Pixel write mode not configured properly in kernel
+    - Memory fence or volatility issues
+  - **Status:** OPEN - Requires debugging with QEMU
 
 ### 🟠 High Priority (Major Functionality Impact)
 - [ ] Incomplete UI framework implementation
 - [ ] Missing executive services initialization
 - [ ] IPC system is completely stubbed out - all functions return failure
+- [ ] VGA Mode 13h palette not loaded (reverted to mode 12h testing)
 
 ### 🟡 Medium Priority (Feature Limitations)
 - [ ] TODO comments indicating incomplete implementations (multiple files)
@@ -272,6 +285,63 @@
 **Impact:** Wastes CPU cycles, not portable, timing may vary between systems
 **Suggested Fix:** Use timer-based delays or remove if not necessary
 **Status:** Open
+
+## Debugging Notes for VGA Mode 12h Black Screen Issue
+
+### Investigation Timeline
+1. **Initial Status:** System boots to black screen with 0 compilation errors
+2. **Bootloader Status:** Mode 12h initialization completes successfully (set_vga_mode12h function)
+3. **Test Pattern:** Bootloader attempts to draw 5 color stripes but appears as black screen
+4. **Kernel Clear:** `vga_clear(0x0F)` (white fill) appears to produce black screen
+5. **Graphics Functions:** All subsequent UI rendering produces no visible output
+
+### VGA Mode 12h Configuration Status
+- **Misc Output Register (0x3C2):** Set to 0xE3 (640x480 timings) ✓
+- **Sequencer Memory Mode (0x3C4/0x3C5 Reg 4):** Set to 0x06 (planar, not chain-4) ✓
+- **CRTC Registers:** Loaded from crtc_data_12h table (25 registers) ✓
+- **Graphics Controller Mode (0x3CE/0x3CF Reg 5):** Set to 0x00 (planar) ✓
+- **Attribute Controller:** Set for 16-color mode ✓
+
+### Possible Root Causes
+1. **Sequencer Plane Masking Issue**
+   - Map Mask register (0x3C4/0x3C5 Reg 2) may not be switching planes correctly
+   - Kernel sets to individual planes (1 << plane) but may not be persisting
+
+2. **Graphics Controller Set/Reset Not Working**
+   - Write mode 1 with set/reset may not be implemented correctly
+   - Bit mask register may not be affecting target pixels
+   - Read-modify-write operations may be failing
+
+3. **Video Memory Access Issue**
+   - Planar mode byte addressing may be incorrect
+   - VGA latches may not be working as expected
+   - Memory fence operations may be clearing data before display
+
+4. **Mode Setup Sequence Issue**
+   - Bootloader may not be disabling/re-enabling display at right times
+   - Attribute controller flip-flop may not be in correct state
+   - Sequencer reset may be interfering with mode configuration
+
+5. **Display Enable Issue**
+   - Attribute controller register 0x20 (display enable) may not be set correctly
+   - Blanking signals may be misconfigured
+   - CRTC timing may be creating blank output
+
+### Testing Strategy
+1. Verify bootloader test pattern displays 5 color stripes on screen
+2. Add debug output to serial console showing pixel write operations
+3. Test individual plane writes to verify sequencer plane switching
+4. Compare with known working Mode 13h implementation
+5. Check QEMU logs for video mode setup errors
+6. Verify memory access to 0xA0000 is working in long mode
+
+### Next Steps
+1. Add QEMU debugging output
+2. Simplify pixel writing to test single plane writes
+3. Verify attribute controller is not preventing display
+4. Test with very simple 1-color fill
+5. Compare register values with VGA BIOS defaults
+
 
 ### File: src/impl/graphics/vga_graphics.c
 **Issue:** Palette initialization uses cli/sti which may interfere with interrupt handling

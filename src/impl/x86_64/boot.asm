@@ -178,7 +178,166 @@ set_vga_mode13h:
     pop eax
     ret
 
-; CRTC register data for mode 13h
+; VGA Mode 12h (640x480x16) - 16-color planar mode
+set_vga_mode12h:
+    push eax
+    push edx
+    push ecx
+
+    ; Set misc output register for 640x480
+    mov dx, 0x3C2
+    mov al, 0xE3            ; Proper value for mode 12h
+    out dx, al
+
+    ; Disable video during setup
+    mov dx, 0x3C4
+    mov al, 0x00
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x01
+    out dx, al
+
+    ; Setup sequencer registers
+    mov dx, 0x3C4
+    mov al, 0x01            ; Clocking mode
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x01            ; 8 dots per character
+    out dx, al
+
+    mov dx, 0x3C4
+    mov al, 0x02            ; Map mask
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x0F            ; Enable all 4 planes
+    out dx, al
+
+    mov dx, 0x3C4
+    mov al, 0x03
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x00
+    out dx, al
+
+    mov dx, 0x3C4
+    mov al, 0x04            ; Memory mode
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x06            ; Planar mode, not chain-4
+    out dx, al
+
+    ; Unprotect CRTC registers
+    mov dx, 0x3D4
+    mov al, 0x11
+    out dx, al
+    mov dx, 0x3D5
+    in al, dx
+    and al, 0x7F
+    out dx, al
+
+    ; Set CRTC registers for 640x480
+    mov esi, crtc_data_12h
+    xor ecx, ecx
+.crtc_loop_12h:
+    mov dx, 0x3D4
+    mov al, cl
+    out dx, al
+    mov dx, 0x3D5
+    mov al, [esi]
+    out dx, al
+    inc esi
+    inc ecx
+    cmp ecx, 25
+    jl .crtc_loop_12h
+
+    ; Graphics controller setup for planar mode
+    mov dx, 0x3CE
+    mov al, 0x05            ; Mode register
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00            ; Planar mode
+    out dx, al
+
+    mov dx, 0x3CE
+    mov al, 0x06            ; Miscellaneous
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x05            ; A0000h, 64K, graphics mode
+    out dx, al
+
+    ; Set other GC registers to 0
+    xor ecx, ecx
+.gc_loop_12h:
+    cmp ecx, 5
+    je .gc_skip1_12h
+    cmp ecx, 6
+    je .gc_skip2_12h
+
+    mov dx, 0x3CE
+    mov al, cl
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00
+    out dx, al
+
+.gc_skip2_12h:
+.gc_skip1_12h:
+    inc ecx
+    cmp ecx, 9
+    jl .gc_loop_12h
+
+    ; Attribute controller setup
+    mov dx, 0x3DA
+    in al, dx               ; Reset flip-flop
+
+    xor ecx, ecx
+.attr_loop_12h:
+    mov dx, 0x3C0
+    mov al, cl
+    out dx, al
+    mov al, cl
+    out dx, al
+    inc ecx
+    cmp ecx, 16
+    jl .attr_loop_12h
+
+    mov dx, 0x3C0
+    mov al, 0x10
+    out dx, al
+    mov al, 0x41
+    out dx, al
+
+    mov dx, 0x3C0
+    mov al, 0x20
+    out dx, al
+
+    ; End sequencer reset
+    mov dx, 0x3C4
+    mov al, 0x00
+    out dx, al
+    mov dx, 0x3C5
+    mov al, 0x03
+    out dx, al
+
+    ; Clear video memory (all planes)
+    xor eax, eax
+    mov edi, VGA_GRAPHICS_BUFFER
+    mov ecx, 153600         ; 640*480/4 (4 planes)
+    rep stosd
+
+    pop ecx
+    pop edx
+    pop eax
+    ret
+
+; CRTC register data for mode 12h (640x480)
+crtc_data_12h:
+    db 0x5F, 0x4F, 0x50, 0x82, 0x54, 0x80, 0x0B, 0x3E
+    db 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    db 0xEA, 0x8C, 0xDF, 0x28, 0x00, 0xE7, 0x04, 0xC3
+    db 0xFF
+
+; CRTC register data for mode 13h (320x200)
 crtc_data:
     db 0x5F, 0x4F, 0x50, 0x82, 0x54, 0x80, 0xBF, 0x1F
     db 0x00, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -315,36 +474,92 @@ boot_main32:
     call detect_cpu
     jc .cpu_unsupported
 
-    ; Set VGA mode
-    call set_vga_mode13h
+    ; Set VGA mode 12h (640x480x16)
+    call set_vga_mode12h
 
-    ; Draw test pattern DIRECTLY
+    ; Draw test pattern using proper sequencer access
     mov edi, VGA_GRAPHICS_BUFFER
-
-    ; Red stripe
-    mov ecx, 12800
-    mov al, 0x04
-    rep stosb
-
-    ; Green stripe
-    mov ecx, 12800
-    mov al, 0x02
-    rep stosb
-
-    ; Blue stripe
-    mov ecx, 12800
+    mov ebx, 0              ; Color stripe counter
+    
+.stripe_loop:
+    cmp ebx, 5
+    jge .stripes_done
+    
+    ; Determine color based on stripe
+    mov al, bl
+    cmp al, 0
+    jne .not_red
+    mov byte [vga_test_color], 0x04            ; Red
+    jmp .paint_stripe
+.not_red:
+    cmp al, 1
+    jne .not_green
+    mov byte [vga_test_color], 0x02            ; Green
+    jmp .paint_stripe
+.not_green:
+    cmp al, 2
+    jne .not_blue
+    mov byte [vga_test_color], 0x01            ; Blue
+    jmp .paint_stripe
+.not_blue:
+    cmp al, 3
+    jne .not_yellow
+    mov byte [vga_test_color], 0x0E            ; Yellow
+    jmp .paint_stripe
+.not_yellow:
+    mov byte [vga_test_color], 0x0F            ; White
+    
+.paint_stripe:
+    ; Set graphics controller for set/reset mode
+    mov dx, 0x3CE
+    mov al, 0x05
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x01            ; Write mode 1
+    out dx, al
+    
+    ; Set color in set/reset register
+    mov dx, 0x3CE
+    mov al, 0x00
+    out dx, al
+    mov al, [vga_test_color]
+    mov dx, 0x3CF
+    out dx, al
+    
+    ; Enable all planes
+    mov dx, 0x3CE
     mov al, 0x01
-    rep stosb
-
-    ; Yellow stripe
-    mov ecx, 12800
-    mov al, 0x0E
-    rep stosb
-
-    ; White stripe
-    mov ecx, 12800
+    out dx, al
+    mov dx, 0x3CF
     mov al, 0x0F
-    rep stosb
+    out dx, al
+    
+    ; Fill stripe (12800 bytes)
+    mov ecx, 12800
+    mov edx, 0xA0000
+.fill_stripe:
+    mov byte [edx], 0xFF
+    inc edx
+    loop .fill_stripe
+    
+    inc ebx
+    jmp .stripe_loop
+    
+.stripes_done:
+    ; Reset graphics controller
+    mov dx, 0x3CE
+    mov al, 0x05
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00            ; Back to write mode 0
+    out dx, al
+    
+    mov dx, 0x3CE
+    mov al, 0x01
+    out dx, al
+    mov dx, 0x3CF
+    mov al, 0x00
+    out dx, al
 
     ; Setup paging
     %define P4_TABLE 0x200000
@@ -426,6 +641,8 @@ stack_top:
 stack_top_64 equ stack_top
 
 section .data
+vga_test_color db 0x00
+
 gdt64:
     dq 0x0000000000000000
     dq 0x00AF9A000000FFFF

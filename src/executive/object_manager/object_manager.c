@@ -77,7 +77,17 @@ object_handle_t object_create(object_type_t type, object_attributes_t* attribute
             return INVALID_HANDLE;
     }
 
-    obj = (object_t*)kmalloc(size);
+    // Use static object pool instead of kmalloc
+    static uint8_t object_pool[4096];
+    static uint32_t pool_offset = 0;
+    
+    if (pool_offset + size > 4096) {
+        return INVALID_HANDLE;  // Out of memory
+    }
+    
+    obj = (object_t*)(object_pool + pool_offset);
+    pool_offset += size;
+    
     if (!obj) {
         return INVALID_HANDLE;
     }
@@ -92,7 +102,6 @@ object_handle_t object_create(object_type_t type, object_attributes_t* attribute
     // Allocate handle
     object_handle_t handle = allocate_handle();
     if (handle == INVALID_HANDLE) {
-        kfree(obj);
         return INVALID_HANDLE;
     }
 
@@ -111,9 +120,8 @@ int object_destroy(object_handle_t handle) {
     }
 
     // Free object-specific resources if needed
-    // For now, just free the object
+    // For now, just mark as freed (static pool doesn't need kfree)
     // TODO: Implement object-specific cleanup routines for different object types
-    kfree(obj);
     object_table[handle] = NULL;
 
     return 0;

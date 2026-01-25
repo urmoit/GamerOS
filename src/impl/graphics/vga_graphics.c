@@ -147,69 +147,214 @@ void vga_init_mode13(void) {
     graphics_initialized = 1;
 }
 
-int vga_set_mode(vga_mode_t mode) {
-    if (mode != VGA_MODE_13H) {
-        return 0;
-    }
+void vga_init_mode12h(void) {
+    // Mode 12h: 640x480x16 (4-bit color, planar mode)
+    // Each byte contains 8 pixels (1 plane per color)
+    // 4 planes total: plane 0=bit 0, plane 1=bit 1, plane 2=bit 2, plane 3=bit 3
+    
+    vga_framebuffer = (volatile uint8_t*)0xA0000;
+    current_vga_width = 640;
+    current_vga_height = 480;
+    current_vga_mode = VGA_MODE_12H;
+    current_color_depth = COLOR_DEPTH_8BIT;  // 16 colors (4 bits per pixel)
+    
+    // Configure graphics controller for planar mode
+    // Graphics Mode Register (0x3CE/0x3CF)
+    outb(0x3CE, 0x05);  // Graphics Mode register
+    outb(0x3CF, 0x00);  // Mode 0: write to all planes
+    
+    // Sequencer registers for planar access
+    outb(0x3C4, 0x02);  // Map Mask register
+    outb(0x3C5, 0x0F);  // Enable all 4 planes for writing
+    
+    graphics_initialized = 1;
+}
 
-    vga_init_mode13();
-    return 1;
+int vga_set_mode(vga_mode_t mode) {
+    switch (mode) {
+        case VGA_MODE_13H:
+            vga_init_mode13();
+            return 1;
+        case VGA_MODE_12H:
+            vga_init_mode12h();
+            return 1;
+        case VGA_MODE_101H:
+            // 640x480x256 - would require VESA calls
+            return 0;
+        case VGA_MODE_103H:
+            // 800x600x256 - would require VESA calls
+            return 0;
+        case VGA_MODE_118H:
+            // 1024x768x24 - would require VESA calls
+            return 0;
+        default:
+            return 0;
+    }
 }
 
 void vga_set_pixel(uint32_t x, uint32_t y, uint32_t color) {
-    if (x >= 320 || y >= 200) return;
-
-    uint32_t offset = y * 320 + x;
-    force_write_pixel(offset, (uint8_t)color);
+    if (current_vga_mode == VGA_MODE_13H) {
+        if (x >= 320 || y >= 200) return;
+        uint32_t offset = y * 320 + x;
+        force_write_pixel(offset, (uint8_t)color);
+    } else if (current_vga_mode == VGA_MODE_12H) {
+        if (x >= 640 || y >= 480) return;
+        
+        // Mode 12h: planar mode - 8 pixels per byte, 16 colors (4 bits per pixel)
+        uint32_t byte_offset = y * 80 + (x / 8);
+        uint8_t bit_position = 7 - (x % 8);
+        uint8_t pixel_mask = 1 << bit_position;
+        uint8_t color_byte = (uint8_t)color & 0x0F;
+        
+        volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+        
+        // Write each plane separately using only sequencer mask
+        for (int plane = 0; plane < 4; plane++) {
+            // Set sequencer to write only to this plane
+            outb(0x3C4, 0x02);  // Map Mask register
+            outb(0x3C5, 1 << plane);
+            
+            // Check if this plane should have the bit set
+            if (color_byte & (1 << plane)) {
+                // Set the bit: read-modify-write
+                uint8_t current = fb[byte_offset];
+                current |= pixel_mask;
+                fb[byte_offset] = current;
+            } else {
+                // Clear the bit: read-modify-write
+                uint8_t current = fb[byte_offset];
+                current &= ~pixel_mask;
+                fb[byte_offset] = current;
+            }
+        }
+        
+        // Reset sequencer to all planes
+        outb(0x3C4, 0x02);
+        outb(0x3C5, 0x0F);
+        
+        __asm__ volatile("mfence" ::: "memory");
+    }
 }
 
 uint32_t vga_get_pixel(uint32_t x, uint32_t y) {
-    if (x >= 320 || y >= 200) return 0;
-
-    volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
-    return fb[y * 320 + x];
+    if (current_vga_mode == VGA_MODE_13H) {
+        if (x >= 320 || y >= 200) return 0;
+        volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+        return fb[y * 320 + x];
+    } else if (current_vga_mode == VGA_MODE_12H) {
+        if (x >= 640 || y >= 480) return 0;
+        
+        uint32_t byte_offset = y * 80 + (x / 8);
+        uint8_t bit_position = 7 - (x % 8);
+        uint8_t pixel_mask = 1 << bit_position;
+        
+        volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+        uint32_t color = 0;
+        
+        // Read each plane
+        for (int plane = 0; plane < 4; plane++) {
+            outb(0x3CE, 0x04);  // Graphics Read Map Select
+            outb(0x3CF, plane);
+            
+            if (fb[byte_offset] & pixel_mask) {
+                color |= (1 << plane);
+            }
+        }
+        
+        return color;
+    }
+    return 0;
 }
 
 void vga_fill_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint8_t color) {
-    // Clamp to screen
-    if (x >= 320 || y >= 200) return;
-    if (x + width > 320) width = 320 - x;
-    if (y + height > 200) height = 200 - y;
+    if (current_vga_mode == VGA_MODE_13H) {
+        // Clamp to screen
+        if (x >= 320 || y >= 200) return;
+        if (x + width > 320) width = 320 - x;
+        if (y + height > 200) height = 200 - y;
 
-    volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+        volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
 
-    for (uint32_t py = y; py < y + height; py++) {
-        for (uint32_t px = x; px < x + width; px++) {
-            fb[py * 320 + px] = color;
+        for (uint32_t py = y; py < y + height; py++) {
+            for (uint32_t px = x; px < x + width; px++) {
+                fb[py * 320 + px] = color;
+            }
+        }
+
+        // Memory barrier
+        __asm__ volatile("mfence" ::: "memory");
+    } else if (current_vga_mode == VGA_MODE_12H) {
+        // Clamp to screen
+        if (x >= 640 || y >= 480) return;
+        if (x + width > 640) width = 640 - x;
+        if (y + height > 480) height = 480 - y;
+
+        for (uint32_t py = y; py < y + height; py++) {
+            for (uint32_t px = x; px < x + width; px++) {
+                vga_set_pixel(px, py, color);
+            }
         }
     }
-
-    // Memory barrier
-    __asm__ volatile("mfence" ::: "memory");
 }
 
 void vga_clear(uint8_t color) {
-    volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+    if (current_vga_mode == VGA_MODE_13H) {
+        volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
 
-    for (uint32_t i = 0; i < 320 * 200; i++) {
-        fb[i] = color;
+        for (uint32_t i = 0; i < 320 * 200; i++) {
+            fb[i] = color;
+        }
+
+        __asm__ volatile("mfence" ::: "memory");
+    } else if (current_vga_mode == VGA_MODE_12H) {
+        // Mode 12h: optimized clear - write entire screen at once
+        volatile uint8_t* fb = (volatile uint8_t*)0xA0000;
+        uint8_t color_byte = color & 0x0F;
+        uint32_t screen_bytes = 640 * 480 / 8;  // 38400 bytes
+        
+        // For each plane, write all pixels if that plane bit is set in color
+        for (int plane = 0; plane < 4; plane++) {
+            if (color_byte & (1 << plane)) {
+                // Set sequencer to write only to this plane
+                outb(0x3C4, 0x02);
+                outb(0x3C5, 1 << plane);
+                
+                // Fill entire screen with 0xFF (all pixels set in this plane)
+                for (uint32_t i = 0; i < screen_bytes; i++) {
+                    fb[i] = 0xFF;
+                }
+            } else {
+                // Set sequencer to write only to this plane
+                outb(0x3C4, 0x02);
+                outb(0x3C5, 1 << plane);
+                
+                // Clear entire screen (all pixels clear in this plane)
+                for (uint32_t i = 0; i < screen_bytes; i++) {
+                    fb[i] = 0x00;
+                }
+            }
+        }
+        
+        // Reset to all planes
+        outb(0x3C4, 0x02);
+        outb(0x3C5, 0x0F);
+        
+        __asm__ volatile("mfence" ::: "memory");
     }
-
-    __asm__ volatile("mfence" ::: "memory");
 }
 
 void vga_draw_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint8_t color) {
     // Top and bottom
-    for (uint32_t i = 0; i < width && x + i < 320; i++) {
+    for (uint32_t i = 0; i < width && x + i < current_vga_width; i++) {
         vga_set_pixel(x + i, y, color);
-        if (y + height - 1 < 200) {
+        if (y + height - 1 < current_vga_height) {
             vga_set_pixel(x + i, y + height - 1, color);
         }
     }
     // Left and right
-    for (uint32_t i = 0; i < height && y + i < 200; i++) {
+    for (uint32_t i = 0; i < height && y + i < current_vga_height; i++) {
         vga_set_pixel(x, y + i, color);
-        if (x + width - 1 < 320) {
+        if (x + width - 1 < current_vga_width) {
             vga_set_pixel(x + width - 1, y + i, color);
         }
     }
@@ -224,7 +369,7 @@ void vga_draw_char(uint32_t x, uint32_t y, char c, uint8_t color) {
         uint8_t row_data = char_bitmap[row];
         for (uint32_t col = 0; col < 8; col++) {
             if (row_data & (1 << (7 - col))) {
-                if (x + col < 320 && y + row < 200) {
+                if (x + col < current_vga_width && y + row < current_vga_height) {
                     vga_set_pixel(x + col, y + row, color);
                 }
             }
@@ -252,15 +397,85 @@ void vga_draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color) {
 
 // Minimal stubs for other functions
 void vga_draw_line(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint8_t color) {
-    (void)x1; (void)y1; (void)x2; (void)y2; (void)color;
+    // Bresenham's line algorithm
+    int32_t dx = (x2 > x1) ? (x2 - x1) : (x1 - x2);
+    int32_t dy = (y2 > y1) ? (y2 - y1) : (y1 - y2);
+    int32_t sx = (x1 < x2) ? 1 : -1;
+    int32_t sy = (y1 < y2) ? 1 : -1;
+    int32_t err = dx - dy;
+
+    int32_t x = x1;
+    int32_t y = y1;
+
+    while (1) {
+        if (x >= 0 && x < (int32_t)current_vga_width && y >= 0 && y < (int32_t)current_vga_height) {
+            vga_set_pixel(x, y, color);
+        }
+
+        if (x == (int32_t)x2 && y == (int32_t)y2) {
+            break;
+        }
+
+        int32_t e2 = err * 2;
+        if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y += sy;
+        }
+    }
 }
 
 void vga_draw_circle(uint32_t cx, uint32_t cy, uint32_t r, uint8_t color) {
-    (void)cx; (void)cy; (void)r; (void)color;
+    // Midpoint circle algorithm
+    int32_t x = r;
+    int32_t y = 0;
+    int32_t d = 3 - 2 * r;
+
+    while (x >= y) {
+        // Draw 8 symmetric points
+        if ((int32_t)cx + x < (int32_t)current_vga_width && (int32_t)cy + y < (int32_t)current_vga_height) vga_set_pixel(cx + x, cy + y, color);
+        if ((int32_t)cx - x >= 0 && (int32_t)cy + y < (int32_t)current_vga_height) vga_set_pixel(cx - x, cy + y, color);
+        if ((int32_t)cx + x < (int32_t)current_vga_width && (int32_t)cy - y >= 0) vga_set_pixel(cx + x, cy - y, color);
+        if ((int32_t)cx - x >= 0 && (int32_t)cy - y >= 0) vga_set_pixel(cx - x, cy - y, color);
+        if ((int32_t)cx + y < (int32_t)current_vga_width && (int32_t)cy + x < (int32_t)current_vga_height) vga_set_pixel(cx + y, cy + x, color);
+        if ((int32_t)cx - y >= 0 && (int32_t)cy + x < (int32_t)current_vga_height) vga_set_pixel(cx - y, cy + x, color);
+        if ((int32_t)cx + y < (int32_t)current_vga_width && (int32_t)cy - x >= 0) vga_set_pixel(cx + y, cy - x, color);
+        if ((int32_t)cx - y >= 0 && (int32_t)cy - x >= 0) vga_set_pixel(cx - y, cy - x, color);
+
+        if (d < 0) {
+            d = d + 4 * y + 6;
+        } else {
+            d = d + 4 * (y - x) + 10;
+            x--;
+        }
+        y++;
+    }
 }
 
 void vga_fill_circle(uint32_t cx, uint32_t cy, uint32_t r, uint8_t color) {
-    (void)cx; (void)cy; (void)r; (void)color;
+    // Midpoint circle algorithm with horizontal line filling
+    int32_t x = r;
+    int32_t y = 0;
+    int32_t d = 3 - 2 * r;
+
+    while (x >= y) {
+        // Draw horizontal lines for each symmetric pair
+        vga_draw_horizontal_line(cx - x, cy + y, 2 * x + 1, color);
+        vga_draw_horizontal_line(cx - x, cy - y, 2 * x + 1, color);
+        vga_draw_horizontal_line(cx - y, cy + x, 2 * y + 1, color);
+        vga_draw_horizontal_line(cx - y, cy - x, 2 * y + 1, color);
+
+        if (d < 0) {
+            d = d + 4 * y + 6;
+        } else {
+            d = d + 4 * (y - x) + 10;
+            x--;
+        }
+        y++;
+    }
 }
 
 void vga_draw_triangle(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t x3, uint32_t y3, uint8_t color) {
@@ -272,13 +487,13 @@ void vga_fill_triangle(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint3
 }
 
 void vga_draw_horizontal_line(uint32_t x, uint32_t y, uint32_t len, uint8_t color) {
-    for (uint32_t i = 0; i < len && x + i < 320; i++) {
+    for (uint32_t i = 0; i < len && x + i < current_vga_width; i++) {
         vga_set_pixel(x + i, y, color);
     }
 }
 
 void vga_draw_vertical_line(uint32_t x, uint32_t y, uint32_t len, uint8_t color) {
-    for (uint32_t i = 0; i < len && y + i < 200; i++) {
+    for (uint32_t i = 0; i < len && y + i < current_vga_height; i++) {
         vga_set_pixel(x, y + i, color);
     }
 }
@@ -344,13 +559,70 @@ void destroy_image(image_t* img) { (void)img; }
 void draw_image(uint32_t x, uint32_t y, image_t* img) { (void)x; (void)y; (void)img; }
 void draw_image_scaled(uint32_t x, uint32_t y, uint32_t dw, uint32_t dh, image_t* img) { (void)x; (void)y; (void)dw; (void)dh; (void)img; }
 uint32_t blend_pixel(uint32_t src, uint32_t dst) { (void)src; (void)dst; return 0; }
-void vga_init_mode12h(void) {}
-int vga_init_mode101h(void) { return 0; }
-int vga_init_mode103h(void) { return 0; }
-int vga_init_mode118h(void) { return 0; }
 
-// TODO: Implement vga_draw_line, vga_draw_circle, vga_fill_circle functions
-// TODO: Add support for higher color depths and resolutions
+// Mouse cursor drawing functions
+// Draw a simple arrow cursor
+void vga_draw_mouse_arrow(int32_t x, int32_t y, uint8_t color) {
+    // Clamp to screen bounds
+    if (x < 0 || x >= (int32_t)current_vga_width || y < 0 || y >= (int32_t)current_vga_height) {
+        return;
+    }
+    
+    // Draw arrow cursor (small triangle)
+    // Main vertical line
+    for (int i = 0; i < 8; i++) {
+        if (y + i < (int32_t)current_vga_height) {
+            vga_set_pixel(x, y + i, color);
+        }
+    }
+    
+    // Diagonal lines for arrow shape
+    for (int i = 0; i < 6; i++) {
+        if (y + i < (int32_t)current_vga_height && x + i < (int32_t)current_vga_width) {
+            vga_set_pixel(x + i, y + 2 + i, color);
+        }
+        if (y + i < (int32_t)current_vga_height && x - i >= 0) {
+            vga_set_pixel(x - i + 1, y + 2 + i, color);
+        }
+    }
+}
+
+// Draw a simple crosshair/plus cursor
+void vga_draw_mouse_cursor(int32_t x, int32_t y, uint8_t color) {
+    // Draw horizontal line
+    for (int i = -4; i <= 4; i++) {
+        if (x + i >= 0 && x + i < (int32_t)current_vga_width && 
+            y >= 0 && y < (int32_t)current_vga_height) {
+            vga_set_pixel(x + i, y, color);
+        }
+    }
+    
+    // Draw vertical line
+    for (int i = -4; i <= 4; i++) {
+        if (x >= 0 && x < (int32_t)current_vga_width && 
+            y + i >= 0 && y + i < (int32_t)current_vga_height) {
+            vga_set_pixel(x, y + i, color);
+        }
+    }
+}
+
+// Erase mouse cursor area by redrawing background
+void vga_erase_mouse_area(int32_t x, int32_t y) {
+    // Erase a 10x10 area around the mouse cursor
+    for (int dy = -5; dy <= 5; dy++) {
+        for (int dx = -5; dx <= 5; dx++) {
+            if (x + dx >= 0 && x + dx < (int32_t)current_vga_width && 
+                y + dy >= 0 && y + dy < (int32_t)current_vga_height) {
+                // Redraw background (use UI background color)
+                vga_set_pixel(x + dx, y + dy, 0x01);  // Blue background
+            }
+        }
+    }
+}
+
+int vga_init_mode101h(void) { return 0; }  // TODO: Implement with VESA calls
+int vga_init_mode103h(void) { return 0; }  // TODO: Implement with VESA calls
+int vga_init_mode118h(void) { return 0; }  // TODO: Implement with VESA calls
 // TODO: Implement double buffering for smoother graphics
 // TODO: Add hardware-accelerated graphics operations
 // TODO: Implement image loading and rendering functions

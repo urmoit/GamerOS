@@ -4,6 +4,7 @@
 #include "stdint.h"
 
 void keyboard_init();
-char get_char();
+char keyboard_read_char();
+int keyboard_has_char();
 
 #endif
