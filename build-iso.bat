@@ -10,7 +10,7 @@ if %errorlevel% neq 0 (
 )
 echo.
 echo ========================================
-echo Build complete!
+echo Build!
 echo ISO created at: dist\x86_64\kernel.iso
 echo ========================================
 pause

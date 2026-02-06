@@ -2,7 +2,8 @@
 #define KERNEL_H
 
 // Kernel entry point
-void kernel_main(void);
+struct multiboot_info;
+void kernel_main(struct multiboot_info* mb_info);
 
 // Basic I/O functions
 void print(const char* str);

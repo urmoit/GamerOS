@@ -1,356 +1,244 @@
 # GamerOS Bug Tracking List
 
 ## Summary
-- **Total Bugs Found:** 29
-- **Resolved:** 0
+- **Total Bugs Found:** 25
+- **Resolved:** 8
 - **Critical Issues:** 1
 - **High Priority:** 4
-- **Medium Priority:** 11
-- **Low Priority:** 8
+- **Medium Priority:** 10
+- **Low Priority:** 10
 
-## Recently Identified Issues
-- 🔴 **CRITICAL:** VGA Mode 12h - Black/white screen with zero errors (REGRESSED)
-  - **Location:** `src/impl/graphics/vga_graphics.c`, `src/impl/kernel/main.c`, `src/impl/x86_64/boot.asm`
-  - **Impact:** Graphics not displaying at all - screen remains black
-  - **Status:** OPEN - Pixel writing logic or bootloader initialization broken
-  - **Details:** Bootloader initializes mode 12h correctly but kernel pixel operations not working
-  - **Priority:** CRITICAL - System appears non-functional to user
+## Critical Issues (System Breaking)
 
-## Bug Categories
+### 🔴 CRITICAL: Triple Fault / CPU Disabled in VMware
+- **Location:** [`src/impl/kernel_mode/hal/interrupts/isr.c`](src/impl/kernel_mode/hal/interrupts/isr.c:1)
+- **Issue:** VMware shows "CPU has been disabled by the guest operating system"
+- **Root Cause:** Interrupt handling issues - possible causes:
+  1. ISR assembly handler `sti` instruction re-enabling interrupts before `iretq`
+  2. Stack misalignment in interrupt handlers
+  3. IDT entry IST field was non-zero (now fixed to 0)
+  4. GDT reload in 64-bit mode without proper segment register updates
+- **Status:** PARTIALLY FIXED
+  - IST field now set to 0
+  - GDT reload removed (boot GDT is used)
+  - Still investigating remaining issues
+- **Workaround:** Kernel boots in QEMU but not VMware
 
-### 🔴 Critical (System Breaking)
-- [ ] **VGA Mode 12h Black Screen Issue**
-  - Bootloader successfully sets up 640x480 mode
-  - Test pattern in bootloader (5 color stripes) may or may not display
-  - Kernel vga_clear(0x0F) fills with white but appears as black
-  - All subsequent graphics operations fail
-  - Possible causes:
-    - Sequencer plane masking not working correctly
-    - Graphics controller set/reset not functioning as expected
-    - Pixel write mode not configured properly in kernel
-    - Memory fence or volatility issues
-  - **Status:** OPEN - Requires debugging with QEMU
+## Recently Resolved Issues
 
-### 🟠 High Priority (Major Functionality Impact)
-- [ ] Incomplete UI framework implementation
-- [ ] Missing executive services initialization
-- [ ] IPC system is completely stubbed out - all functions return failure
-- [ ] VGA Mode 13h palette not loaded (reverted to mode 12h testing)
+### ✅ RESOLVED: IST Field in IDT Entry
+- **Location:** [`src/intf/idt.h`](src/intf/idt.h:10)
+- **Issue:** IDT entry `reserved` field was actually IST (Interrupt Stack Table), non-zero values cause triple fault
+- **Fix:** Renamed to `ist` and explicitly set to 0
+- **Status:** RESOLVED
 
-### 🟡 Medium Priority (Feature Limitations)
-- [ ] TODO comments indicating incomplete implementations (multiple files)
-- [ ] Missing null pointer checks in some functions
-- [ ] Potential race conditions in scheduler
-- [ ] Implicit function declarations in GUI app (strlen, workstation_create_desktop)
-- [ ] Implicit function declarations in user mode init functions
-- [ ] Color value overflow in GUI functions (32-bit to 8-bit conversion)
-- [ ] Missing kmalloc/kfree declarations in object manager
-- [ ] Unused variable 'prev' in memory.c kmalloc function
-- [ ] Variable declaration in switch statement (rgb_to_color function)
-- [ ] Memory leak in kfree - only coalesces with next block, not previous block
-- [ ] VESA mode support references undefined extern variable 'vesa_success'
+### ✅ RESOLVED: GDT Reload in 64-bit Mode
+- **Location:** [`src/impl/kernel_mode/hal/cpu/gdt.c`](src/impl/kernel_mode/hal/cpu/gdt.c:6)
+- **Issue:** Reloading GDT in 64-bit mode without reloading segment registers causes corruption
+- **Fix:** Made `gdt_init()` a no-op since boot.asm already sets up correct GDT
+- **Status:** RESOLVED
 
-### 🟢 Low Priority (Minor Issues)
-- [ ] Code style inconsistencies
-- [ ] Missing documentation comments
-- [ ] Unused variables in some functions
-- [ ] Hard-coded magic numbers (320, 200, 0xA0000, etc.)
-- [ ] Inefficient string operations
-- [ ] UI rendering disabled in GUI app loop (commented out)
-- [ ] Theme colors use 32-bit values but VGA mode 13h only supports 8-bit palette
-- [ ] No error handling for failed widget creation
+### ✅ RESOLVED: ISR Handler Pass-by-Value
+- **Location:** [`src/impl/kernel_mode/hal/interrupts/isr.c`](src/impl/kernel_mode/hal/interrupts/isr.c:51)
+- **Issue:** `common_isr_handler(registers_t regs)` passed 152-byte struct by value, corrupting stack
+- **Fix:** Changed to `common_isr_handler(uint64_t* regs)` - pass by pointer
+- **Status:** RESOLVED
 
-## Detailed Bug Reports
+### ✅ RESOLVED: Double Buffering Implementation
+- **Location:** [`src/impl/graphics/vga_graphics.c`](src/impl/graphics/vga_graphics.c:11)
+- **Issue:** Screen flickering and cursor trails
+- **Fix:** Implemented 800x600 back buffer, all drawing to back buffer, `swap_buffers()` copies to VGA
+- **Status:** RESOLVED
 
-### File: src/impl/graphics/vga_graphics.c
-**Issue:** Variable declaration in switch statement without braces
-**Severity:** Medium
-**Location:** Line 574 in rgb_to_color function
-**Impact:** May cause compilation issues with some compilers, violates C standard
-**Suggested Fix:** Add braces around the case block: `case COLOR_DEPTH_8BIT: { uint32_t luminance = ...; return ...; }`
-**Status:** Open
+### ✅ RESOLVED: Mouse Button Detection
+- **Location:** [`src/impl/drivers/mouse.c`](src/impl/drivers/mouse.c:81)
+- **Issue:** Mouse buttons not properly detected
+- **Fix:** Proper PS/2 packet decoding with button state in lower 3 bits
+- **Status:** RESOLVED
 
-### File: src/impl/graphics/vga_graphics.c
-**Issue:** VESA mode functions reference undefined extern variable 'vesa_success'
-**Severity:** Medium
-**Location:** Lines 109, 125, 141
-**Impact:** Potential linking errors or undefined behavior if VESA modes are attempted
-**Suggested Fix:** Define vesa_success in boot.asm or remove VESA mode support
-**Status:** Open
+### ✅ RESOLVED: Window Dragging
+- **Location:** [`src/impl/kernel/main.c`](src/impl/kernel/main.c:258)
+- **Issue:** Window dragging was jerky/non-functional
+- **Fix:** Implemented proper drag state tracking with `drag_x`, `drag_y` offsets
+- **Status:** RESOLVED
 
-### File: src/impl/kernel_mode/microkernel/memory.c
-**Issue:** Memory leak in kfree - only coalesces with next block, not previous block
-**Severity:** Medium
-**Location:** Lines 58-68
-**Impact:** Memory fragmentation over time, inefficient memory usage
-**Suggested Fix:** Implement bidirectional coalescing to merge with previous block if also free
-**Status:** Open
+### ✅ RESOLVED: Keyboard Input Buffer
+- **Location:** [`src/impl/drivers/keyboard.c`](src/impl/drivers/keyboard.c:9)
+- **Issue:** No keyboard input buffering
+- **Fix:** Added 64-character ring buffer with `keyboard_getchar()` and `keyboard_has_input()`
+- **Status:** RESOLVED
 
-### File: src/impl/kernel_mode/microkernel/memory.c
-**Issue:** Unused variable 'prev' in kmalloc function
-**Severity:** Low
-**Location:** Line 32
-**Impact:** Compilation warning, minor code cleanliness issue
-**Suggested Fix:** Remove unused variable or use it for bidirectional free list traversal
-**Status:** Open
+### ✅ RESOLVED: VGA Mode 13h Initialization
+- **Location:** [`src/impl/graphics/vga_graphics.c`](src/impl/graphics/vga_graphics.c:46)
+- **Issue:** Dark screen, palette not initialized
+- **Fix:** Proper BIOS INT 0x10 mode setting and palette initialization with XP blue color
+- **Status:** RESOLVED
 
-### File: src/impl/kernel_mode/microkernel/ipc.c
-**Issue:** IPC system is completely stubbed out - all functions return failure
-**Severity:** High
-**Location:** Entire file
-**Impact:** No inter-process communication possible, critical for multitasking OS
-**Suggested Fix:** Implement message passing system with proper queue management
-**Status:** Open
+## High Priority (Major Functionality Impact)
 
-### File: src/impl/kernel/main.c
-**Issue:** VGA graphics display issue - screen shows all black or all white
-**Severity:** Critical
-**Location:** Lines 32-75
-**Impact:** Cannot verify system is working, graphics not displaying correctly
-**Suggested Fix:** Investigate palette initialization in long mode, ensure I/O port access works correctly
-**Status:** Resolved
+- [ ] **CRITICAL: Triple fault in VMware**
+  - **Location:** Interrupt handling system
+  - **Impact:** Cannot run in VMware, only QEMU
+  - **Status:** Under investigation
 
-### File: src/impl/gui_app.c
-**Issue:** UI rendering disabled in main loop (commented out)
-**Severity:** Low
-**Location:** Line 272
-**Impact:** GUI windows and widgets are not being rendered
-**Suggested Fix:** Re-enable ui_render_container() after fixing graphics display issue
-**Status:** Open
+- [ ] **VESA mode functions incomplete**
+  - **Location:** [`src/impl/graphics/vga_graphics.c`](src/impl/graphics/vga_graphics.c:64)
+  - **Impact:** Cannot use 640x480 or 800x600 modes (fallback to 320x200 works)
+  - **Status:** Open
+  - **Note:** `vesa_set_mode()` uses INT 0x10 but may not work in all environments
 
-### File: src/impl/gui_app.c
-**Issue:** Implicit function declarations for strlen and workstation_create_desktop
-**Severity:** Medium
-**Location:** Lines 119, 160
-**Impact:** Compilation warnings, potential runtime issues if functions not properly linked
-**Suggested Fix:** Add strlen declaration to string.h header and declare workstation_create_desktop function
-**Status:** Open
+- [ ] **IPC system is completely stubbed out**
+  - **Location:** [`src/impl/kernel_mode/microkernel/ipc.c`](src/impl/kernel_mode/microkernel/ipc.c:1)
+  - **Impact:** No inter-process communication possible
+  - **Status:** Open
 
-### File: src/impl/gui_app.c
-**Issue:** Color value overflow when converting 32-bit values to 8-bit parameters (resolved in code but still documented)
-**Severity:** Medium
-**Location:** Previously lines 163-174, now commented out
-**Impact:** Colors may display incorrectly if 32-bit values are used
-**Suggested Fix:** Use proper 8-bit color values instead of 32-bit values (already fixed)
-**Status:** Partially resolved - code fixed but issue documented
+- [ ] **Incomplete executive services initialization**
+  - **Location:** [`src/executive/executive.c`](src/executive/executive.c:17)
+  - **Impact:** Missing critical OS services
+  - **Status:** Open
 
-### File: src/impl/ui_system/ui_widgets.c
-**Issue:** Theme colors use 32-bit RGBA values but VGA mode 13h only supports 8-bit palette indices
-**Severity:** Low
-**Location:** Lines 12-43 in ui_load_default_theme()
-**Impact:** Theme colors won't work correctly in current graphics mode
-**Suggested Fix:** Convert theme colors to 8-bit palette indices or implement color conversion
-**Status:** Open
+## Medium Priority (Feature Limitations)
 
-### File: src/impl/ui_system/ui_widgets.c
-**Issue:** No error handling for failed widget creation (kmalloc returns NULL)
-**Severity:** Low
-**Location:** Multiple widget creation functions
-**Impact:** Potential null pointer dereferences if memory allocation fails
-**Suggested Fix:** Add proper null checks and error handling
-**Status:** Open
+- [ ] **VESA mode display output incomplete**
+  - **Location:** [`src/impl/graphics/vga_graphics.c`](src/impl/graphics/vga_graphics.c:286)
+  - **Impact:** `swap_buffers()` only copies up to 320x200 for VESA modes
+  - **Status:** Open
 
-### File: src/executive/executive.c
-**Issue:** TODO comment indicates incomplete executive services initialization
-**Severity:** High
-**Location:** Line 17
-**Impact:** Missing critical OS services, system may not function properly
-**Suggested Fix:** Implement missing executive services
-**Status:** Open
+- [ ] **Notepad text editing limitations**
+  - **Location:** [`src/impl/kernel/main.c`](src/impl/kernel/main.c:292)
+  - **Impact:** No cursor movement with arrow keys, limited editing features
+  - **Status:** Open
 
-### File: src/user_mode/integral_subsystems/workstation/ui_framework.c
-**Issue:** Multiple TODO comments for incomplete UI functionality
-**Severity:** High
-**Location:** Lines 30, 40-41, 55, 59, 68, 72
-**Impact:** Broken UI event handling and rendering
-**Suggested Fix:** Implement pending UI event processing and rendering
-**Status:** Open
+- [ ] **No real-time clock implementation**
+  - **Location:** [`src/impl/kernel/main.c`](src/impl/kernel/main.c:200)
+  - **Impact:** Taskbar shows static "12:00" time
+  - **Status:** Open
 
-### File: src/user_mode/integral_subsystems/workstation/window_manager.c
-**Issue:** TODO/FIXME comments indicating incomplete implementation
-**Severity:** Medium
-**Location:** Multiple lines (24, 39, 48, 52, 56, 60, 65, 70, 74, 78, 82, 86, 90, 102)
-**Impact:** Incomplete window management functionality
-**Suggested Fix:** Complete window manager implementation
-**Status:** Open
+- [ ] **Start menu non-functional**
+  - **Location:** [`src/impl/kernel/main.c`](src/impl/kernel/main.c:179)
+  - **Impact:** Start button draws but menu doesn't open
+  - **Status:** Open
 
-### File: src/user_mode/integral_subsystems/workstation/desktop_manager.c
-**Issue:** TODO comments indicating missing desktop management features
-**Severity:** Medium
-**Location:** Lines 68-69, 73, 79, 90
-**Impact:** Incomplete desktop environment
-**Suggested Fix:** Implement missing desktop management functionality
-**Status:** Open
+- [ ] **Memory leak in kfree - only coalesces with next block**
+  - **Location:** [`src/impl/kernel_mode/microkernel/memory.c`](src/impl/kernel_mode/microkernel/memory.c:58)
+  - **Impact:** Memory fragmentation over time
+  - **Status:** Open
 
-### File: src/impl/kernel_mode/microkernel/process.c
-**Issue:** Potential race conditions in scheduler with spinlock usage
-**Severity:** Medium
-**Location:** Lines 26-28, 31-32, 80-81, 97-99, 124-126
-**Impact:** Potential deadlocks or data corruption in multi-threaded scenarios
-**Suggested Fix:** Implement proper mutex/semaphore system instead of simple spinlocks
-**Status:** Open
+- [ ] **Object manager uses static pool instead of kmalloc**
+  - **Location:** [`src/executive/object_manager/object_manager.c`](src/executive/object_manager/object_manager.c:80)
+  - **Impact:** Limited to 4096 bytes total for all objects
+  - **Status:** Open
 
-### File: src/user_mode/compatibility_layers/msdos/msdos.c
-**Issue:** TODO comments for incomplete MSDOS compatibility
-**Severity:** Low
-**Location:** Multiple lines
-**Impact:** Limited backward compatibility
-**Suggested Fix:** Implement MSDOS compatibility layer
-**Status:** Open
+- [ ] **User mode subsystems are commented out/not initialized**
+  - **Location:** [`src/user_mode/user_mode.c`](src/user_mode/user_mode.c:27)
+  - **Impact:** No user mode functionality available
+  - **Status:** Open
 
-### File: src/user_mode/compatibility_layers/windows9x/windows9x.c
-**Issue:** TODO comments for incomplete Windows 9x compatibility
-**Severity:** Low
-**Location:** Multiple lines
-**Impact:** Limited Windows 9x application support
-**Suggested Fix:** Implement Windows 9x compatibility layer
-**Status:** Open
+- [ ] **Incomplete UI framework implementation**
+  - **Location:** [`src/user_mode/integral_subsystems/workstation/ui_framework.c`](src/user_mode/integral_subsystems/workstation/ui_framework.c:30)
+  - **Impact:** Broken UI event handling and rendering
+  - **Status:** Open
 
-### File: src/user_mode/environment_subsystems/os2/os2.c
-**Issue:** TODO comments for incomplete OS/2 subsystem
-**Severity:** Low
-**Location:** Multiple lines
-**Impact:** No OS/2 application support
-**Suggested Fix:** Implement OS/2 environment subsystem
-**Status:** Open
+- [ ] **Window manager incomplete**
+  - **Location:** [`src/user_mode/integral_subsystems/workstation/window_manager.c`](src/user_mode/integral_subsystems/workstation/window_manager.c:24)
+  - **Impact:** Window operations (minimize, maximize) not implemented
+  - **Status:** Open
 
-### File: src/user_mode/environment_subsystems/posix/posix.c
-**Issue:** TODO comments for incomplete POSIX subsystem
-**Severity:** Low
-**Location:** Multiple lines
-**Impact:** Limited POSIX application compatibility
-**Suggested Fix:** Complete POSIX subsystem implementation
-**Status:** Open
+## Low Priority (Minor Issues)
 
-### File: src/user_mode/environment_subsystems/win32/win32.c
-**Issue:** TODO comments for incomplete Win32 subsystem
-**Severity:** Low
-**Location:** Multiple lines
-**Impact:** Limited Windows application support
-**Suggested Fix:** Implement Win32 subsystem
-**Status:** Open
+- [ ] **Code style inconsistencies across files**
+  - **Impact:** Code readability
+  - **Status:** Open
 
-### File: src/user_mode/integral_subsystems/server_service/server_service.c
-**Issue:** TODO comments for incomplete server service implementation
-**Severity:** Medium
-**Location:** Multiple lines
-**Impact:** No network services available
-**Suggested Fix:** Implement server service functionality
-**Status:** Open
+- [ ] **Missing documentation comments**
+  - **Impact:** Code maintainability
+  - **Status:** Open
 
-### File: src/user_mode/integral_subsystems/security/security.c
-**Issue:** TODO comments for incomplete security system
-**Severity:** Medium
-**Location:** Multiple lines
-**Impact:** No authentication or access control
-**Suggested Fix:** Implement security system
-**Status:** Open
+- [ ] **Hard-coded magic numbers**
+  - **Location:** Multiple files (320, 200, 0xA0000, etc.)
+  - **Impact:** Code maintainability
+  - **Status:** Open
 
-### File: src/executive/object_manager/object_manager.c
-**Issue:** Implicit declarations of kmalloc and kfree functions
-**Severity:** Medium
-**Location:** Lines 80, 95
-**Impact:** Compilation warnings, potential linking issues
-**Suggested Fix:** Include proper header file declaring kmalloc/kfree or add declarations
-**Status:** Open
+- [ ] **Font rendering uses simple 8x8 font**
+  - **Location:** [`src/impl/graphics/vga_graphics.c`](src/impl/graphics/vga_graphics.c:178)
+  - **Impact:** Limited character support, only basic ASCII
+  - **Status:** Open
 
-### File: src/user_mode/user_mode.c
-**Issue:** Multiple implicit function declarations for subsystem init/shutdown functions
-**Severity:** Medium
-**Location:** Lines 27-38, 44-51
-**Impact:** Compilation warnings, potential linking issues with subsystem implementations
-**Suggested Fix:** Add proper function declarations or include appropriate headers
-**Status:** Open
+- [ ] **Compatibility layers (MSDOS, Windows9x) are stubs**
+  - **Location:** [`src/user_mode/compatibility_layers/`](src/user_mode/compatibility_layers/)
+  - **Impact:** No backward compatibility
+  - **Status:** Open
 
-### File: src/impl/kernel_mode/hal/memory/paging.c
-**Issue:** Hard-coded memory addresses and limited memory mapping (only 4MB mapped)
-**Severity:** Medium
-**Location:** Lines 20-31
-**Impact:** System may run out of mapped memory, VGA buffer relies on being in first 2MB
-**Suggested Fix:** Implement dynamic memory mapping for larger address spaces
-**Status:** Open
+- [ ] **Environment subsystems (Win32, POSIX, OS/2) are stubs**
+  - **Location:** [`src/user_mode/environment_subsystems/`](src/user_mode/environment_subsystems/)
+  - **Impact:** No application compatibility layers
+  - **Status:** Open
 
-### File: src/impl/graphics/vga_graphics.c
-**Issue:** vga_fast_clear uses 32-bit operations which may not work correctly for 8-bit palette mode
-**Severity:** Low
-**Location:** Lines 501-518
-**Impact:** Fast clear may write incorrect values if color is not repeated 4 times
-**Suggested Fix:** Use byte operations for 8-bit color depth or ensure color is properly replicated
-**Status:** Open
+- [ ] **Server service and security subsystems are stubs**
+  - **Location:** [`src/user_mode/integral_subsystems/`](src/user_mode/integral_subsystems/)
+  - **Impact:** No network services or security
+  - **Status:** Open
 
-### File: src/impl/kernel/main.c
-**Issue:** Hard-coded delays using busy loops instead of proper timing
-**Severity:** Low
-**Location:** Line 73
-**Impact:** Wastes CPU cycles, not portable, timing may vary between systems
-**Suggested Fix:** Use timer-based delays or remove if not necessary
-**Status:** Open
+- [ ] **Filesystem operations incomplete**
+  - **Location:** [`src/executive/filesystem_manager/filesystem_manager.c`](src/executive/filesystem_manager/filesystem_manager.c:1)
+  - **Impact:** Cannot save/load Notepad files
+  - **Status:** Open
 
-## Debugging Notes for VGA Mode 12h Black Screen Issue
+- [ ] **I/O manager uses synchronous operations only**
+  - **Location:** [`src/executive/io_manager/io_manager.c`](src/executive/io_manager/io_manager.c:115)
+  - **Impact:** No async I/O support
+  - **Status:** Open
 
-### Investigation Timeline
-1. **Initial Status:** System boots to black screen with 0 compilation errors
-2. **Bootloader Status:** Mode 12h initialization completes successfully (set_vga_mode12h function)
-3. **Test Pattern:** Bootloader attempts to draw 5 color stripes but appears as black screen
-4. **Kernel Clear:** `vga_clear(0x0F)` (white fill) appears to produce black screen
-5. **Graphics Functions:** All subsequent UI rendering produces no visible output
+## Working Components (Verified)
 
-### VGA Mode 12h Configuration Status
-- **Misc Output Register (0x3C2):** Set to 0xE3 (640x480 timings) ✓
-- **Sequencer Memory Mode (0x3C4/0x3C5 Reg 4):** Set to 0x06 (planar, not chain-4) ✓
-- **CRTC Registers:** Loaded from crtc_data_12h table (25 registers) ✓
-- **Graphics Controller Mode (0x3CE/0x3CF Reg 5):** Set to 0x00 (planar) ✓
-- **Attribute Controller:** Set for 16-color mode ✓
+### ✅ Graphics System
+- VGA Mode 13h (320x200x256) initialization
+- Double buffering with back buffer
+- Drawing primitives: pixel, rect, line, text
+- XP color palette with desktop blue
 
-### Possible Root Causes
-1. **Sequencer Plane Masking Issue**
-   - Map Mask register (0x3C4/0x3C5 Reg 2) may not be switching planes correctly
-   - Kernel sets to individual planes (1 << plane) but may not be persisting
+### ✅ Mouse Input
+- PS/2 mouse detection and initialization
+- 3-byte packet decoding
+- X/Y coordinate tracking with bounds clamping
+- Left/middle/right button detection
+- Cursor rendering with arrow shape
 
-2. **Graphics Controller Set/Reset Not Working**
-   - Write mode 1 with set/reset may not be implemented correctly
-   - Bit mask register may not be affecting target pixels
-   - Read-modify-write operations may be failing
+### ✅ Keyboard Input
+- PS/2 keyboard scancode reading
+- US layout with shift key support
+- 64-character ring buffer
+- Extended keys (arrows, home, end)
 
-3. **Video Memory Access Issue**
-   - Planar mode byte addressing may be incorrect
-   - VGA latches may not be working as expected
-   - Memory fence operations may be clearing data before display
+### ✅ Window System
+- Window creation and destruction
+- Title bar rendering
+- Close buttons
+- Window dragging by title bar
+- Active window highlighting
+- Taskbar integration
 
-4. **Mode Setup Sequence Issue**
-   - Bootloader may not be disabling/re-enabling display at right times
-   - Attribute controller flip-flop may not be in correct state
-   - Sequencer reset may be interfering with mode configuration
+### ✅ Notepad Application
+- Text input and display
+- Backspace support
+- Enter/return for new lines
+- Cursor rendering
+- Multi-line text buffer (20 lines x 40 chars)
 
-5. **Display Enable Issue**
-   - Attribute controller register 0x20 (display enable) may not be set correctly
-   - Blanking signals may be misconfigured
-   - CRTC timing may be creating blank output
+### ✅ Desktop Environment
+- XP-style blue background
+- Desktop icons (Notepad, My Computer)
+- Taskbar with Start button
+- Window list in taskbar
 
-### Testing Strategy
-1. Verify bootloader test pattern displays 5 color stripes on screen
-2. Add debug output to serial console showing pixel write operations
-3. Test individual plane writes to verify sequencer plane switching
-4. Compare with known working Mode 13h implementation
-5. Check QEMU logs for video mode setup errors
-6. Verify memory access to 0xA0000 is working in long mode
+## Build System
 
-### Next Steps
-1. Add QEMU debugging output
-2. Simplify pixel writing to test single plane writes
-3. Verify attribute controller is not preventing display
-4. Test with very simple 1-color fill
-5. Compare register values with VGA BIOS defaults
-
-
-### File: src/impl/graphics/vga_graphics.c
-**Issue:** Palette initialization uses cli/sti which may interfere with interrupt handling
-**Severity:** Low
-**Location:** Lines 28, 62
-**Impact:** May cause missed interrupts during palette initialization
-**Suggested Fix:** Use shorter critical section or ensure interrupts are properly handled
-**Status:** Open
+### ✅ Working
+- WSL-based cross-compilation
+- `x86_64-linux-gnu-gcc` and `x86_64-linux-gnu-ld`
+- ISO generation with GRUB
+- 15 object files compile successfully
 
 ---
 
-*Last Updated: January 25, 2026*
+*Last Updated: February 6, 2026*

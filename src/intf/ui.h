@@ -66,6 +66,11 @@ void ui_handle_setup(void);
 
 void ui_draw_start_menu(void);
 void ui_toggle_start_menu(void);
+int ui_is_start_menu_open(void);
+
+// XP-style desktop
+void ui_draw_desktop_background(void);
+void ui_draw_desktop_icons(void);
 
 // Taskbar
 #define TASKBAR_HEIGHT 30

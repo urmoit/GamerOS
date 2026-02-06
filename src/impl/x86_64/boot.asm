@@ -1,11 +1,20 @@
 ; boot.asm - COMPLETE VGA Mode 13h setup from scratch
 
 section .multiboot_header
-align 8
+align 4
 header_start:
     dd 0x1BADB002
-    dd 0x00000003
-    dd 0xE4524FFB
+    dd 0x00000007       ; Flags: ALIGN | MEMINFO | VIDEO_MODE (Bit 2)
+    dd -(0x1BADB002 + 0x00000007) ; Checksum
+
+    ; Address fields (unused if bit 16 is not set, but kept for alignment if needed, usually 0)
+    dd 0, 0, 0, 0, 0
+
+    ; Graphics Request
+    dd 0                ; Mode type (0=linear values, 1=EGA text) - 0 for graphics
+    dd 1024             ; Width
+    dd 768              ; Height
+    dd 32               ; Depth
 header_end:
 
 section .text
@@ -322,7 +331,7 @@ set_vga_mode12h:
     ; Clear video memory (all planes)
     xor eax, eax
     mov edi, VGA_GRAPHICS_BUFFER
-    mov ecx, 153600         ; 640*480/4 (4 planes)
+    mov ecx, 9600           ; 640*480/8/4 (38400 bytes / 4 bytes per dword)
     rep stosd
 
     pop ecx
@@ -461,12 +470,14 @@ detect_cpu:
     ret
 
 boot_main32:
+    mov [multiboot_ptr], ebx  ; Save Multiboot pointer
+
     ; Disable NMI
     in al, 0x70
     or al, 0x80
     out 0x70, al
 
-    ; Debug message
+    ; Debug message (Legacy VGA text buffer for initial debug)
     mov byte [0xB8000], 'S'
     mov byte [0xB8001], 0x0E
 
@@ -474,118 +485,50 @@ boot_main32:
     call detect_cpu
     jc .cpu_unsupported
 
-    ; Set VGA mode 12h (640x480x16)
-    call set_vga_mode12h
+    ; VESA Mode is already set by Multiboot loader.
+    ; Do NOT call set_vga_mode12h or any port-poking VGA code here.
+    ; Doing so will corrupt the VBE state and linear framebuffer.
 
-    ; Draw test pattern using proper sequencer access
-    mov edi, VGA_GRAPHICS_BUFFER
-    mov ebx, 0              ; Color stripe counter
-    
-.stripe_loop:
-    cmp ebx, 5
-    jge .stripes_done
-    
-    ; Determine color based on stripe
-    mov al, bl
-    cmp al, 0
-    jne .not_red
-    mov byte [vga_test_color], 0x04            ; Red
-    jmp .paint_stripe
-.not_red:
-    cmp al, 1
-    jne .not_green
-    mov byte [vga_test_color], 0x02            ; Green
-    jmp .paint_stripe
-.not_green:
-    cmp al, 2
-    jne .not_blue
-    mov byte [vga_test_color], 0x01            ; Blue
-    jmp .paint_stripe
-.not_blue:
-    cmp al, 3
-    jne .not_yellow
-    mov byte [vga_test_color], 0x0E            ; Yellow
-    jmp .paint_stripe
-.not_yellow:
-    mov byte [vga_test_color], 0x0F            ; White
-    
-.paint_stripe:
-    ; Set graphics controller for set/reset mode
-    mov dx, 0x3CE
-    mov al, 0x05
-    out dx, al
-    mov dx, 0x3CF
-    mov al, 0x01            ; Write mode 1
-    out dx, al
-    
-    ; Set color in set/reset register
-    mov dx, 0x3CE
-    mov al, 0x00
-    out dx, al
-    mov al, [vga_test_color]
-    mov dx, 0x3CF
-    out dx, al
-    
-    ; Enable all planes
-    mov dx, 0x3CE
-    mov al, 0x01
-    out dx, al
-    mov dx, 0x3CF
-    mov al, 0x0F
-    out dx, al
-    
-    ; Fill stripe (12800 bytes)
-    mov ecx, 12800
-    mov edx, 0xA0000
-.fill_stripe:
-    mov byte [edx], 0xFF
-    inc edx
-    loop .fill_stripe
-    
-    inc ebx
-    jmp .stripe_loop
-    
-.stripes_done:
-    ; Reset graphics controller
-    mov dx, 0x3CE
-    mov al, 0x05
-    out dx, al
-    mov dx, 0x3CF
-    mov al, 0x00            ; Back to write mode 0
-    out dx, al
-    
-    mov dx, 0x3CE
-    mov al, 0x01
-    out dx, al
-    mov dx, 0x3CF
-    mov al, 0x00
-    out dx, al
-
-    ; Setup paging
+    ; Setup paging - Identity map first 4GB using 2MB huge pages
     %define P4_TABLE 0x200000
     %define P3_TABLE 0x201000
-    %define P2_TABLE 0x202000
+    %define P2_TABLE 0x202000 ; Uses 4 pages: 202000-205FFFF
 
+    ; Clear P4, P3, and 4 P2 tables (6 pages = 24KB)
     mov edi, P4_TABLE
-    mov ecx, 512 * 3
+    mov ecx, 512 * 6 * 2 ; 512 entries/page * 6 pages * 2 (8 bytes/entry)
     xor eax, eax
     rep stosd
 
+    ; P4[0] -> P3
     mov eax, P3_TABLE
     or eax, 0b11
     mov [P4_TABLE], eax
 
+    ; P3[0-3] -> P2 tables (4 entries)
+    mov ecx, 0
+.p3_init:
     mov eax, P2_TABLE
+    mov edx, ecx
+    shl edx, 12          ; ecx * 4096
+    add eax, edx
     or eax, 0b11
-    mov [P3_TABLE], eax
+    mov [P3_TABLE + ecx*8], eax
+    mov dword [P3_TABLE + ecx*8 + 4], 0
+    inc ecx
+    cmp ecx, 4
+    jl .p3_init
 
-    mov eax, 0x0
-    or eax, 0b10000011
-    mov [P2_TABLE], eax
-
-    mov eax, 0x200000
-    or eax, 0b10000011
-    mov [P2_TABLE + 8], eax
+    ; Fill P2 tables with 2MB huge pages (2048 entries total = 4GB)
+    mov edi, P2_TABLE
+    mov ecx, 2048
+    mov eax, 0x83        ; Present + Writable + Huge
+.p2_loop:
+    mov [edi], eax
+    mov dword [edi + 4], 0 ; Clear upper 32 bits
+    add eax, 0x200000    ; Next 2MB (will wrap at 4GB)
+    add edi, 8
+    loop .p2_loop
 
     lgdt [gdt64_descriptor]
 
@@ -618,6 +561,8 @@ start_64:
     mov es, ax
     mov fs, ax
     mov gs, ax
+    
+    mov ebx, [multiboot_ptr] ; Restore Multiboot pointer to pass to kernel
 
     mov rsp, stack_top_64
     and rsp, 0xFFFFFFFFFFFFFFF0
@@ -626,6 +571,7 @@ start_64:
     call hal_init
 
     extern kernel_main
+    mov rdi, rbx        ; Pass multiboot info pointer (from EBX) as first argument (RDI)
     call kernel_main
 
     hlt
@@ -634,6 +580,9 @@ section .bss
 global cpu_vendor
 cpu_vendor:
     resb 12
+    
+multiboot_ptr:
+    resd 1
 
 stack_bottom:
     resb 16384

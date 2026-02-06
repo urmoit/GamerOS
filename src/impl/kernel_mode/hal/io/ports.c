@@ -1,4 +1,5 @@
-#include "../../../../intf/stdint.h"
+#include "stdint.h"
+#include "ports.h"
 
 // I/O port functions
 
@@ -36,4 +37,9 @@ uint32_t inl(uint16_t port) {
 
 void outl(uint16_t port, uint32_t val) {
     __asm__ volatile ( "outl %0, %1" : : "a"(val), "Nd"(port) );
+}
+
+// I/O wait - used for device initialization
+void io_wait(void) {
+    outb(0x80, 0);
 }

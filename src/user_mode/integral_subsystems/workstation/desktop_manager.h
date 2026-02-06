@@ -23,5 +23,7 @@ void desktop_show_taskbar(void);
 void desktop_hide_taskbar(void);
 void desktop_toggle_start_menu(void);
 void desktop_update_clock(void);
+void desktop_handle_mouse_click(int32_t x, int32_t y, uint8_t buttons);
+void desktop_update(void);
 
 #endif

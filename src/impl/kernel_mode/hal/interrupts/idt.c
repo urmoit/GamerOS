@@ -87,16 +87,16 @@ void set_idt_entry(int n, uint64_t handler) {
     if (n < 0 || n >= IDT_ENTRIES) return; // Bounds check
     idt[n].isr_low = handler & 0xFFFF;
     idt[n].kernel_cs = KERNEL_CODE_SEGMENT;
-    idt[n].reserved = 0;
+    idt[n].ist = 0;                 // IST = 0 (don't use Interrupt Stack Table)
     idt[n].attributes = INTERRUPT_GATE_64BIT;
     idt[n].isr_high = (handler >> 16) & 0xFFFF;
-    idt[n].isr_higher = (handler >> 32) & 0xFFFFFFFF;
-    idt[n].reserved2 = 0;
+    idt[n].isr_higher = (uint32_t)(handler >> 32);
+    idt[n].reserved = 0;
 }
 
 void idt_init() {
     idt_ptr.limit = (sizeof(idt_entry_t) * IDT_ENTRIES) - 1;
-    idt_ptr.base = (uint64_t)&idt;  // Full 64-bit address
+    idt_ptr.base = (uintptr_t)&idt;  // Full 64-bit address
 
     // Clear out the IDT
     for (int i = 0; i < IDT_ENTRIES; i++) {
@@ -104,38 +104,38 @@ void idt_init() {
     }
 
     // Set up ISRs
-    set_idt_entry(0, (uint64_t)isr0);
-    set_idt_entry(1, (uint64_t)isr1);
-    set_idt_entry(2, (uint64_t)isr2);
-    set_idt_entry(3, (uint64_t)isr3);
-    set_idt_entry(4, (uint64_t)isr4);
-    set_idt_entry(5, (uint64_t)isr5);
-    set_idt_entry(6, (uint64_t)isr6);
-    set_idt_entry(7, (uint64_t)isr7);
-    set_idt_entry(8, (uint64_t)isr8);
-    set_idt_entry(9, (uint64_t)isr9);
-    set_idt_entry(10, (uint64_t)isr10);
-    set_idt_entry(11, (uint64_t)isr11);
-    set_idt_entry(12, (uint64_t)isr12);
-    set_idt_entry(13, (uint64_t)isr13);
-    set_idt_entry(14, (uint64_t)isr14);
-    set_idt_entry(15, (uint64_t)isr15);
-    set_idt_entry(16, (uint64_t)isr16);
-    set_idt_entry(17, (uint64_t)isr17);
-    set_idt_entry(18, (uint64_t)isr18);
-    set_idt_entry(19, (uint64_t)isr19);
-    set_idt_entry(20, (uint64_t)isr20);
-    set_idt_entry(21, (uint64_t)isr21);
-    set_idt_entry(22, (uint64_t)isr22);
-    set_idt_entry(23, (uint64_t)isr23);
-    set_idt_entry(24, (uint64_t)isr24);
-    set_idt_entry(25, (uint64_t)isr25);
-    set_idt_entry(26, (uint64_t)isr26);
-    set_idt_entry(27, (uint64_t)isr27);
-    set_idt_entry(28, (uint64_t)isr28);
-    set_idt_entry(29, (uint64_t)isr29);
-    set_idt_entry(30, (uint64_t)isr30);
-    set_idt_entry(31, (uint64_t)isr31);
+    set_idt_entry(0, (uintptr_t)isr0);
+    set_idt_entry(1, (uintptr_t)isr1);
+    set_idt_entry(2, (uintptr_t)isr2);
+    set_idt_entry(3, (uintptr_t)isr3);
+    set_idt_entry(4, (uintptr_t)isr4);
+    set_idt_entry(5, (uintptr_t)isr5);
+    set_idt_entry(6, (uintptr_t)isr6);
+    set_idt_entry(7, (uintptr_t)isr7);
+    set_idt_entry(8, (uintptr_t)isr8);
+    set_idt_entry(9, (uintptr_t)isr9);
+    set_idt_entry(10, (uintptr_t)isr10);
+    set_idt_entry(11, (uintptr_t)isr11);
+    set_idt_entry(12, (uintptr_t)isr12);
+    set_idt_entry(13, (uintptr_t)isr13);
+    set_idt_entry(14, (uintptr_t)isr14);
+    set_idt_entry(15, (uintptr_t)isr15);
+    set_idt_entry(16, (uintptr_t)isr16);
+    set_idt_entry(17, (uintptr_t)isr17);
+    set_idt_entry(18, (uintptr_t)isr18);
+    set_idt_entry(19, (uintptr_t)isr19);
+    set_idt_entry(20, (uintptr_t)isr20);
+    set_idt_entry(21, (uintptr_t)isr21);
+    set_idt_entry(22, (uintptr_t)isr22);
+    set_idt_entry(23, (uintptr_t)isr23);
+    set_idt_entry(24, (uintptr_t)isr24);
+    set_idt_entry(25, (uintptr_t)isr25);
+    set_idt_entry(26, (uintptr_t)isr26);
+    set_idt_entry(27, (uintptr_t)isr27);
+    set_idt_entry(28, (uintptr_t)isr28);
+    set_idt_entry(29, (uintptr_t)isr29);
+    set_idt_entry(30, (uintptr_t)isr30);
+    set_idt_entry(31, (uintptr_t)isr31);
 
     // Set up IRQs (hardware interrupts)
     // Remap PIC
@@ -153,25 +153,25 @@ void idt_init() {
     // Don't enable interrupts yet - let the kernel enable them when ready
     // __asm__("sti"); // Commented out to prevent premature interrupt enabling
 
-    set_idt_entry(32, (uint64_t)irq0);  // IRQ0: Timer
-    set_idt_entry(33, (uint64_t)irq1);  // IRQ1: Keyboard
-    set_idt_entry(34, (uint64_t)irq2);  // IRQ2: Cascade
-    set_idt_entry(35, (uint64_t)irq3);  // IRQ3: COM2
-    set_idt_entry(36, (uint64_t)irq4);  // IRQ4: COM1
-    set_idt_entry(37, (uint64_t)irq5);  // IRQ5: LPT2
-    set_idt_entry(38, (uint64_t)irq6);  // IRQ6: Floppy
-    set_idt_entry(39, (uint64_t)irq7);  // IRQ7: LPT1
-    set_idt_entry(40, (uint64_t)irq8);  // IRQ8: RTC
-    set_idt_entry(41, (uint64_t)irq9);  // IRQ9: Free
-    set_idt_entry(42, (uint64_t)irq10); // IRQ10: Free
-    set_idt_entry(43, (uint64_t)irq11); // IRQ11: Free
-    set_idt_entry(44, (uint64_t)irq12); // IRQ12: Mouse
-    set_idt_entry(45, (uint64_t)irq13); // IRQ13: FPU
-    set_idt_entry(46, (uint64_t)irq14); // IRQ14: Primary ATA
-    set_idt_entry(47, (uint64_t)irq15); // IRQ15: Secondary ATA
+    set_idt_entry(32, (uintptr_t)irq0);  // IRQ0: Timer
+    set_idt_entry(33, (uintptr_t)irq1);  // IRQ1: Keyboard
+    set_idt_entry(34, (uintptr_t)irq2);  // IRQ2: Cascade
+    set_idt_entry(35, (uintptr_t)irq3);  // IRQ3: COM2
+    set_idt_entry(36, (uintptr_t)irq4);  // IRQ4: COM1
+    set_idt_entry(37, (uintptr_t)irq5);  // IRQ5: LPT2
+    set_idt_entry(38, (uintptr_t)irq6);  // IRQ6: Floppy
+    set_idt_entry(39, (uintptr_t)irq7);  // IRQ7: LPT1
+    set_idt_entry(40, (uintptr_t)irq8);  // IRQ8: RTC
+    set_idt_entry(41, (uintptr_t)irq9);  // IRQ9: Free
+    set_idt_entry(42, (uintptr_t)irq10); // IRQ10: Free
+    set_idt_entry(43, (uintptr_t)irq11); // IRQ11: Free
+    set_idt_entry(44, (uintptr_t)irq12); // IRQ12: Mouse
+    set_idt_entry(45, (uintptr_t)irq13); // IRQ13: FPU
+    set_idt_entry(46, (uintptr_t)irq14); // IRQ14: Primary ATA
+    set_idt_entry(47, (uintptr_t)irq15); // IRQ15: Secondary ATA
 
     // Set up system call interrupt (int 0x80)
-    set_idt_entry(0x80, (uint64_t)syscall_stub);
+    set_idt_entry(0x80, (uintptr_t)syscall_stub);
 
-    idt_load((uint64_t)&idt_ptr);
+    idt_load((uintptr_t)&idt_ptr);
 }
