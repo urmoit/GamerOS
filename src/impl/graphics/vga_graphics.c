@@ -1,5 +1,6 @@
 #include "../../intf/graphics.h"
 #include "../../intf/ports.h"
+#include "../../intf/font.h"
 
 // Current mode settings
 uint32_t current_width = 320;
@@ -44,14 +45,7 @@ void vga_set_palette(void) {
 
 // Set standard VGA 320x200 mode
 void vga_set_mode_13h(void) {
-    // Set mode 13h using BIOS interrupt
-    __asm__ volatile (
-        "int $0x10"
-        :
-        : "a"(0x0013)
-        : "memory"
-    );
-    
+    // BIOS interrupts are not valid in long mode. The boot stage sets mode 13h.
     current_width = 320;
     current_height = 200;
     framebuffer = (uint8_t*)0xA0000;
@@ -62,36 +56,9 @@ void vga_set_mode_13h(void) {
 
 // Set VESA mode
 int vesa_set_mode(uint16_t mode) {
-    uint16_t result;
-    
-    __asm__ volatile (
-        "int $0x10"
-        : "=a"(result)
-        : "a"(0x4F02), "b"(mode)
-        : "memory"
-    );
-    
-    if (result != 0x004F) {
-        return 0; // Failed
-    }
-    
-    switch (mode) {
-        case 0x101: // 640x480
-            current_width = 640;
-            current_height = 480;
-            break;
-        case 0x103: // 800x600
-            current_width = 800;
-            current_height = 600;
-            break;
-        default:
-            current_width = 640;
-            current_height = 480;
-    }
-    
-    graphics_mode = 1;
-    vga_set_palette();
-    return 1;
+    (void)mode;
+    // Long-mode kernel cannot safely invoke VESA BIOS services.
+    return 0;
 }
 
 // Set video mode
@@ -248,8 +215,9 @@ static const uint8_t simple_font[128][8] = {
 
 // Draw character
 void draw_char(int x, int y, char c, uint8_t color) {
-    if (c < 0 || c > 127) c = ' ';
-    const uint8_t* bitmap = simple_font[(int)c];
+    uint8_t uc = (uint8_t)c;
+    if (uc < 32 || uc > 127) uc = (uint8_t)' ';
+    const uint8_t* bitmap = font_8x8[uc - 32];
     for (int row = 0; row < 8; row++) {
         uint8_t row_data = bitmap[row];
         for (int col = 0; col < 8; col++) {
@@ -277,16 +245,139 @@ void draw_string(int x, int y, const char* str, uint8_t color) {
 
 // Swap back buffer to screen
 void swap_buffers(void) {
-    if (graphics_mode == 0) {
-        // VGA mode - copy to 0xA0000
-        for (uint32_t i = 0; i < current_width * current_height; i++) {
-            ((uint8_t*)0xA0000)[i] = back_buffer[i];
-        }
-    } else {
-        // VESA mode - need to use bank switching or linear framebuffer
-        // For now, assume 640x480 fits in 0xA0000 area
-        for (uint32_t i = 0; i < current_width * current_height && i < 320*200; i++) {
-            ((uint8_t*)0xA0000)[i] = back_buffer[i];
+    uint8_t* target = framebuffer ? framebuffer : (uint8_t*)0xA0000;
+    uint32_t pixel_count = current_width * current_height;
+    for (uint32_t i = 0; i < pixel_count; i++) {
+        target[i] = back_buffer[i];
+    }
+}
+
+void init_graphics(void) {
+    set_video_mode(MODE_VGA_320x200);
+    clear_screen(XP_BLACK);
+    swap_buffers();
+}
+
+int vga_set_mode(vga_mode_t mode) {
+    set_video_mode((video_mode_t)mode);
+    return 1;
+}
+
+void vga_clear(uint8_t color) {
+    clear_screen(color);
+}
+
+void vga_set_pixel(int x, int y, uint8_t color) {
+    draw_pixel(x, y, color);
+}
+
+uint8_t vga_get_pixel(int x, int y) {
+    if (x < 0 || y < 0 || x >= (int)current_width || y >= (int)current_height) {
+        return 0;
+    }
+    return back_buffer[(y * (int)current_width) + x];
+}
+
+void vga_fill_rect(int x, int y, int w, int h, uint8_t color) {
+    fill_rect(x, y, w, h, color);
+}
+
+void vga_draw_rect(int x, int y, int w, int h, uint8_t color) {
+    draw_rect(x, y, w, h, color);
+}
+
+void vga_draw_line(int x1, int y1, int x2, int y2, uint8_t color) {
+    draw_line(x1, y1, x2, y2, color);
+}
+
+void vga_draw_circle(int center_x, int center_y, int radius, uint8_t color) {
+    int x = radius;
+    int y = 0;
+    int err = 0;
+
+    while (x >= y) {
+        draw_pixel(center_x + x, center_y + y, color);
+        draw_pixel(center_x + y, center_y + x, color);
+        draw_pixel(center_x - y, center_y + x, color);
+        draw_pixel(center_x - x, center_y + y, color);
+        draw_pixel(center_x - x, center_y - y, color);
+        draw_pixel(center_x - y, center_y - x, color);
+        draw_pixel(center_x + y, center_y - x, color);
+        draw_pixel(center_x + x, center_y - y, color);
+
+        y++;
+        if (err <= 0) {
+            err += 2 * y + 1;
+        } else {
+            x--;
+            err -= 2 * x + 1;
         }
     }
+}
+
+void vga_fill_circle(int center_x, int center_y, int radius, uint8_t color) {
+    for (int y = -radius; y <= radius; y++) {
+        for (int x = -radius; x <= radius; x++) {
+            if ((x * x) + (y * y) <= (radius * radius)) {
+                draw_pixel(center_x + x, center_y + y, color);
+            }
+        }
+    }
+}
+
+void vga_draw_string(int x, int y, const char* str, uint8_t color) {
+    draw_string(x, y, str, color);
+}
+
+void vga_blit_buffer(uint32_t* src_buffer, uint32_t src_width, uint32_t src_height,
+                     int dest_x, int dest_y, int width, int height) {
+    if (!src_buffer || width <= 0 || height <= 0) return;
+
+    if ((uint32_t)width > src_width) width = (int)src_width;
+    if ((uint32_t)height > src_height) height = (int)src_height;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            uint8_t color = (uint8_t)src_buffer[(y * (int)src_width) + x];
+            draw_pixel(dest_x + x, dest_y + y, color);
+        }
+    }
+}
+
+void vga_draw_bitmap_cursor(int x, int y) {
+    static const uint8_t cursor_shape[12][12] = {
+        {1,0,0,0,0,0,0,0,0,0,0,0},
+        {1,1,0,0,0,0,0,0,0,0,0,0},
+        {1,2,1,0,0,0,0,0,0,0,0,0},
+        {1,2,2,1,0,0,0,0,0,0,0,0},
+        {1,2,2,2,1,0,0,0,0,0,0,0},
+        {1,2,2,2,2,1,0,0,0,0,0,0},
+        {1,2,2,2,2,2,1,0,0,0,0,0},
+        {1,2,2,2,2,2,2,1,0,0,0,0},
+        {1,2,2,2,2,2,2,2,1,0,0,0},
+        {1,2,2,2,2,2,1,1,1,0,0,0},
+        {1,2,2,1,2,1,0,0,0,0,0,0},
+        {1,1,1,0,1,1,0,0,0,0,0,0},
+    };
+
+    for (int row = 0; row < 12; row++) {
+        for (int col = 0; col < 12; col++) {
+            if (cursor_shape[row][col] == 1) draw_pixel(x + col, y + row, XP_WHITE);
+            else if (cursor_shape[row][col] == 2) draw_pixel(x + col, y + row, XP_BLACK);
+        }
+    }
+}
+
+void vga_draw_shadow(int x, int y, uint32_t w, uint32_t h, uint32_t color, uint8_t offset) {
+    fill_rect(x + offset, y + offset, (int)w, (int)h, (uint8_t)color);
+}
+
+void vga_fill_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius, uint32_t color) {
+    (void)radius;
+    fill_rect(x, y, (int)w, (int)h, (uint8_t)color);
+}
+
+void vga_draw_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius, uint32_t color) {
+    (void)radius;
+    draw_rect(x, y, (int)w, (int)h, (uint8_t)color);
 }

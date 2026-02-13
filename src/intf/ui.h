@@ -79,7 +79,7 @@ void ui_draw_desktop_icons(void);
 void ui_draw_taskbar(void);
 void ui_draw_clock(void);
 
-void draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color);
+void draw_string(int x, int y, const char* str, uint8_t color);
 
 // TODO: Add support for multiple UI themes and skins
 // TODO: Implement internationalization (i18n) for UI strings

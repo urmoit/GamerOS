@@ -1,6 +1,5 @@
 #include "gdi.h"
-#include "../../intf/graphics.h"
-#include "../../intf/memory.h"
+#include "../../intf/mm.h"
 #include "../../intf/string.h"
 
 void gdi_init(void) {
@@ -24,7 +23,7 @@ object_handle_t gdi_create_context(vga_mode_t mode) {
     context->mode = mode;
     context->width = current_vga_width;
     context->height = current_vga_height;
-    context->color_depth = current_color_depth;
+    context->color_depth = 8;
     context->framebuffer = vga_framebuffer;
 
     object_attributes_t attrs = {

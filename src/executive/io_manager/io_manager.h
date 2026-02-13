@@ -61,6 +61,7 @@ int io_read_async(object_handle_t device, void* buffer, uint32_t size,
                   void (*callback)(io_request_t*), void* context);
 int io_write_async(object_handle_t device, const void* buffer, uint32_t size,
                    void (*callback)(io_request_t*), void* context);
+int io_process_async_requests(uint32_t max_requests);
 
 // Initialization
 void io_manager_init(void);

@@ -85,6 +85,16 @@ extern void syscall_stub();
 
 void set_idt_entry(int n, uint64_t handler) {
     if (n < 0 || n >= IDT_ENTRIES) return; // Bounds check
+    if (handler == 0) {
+        idt[n].isr_low = 0;
+        idt[n].kernel_cs = 0;
+        idt[n].ist = 0;
+        idt[n].attributes = 0; // Not present
+        idt[n].isr_high = 0;
+        idt[n].isr_higher = 0;
+        idt[n].reserved = 0;
+        return;
+    }
     idt[n].isr_low = handler & 0xFFFF;
     idt[n].kernel_cs = KERNEL_CODE_SEGMENT;
     idt[n].ist = 0;                 // IST = 0 (don't use Interrupt Stack Table)

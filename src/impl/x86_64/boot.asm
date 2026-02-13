@@ -4,17 +4,17 @@ section .multiboot_header
 align 4
 header_start:
     dd 0x1BADB002
-    dd 0x00000007       ; Flags: ALIGN | MEMINFO | VIDEO_MODE (Bit 2)
-    dd -(0x1BADB002 + 0x00000007) ; Checksum
+    dd 0x00000003       ; Flags: ALIGN | MEMINFO
+    dd -(0x1BADB002 + 0x00000003) ; Checksum
 
     ; Address fields (unused if bit 16 is not set, but kept for alignment if needed, usually 0)
     dd 0, 0, 0, 0, 0
 
-    ; Graphics Request
-    dd 0                ; Mode type (0=linear values, 1=EGA text) - 0 for graphics
-    dd 1024             ; Width
-    dd 768              ; Height
-    dd 32               ; Depth
+    ; Graphics request fields are ignored unless VIDEO_MODE flag is set.
+    dd 0
+    dd 0
+    dd 0
+    dd 0
 header_end:
 
 section .text
@@ -481,13 +481,15 @@ boot_main32:
     mov byte [0xB8000], 'S'
     mov byte [0xB8001], 0x0E
 
+    ; Force a known-good VGA graphics mode before entering long mode.
+    ; BIOS interrupts are not available in 64-bit mode.
+    call set_vga_mode13h
+
     ; Check CPU
     call detect_cpu
     jc .cpu_unsupported
 
-    ; VESA Mode is already set by Multiboot loader.
-    ; Do NOT call set_vga_mode12h or any port-poking VGA code here.
-    ; Doing so will corrupt the VBE state and linear framebuffer.
+    ; We intentionally run in VGA mode 13h for the current 8-bit renderer.
 
     ; Setup paging - Identity map first 4GB using 2MB huge pages
     %define P4_TABLE 0x200000

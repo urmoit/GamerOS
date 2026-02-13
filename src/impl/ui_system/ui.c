@@ -43,7 +43,7 @@ static uint8_t tab_count = 0;
 // Simple 8x8 pixel font drawing using the proper font from font.h
 extern const uint8_t font_8x8[96][8];
 
-static void draw_char(uint32_t x, uint32_t y, char c, uint8_t color) {
+static void ui_draw_char(int x, int y, char c, uint8_t color) {
     if ((uint8_t)c < 32 || (uint8_t)c > 126) return;
     
     const uint8_t* char_bitmap = font_8x8[(uint8_t)c - 32];
@@ -60,16 +60,16 @@ static void draw_char(uint32_t x, uint32_t y, char c, uint8_t color) {
     }
 }
 
-void draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color) {
+void draw_string(int x, int y, const char* str, uint8_t color) {
     if (!str) return;
-    uint32_t current_x = x;
+    int current_x = x;
     while (*str) {
         if (*str == '\n') {
             y += 10;
             current_x = x;
         } else {
             if (current_x < 320 - 8 && y < 200 - 8) {
-                draw_char(current_x, y, *str, color);
+                ui_draw_char(current_x, y, *str, color);
             }
             current_x += 8;
         }

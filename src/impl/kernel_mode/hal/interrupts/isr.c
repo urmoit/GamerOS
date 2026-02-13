@@ -46,14 +46,22 @@ static const char* exception_messages[] = {
     "Reserved", "Reserved", "Reserved", "Reserved"
 };
 
+static volatile uint8_t exception_in_progress = 0;
+
 // Common ISR handler - called from assembly
 // RDI contains pointer to register structure on stack
 void common_isr_handler(uint64_t* regs) {
     uint64_t int_no = regs[15]; // interrupt number is at offset 15 (after 15 saved regs)
-    
-    // Silently ignore spurious NMIs
-    if (int_no == 2) return;
-    
+
+    // Prevent recursive exception handling from escalating into double/triple fault.
+    if (exception_in_progress) {
+        __asm__ volatile ("cli");
+        for (;;) {
+            __asm__ volatile ("hlt");
+        }
+    }
+    exception_in_progress = 1;
+
     // Print exception message
     char* video_memory = (char*)VGA_TEXT_BUFFER;
     const char* msg = "Exception: ";
@@ -70,22 +78,20 @@ void common_isr_handler(uint64_t* regs) {
         }
     }
     
-    // Handle page faults and GPF
-    if (int_no == 14 || int_no == 13) {
-        return; // Try to continue
+    // Do not attempt to resume from CPU exceptions in this build.
+    __asm__ volatile ("cli");
+    for (;;) {
+        __asm__ volatile ("hlt");
     }
-    
-    // Halt on other exceptions
-    for (;;) { __asm__("hlt"); }
 }
 
 // Common IRQ handler - called from assembly
 void common_irq_handler(uint64_t* regs) {
     uint64_t int_no = regs[15]; // interrupt number
+    if (int_no < 32 || int_no > 47) {
+        return;
+    }
     uint8_t irq = (uint8_t)(int_no - 32);
-    
-    // Send EOI first
-    pic_eoi(irq);
     
     // Handle specific IRQs
     switch (int_no) {
@@ -102,4 +108,7 @@ void common_irq_handler(uint64_t* regs) {
         default:
             break;
     }
+
+    // Send EOI after the specific IRQ handler to avoid re-entrant interrupts.
+    pic_eoi(irq);
 }

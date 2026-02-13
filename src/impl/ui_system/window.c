@@ -50,10 +50,7 @@ window_t* create_window(int x, int y, int width, int height, char* title) {
 void draw_window(window_t* win) {
     if (!win) return;
 
-    // Define color constants
-    #define COLOR_DARK_GREY 7
-    #define COLOR_WHITE 15
-    #define COLOR_BLUE 1
+    // Define local size constants
     #define TITLE_BAR_HEIGHT 20
 
     // Draw window frame
@@ -65,7 +62,7 @@ void draw_window(window_t* win) {
 
     // Draw window title using draw_string from ui.c
     if (win->title) {
-        draw_string((uint32_t)(win->x + 5), (uint32_t)(win->y + 5), win->title, COLOR_WHITE);
+        draw_string(win->x + 5, win->y + 5, win->title, COLOR_WHITE);
     }
 }
 

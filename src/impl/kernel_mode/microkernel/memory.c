@@ -61,9 +61,22 @@ void kfree(void* ptr) {
     block_t* block = (block_t*)((uint8_t*)ptr - BLOCK_SIZE);
     block->free = 1;
 
-    // Simple coalescing: merge with next block if also free
+    // Merge with next free block.
     if (block->next && block->next->free) {
         block->size += block->next->size + BLOCK_SIZE;
         block->next = block->next->next;
+    }
+
+    // Merge with previous free block to reduce fragmentation.
+    block_t* current = free_list;
+    block_t* prev = 0;
+    while (current && current != block) {
+        prev = current;
+        current = current->next;
+    }
+
+    if (prev && prev->free) {
+        prev->size += block->size + BLOCK_SIZE;
+        prev->next = block->next;
     }
 }

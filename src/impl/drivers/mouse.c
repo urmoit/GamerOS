@@ -78,15 +78,18 @@ void mouse_handler(void) {
         case 2:
             mouse_packet[2] = data;
             // Process packet
+            // Drop overflowed packets to avoid large coordinate jumps.
+            if (mouse_packet[0] & 0xC0) {
+                mouse_cycle = 0;
+                break;
+            }
             mouse_buttons = mouse_packet[0] & 0x07;
             
-            // X movement (signed)
+            // X/Y are already two's-complement signed deltas.
             int16_t dx = (int8_t)mouse_packet[1];
-            if (mouse_packet[0] & 0x10) dx -= 256;
             
-            // Y movement (signed, inverted)
+            // Y movement (signed, inverted for screen coordinates)
             int16_t dy = (int8_t)mouse_packet[2];
-            if (mouse_packet[0] & 0x20) dy -= 256;
             
             // Update position
             mouse_x += dx;
@@ -114,6 +117,13 @@ void mouse_poll(void) {
 int32_t mouse_get_x(void) { return mouse_x; }
 int32_t mouse_get_y(void) { return mouse_y; }
 uint8_t mouse_get_buttons(void) { return mouse_buttons; }
+mouse_state_t mouse_get_state(void) {
+    mouse_state_t state;
+    state.x = mouse_x;
+    state.y = mouse_y;
+    state.buttons = mouse_buttons;
+    return state;
+}
 
 // Reset buttons (after processing)
 void mouse_clear_buttons(void) { mouse_buttons = 0; }

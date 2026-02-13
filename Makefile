@@ -13,9 +13,11 @@ ASM_SRC = $(SRC_DIR)/impl/x86_64/boot.asm \
 
 C_SRC = $(SRC_DIR)/impl/kernel/main.c \
         $(SRC_DIR)/impl/graphics/vga_graphics.c \
+        $(SRC_DIR)/impl/graphics/font.c \
         $(SRC_DIR)/impl/graphics/cursor.c \
         $(SRC_DIR)/impl/drivers/keyboard.c \
         $(SRC_DIR)/impl/drivers/mouse.c \
+        $(SRC_DIR)/impl/drivers/rtc.c \
         $(SRC_DIR)/impl/drivers/pic.c \
         $(SRC_DIR)/impl/drivers/serial.c \
         $(SRC_DIR)/impl/kernel_mode/hal/hal.c \
@@ -32,9 +34,11 @@ ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o \
 
 C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
+        $(BUILD_DIR)/$(ARCH)/font.o \
         $(BUILD_DIR)/$(ARCH)/cursor.o \
         $(BUILD_DIR)/$(ARCH)/keyboard.o \
         $(BUILD_DIR)/$(ARCH)/mouse.o \
+        $(BUILD_DIR)/$(ARCH)/rtc.o \
         $(BUILD_DIR)/$(ARCH)/pic.o \
         $(BUILD_DIR)/$(ARCH)/serial.o \
         $(BUILD_DIR)/$(ARCH)/hal.o \
@@ -56,7 +60,7 @@ ASM = nasm
 ASMFLAGS = -f elf64
 
 CC = x86_64-linux-gnu-gcc
-CFLAGS = -m64 -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -g -O2
+CFLAGS = -m64 -mno-red-zone -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -g -O2
 INCLUDES = -I$(SRC_DIR)/intf
 
 LD = x86_64-linux-gnu-ld
@@ -100,6 +104,9 @@ $(BUILD_DIR)/$(ARCH)/main.o: $(SRC_DIR)/impl/kernel/main.c | $(BUILD_DIR)/$(ARCH
 $(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/impl/graphics/vga_graphics.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/font.o: $(SRC_DIR)/impl/graphics/font.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 $(BUILD_DIR)/$(ARCH)/cursor.o: $(SRC_DIR)/impl/graphics/cursor.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
@@ -107,6 +114,9 @@ $(BUILD_DIR)/$(ARCH)/keyboard.o: $(SRC_DIR)/impl/drivers/keyboard.c | $(BUILD_DI
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/mouse.o: $(SRC_DIR)/impl/drivers/mouse.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/rtc.o: $(SRC_DIR)/impl/drivers/rtc.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/pic.o: $(SRC_DIR)/impl/drivers/pic.c | $(BUILD_DIR)/$(ARCH)

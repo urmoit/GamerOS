@@ -79,8 +79,10 @@ extern syscall_handler
         push r13
         push r14
         push r15
-        mov rdi, rsp            ; Pass pointer to registers structure
+        lea rdi, [rsp]          ; Pointer to registers structure
+        sub rsp, 8              ; Keep SysV ABI stack alignment for C call
         call common_isr_handler
+        add rsp, 8
         pop r15
         pop r14
         pop r13
@@ -97,7 +99,6 @@ extern syscall_handler
         pop rbx
         pop rax
         add rsp, 16             ; Clean up error code and interrupt number
-        sti                     ; Re-enable interrupts
         iretq                   ; Return from interrupt
 %endmacro
 
@@ -120,8 +121,10 @@ extern syscall_handler
         push r13
         push r14
         push r15
-        mov rdi, rsp            ; Pass pointer to registers structure
+        lea rdi, [rsp]          ; Pointer to registers structure
+        sub rsp, 8              ; Keep SysV ABI stack alignment for C call
         call common_isr_handler
+        add rsp, 8
         pop r15
         pop r14
         pop r13
@@ -138,7 +141,6 @@ extern syscall_handler
         pop rbx
         pop rax
         add rsp, 16             ; Clean up error code and interrupt number
-        sti                     ; Re-enable interrupts
         iretq                   ; Return from interrupt
 %endmacro
 
@@ -198,8 +200,10 @@ extern common_irq_handler
         push r13
         push r14
         push r15
-        mov rdi, rsp            ; Pass pointer to registers structure
+        lea rdi, [rsp]          ; Pointer to registers structure
+        sub rsp, 8              ; Keep SysV ABI stack alignment for C call
         call common_irq_handler
+        add rsp, 8
         pop r15
         pop r14
         pop r13
@@ -216,7 +220,6 @@ extern common_irq_handler
         pop rbx
         pop rax
         add rsp, 16             ; Clean up error code and interrupt number
-        sti                     ; Re-enable interrupts
         iretq                   ; Return from interrupt
 %endmacro
 

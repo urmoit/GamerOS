@@ -2,11 +2,18 @@
 
 ## Summary
 - **Total Bugs Found:** 25
-- **Resolved:** 8
+- **Resolved:** 19
 - **Critical Issues:** 1
-- **High Priority:** 4
-- **Medium Priority:** 10
-- **Low Priority:** 10
+- **High Priority:** 1
+- **Medium Priority:** 0
+- **Low Priority:** 8
+
+## Latest Updates (2026-02-13)
+- Marked **Incomplete executive services initialization** as resolved after wiring executive startup of GDI, keyboard/mouse drivers, and baseline FS files in `src/executive/executive.c`.
+- Marked **Notepad text editing limitations** as resolved after adding arrow/home/end cursor movement support in `src/impl/kernel/main.c`.
+- Marked **Incomplete UI framework implementation** as resolved after adding queued event processing, input polling, and render flow in `src/user_mode/integral_subsystems/workstation/ui_framework.c`.
+- Added additional IDT hardening for VMware by ensuring unset vectors are **not-present** gates in `src/impl/kernel_mode/hal/interrupts/idt.c` (validation pending in VMware).
+- Marked **I/O manager uses synchronous operations only** as resolved after adding queued async request processing in `src/executive/io_manager/io_manager.c`.
 
 ## Critical Issues (System Breaking)
 
@@ -79,70 +86,70 @@
 - [ ] **CRITICAL: Triple fault in VMware**
   - **Location:** Interrupt handling system
   - **Impact:** Cannot run in VMware, only QEMU
-  - **Status:** Under investigation
+  - **Status:** Under investigation (ISR return path + exception path hardened; IDT null-vector present-bit bug fixed, VMware re-test required)
 
-- [ ] **VESA mode functions incomplete**
+- [x] **VESA mode functions incomplete**
   - **Location:** [`src/impl/graphics/vga_graphics.c`](src/impl/graphics/vga_graphics.c:64)
   - **Impact:** Cannot use 640x480 or 800x600 modes (fallback to 320x200 works)
-  - **Status:** Open
+  - **Status:** RESOLVED (back-buffer copy path corrected to use active framebuffer dimensions)
   - **Note:** `vesa_set_mode()` uses INT 0x10 but may not work in all environments
 
-- [ ] **IPC system is completely stubbed out**
+- [x] **IPC system is completely stubbed out**
   - **Location:** [`src/impl/kernel_mode/microkernel/ipc.c`](src/impl/kernel_mode/microkernel/ipc.c:1)
   - **Impact:** No inter-process communication possible
-  - **Status:** Open
+  - **Status:** RESOLVED (basic in-kernel message queue implemented)
 
-- [ ] **Incomplete executive services initialization**
+- [x] **Incomplete executive services initialization**
   - **Location:** [`src/executive/executive.c`](src/executive/executive.c:17)
   - **Impact:** Missing critical OS services
-  - **Status:** Open
+  - **Status:** RESOLVED (GDI init, input driver registration, and baseline FS objects initialized)
 
 ## Medium Priority (Feature Limitations)
 
-- [ ] **VESA mode display output incomplete**
+- [x] **VESA mode display output incomplete**
   - **Location:** [`src/impl/graphics/vga_graphics.c`](src/impl/graphics/vga_graphics.c:286)
   - **Impact:** `swap_buffers()` only copies up to 320x200 for VESA modes
-  - **Status:** Open
+  - **Status:** RESOLVED
 
-- [ ] **Notepad text editing limitations**
+- [x] **Notepad text editing limitations**
   - **Location:** [`src/impl/kernel/main.c`](src/impl/kernel/main.c:292)
   - **Impact:** No cursor movement with arrow keys, limited editing features
-  - **Status:** Open
+  - **Status:** RESOLVED (arrow/home/end cursor movement implemented)
 
-- [ ] **No real-time clock implementation**
+- [x] **No real-time clock implementation**
   - **Location:** [`src/impl/kernel/main.c`](src/impl/kernel/main.c:200)
   - **Impact:** Taskbar shows static "12:00" time
-  - **Status:** Open
+  - **Status:** RESOLVED (taskbar clock now reads RTC)
 
-- [ ] **Start menu non-functional**
+- [x] **Start menu non-functional**
   - **Location:** [`src/impl/kernel/main.c`](src/impl/kernel/main.c:179)
   - **Impact:** Start button draws but menu doesn't open
-  - **Status:** Open
+  - **Status:** RESOLVED (toggle + item click handling implemented)
 
-- [ ] **Memory leak in kfree - only coalesces with next block**
+- [x] **Memory leak in kfree - only coalesces with next block**
   - **Location:** [`src/impl/kernel_mode/microkernel/memory.c`](src/impl/kernel_mode/microkernel/memory.c:58)
   - **Impact:** Memory fragmentation over time
-  - **Status:** Open
+  - **Status:** RESOLVED (coalesce with both next and previous blocks)
 
-- [ ] **Object manager uses static pool instead of kmalloc**
+- [x] **Object manager uses static pool instead of kmalloc**
   - **Location:** [`src/executive/object_manager/object_manager.c`](src/executive/object_manager/object_manager.c:80)
   - **Impact:** Limited to 4096 bytes total for all objects
-  - **Status:** Open
+  - **Status:** RESOLVED (switched to kmalloc/kfree)
 
-- [ ] **User mode subsystems are commented out/not initialized**
+- [x] **User mode subsystems are commented out/not initialized**
   - **Location:** [`src/user_mode/user_mode.c`](src/user_mode/user_mode.c:27)
   - **Impact:** No user mode functionality available
-  - **Status:** Open
+  - **Status:** RESOLVED (subsystem init/shutdown paths enabled)
 
-- [ ] **Incomplete UI framework implementation**
+- [x] **Incomplete UI framework implementation**
   - **Location:** [`src/user_mode/integral_subsystems/workstation/ui_framework.c`](src/user_mode/integral_subsystems/workstation/ui_framework.c:30)
   - **Impact:** Broken UI event handling and rendering
-  - **Status:** Open
+  - **Status:** RESOLVED (event queue, input polling, desktop render flow, cursor visibility handling)
 
-- [ ] **Window manager incomplete**
+- [x] **Window manager incomplete**
   - **Location:** [`src/user_mode/integral_subsystems/workstation/window_manager.c`](src/user_mode/integral_subsystems/workstation/window_manager.c:24)
   - **Impact:** Window operations (minimize, maximize) not implemented
-  - **Status:** Open
+  - **Status:** RESOLVED (window operations and hit-testing implemented)
 
 ## Low Priority (Minor Issues)
 
@@ -184,10 +191,10 @@
   - **Impact:** Cannot save/load Notepad files
   - **Status:** Open
 
-- [ ] **I/O manager uses synchronous operations only**
+- [x] **I/O manager uses synchronous operations only**
   - **Location:** [`src/executive/io_manager/io_manager.c`](src/executive/io_manager/io_manager.c:115)
   - **Impact:** No async I/O support
-  - **Status:** Open
+  - **Status:** RESOLVED (queued async requests + explicit processing function implemented)
 
 ## Working Components (Verified)
 
@@ -241,4 +248,4 @@
 
 ---
 
-*Last Updated: February 6, 2026*
+*Last Updated: February 13, 2026*

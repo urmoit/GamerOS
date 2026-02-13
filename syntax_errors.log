@@ -1,0 +1,313 @@
+
+===== src\executive\gdi\gdi.c =====
+In file included from src\executive\gdi\gdi.c:1:
+src\executive\gdi\gdi.h:11:5: error: unknown type name 'vga_mode_t'; did you mean 'video_mode_t'?
+   11 |     vga_mode_t mode;
+      |     ^~~~~~~~~~
+      |     video_mode_t
+src\executive\gdi\gdi.h:19:36: error: unknown type name 'vga_mode_t'; did you mean 'video_mode_t'?
+   19 | object_handle_t gdi_create_context(vga_mode_t mode);
+      |                                    ^~~~~~~~~~
+      |                                    video_mode_t
+src\executive\gdi\gdi.c: In function 'gdi_init':
+src\executive\gdi\gdi.c:8:5: error: implicit declaration of function 'vga_set_mode'; did you mean 'vesa_set_mode'? [-Wimplicit-function-declaration]
+    8 |     vga_set_mode(VGA_MODE_13H);
+      |     ^~~~~~~~~~~~
+      |     vesa_set_mode
+src\executive\gdi\gdi.c:8:18: error: 'VGA_MODE_13H' undeclared (first use in this function); did you mean 'VGA_MODE_13H_WIDTH'?
+    8 |     vga_set_mode(VGA_MODE_13H);
+      |                  ^~~~~~~~~~~~
+      |                  VGA_MODE_13H_WIDTH
+src\executive\gdi\gdi.c:8:18: note: each undeclared identifier is reported only once for each function it appears in
+src\executive\gdi\gdi.c: At top level:
+src\executive\gdi\gdi.c:12:36: error: unknown type name 'vga_mode_t'; did you mean 'video_mode_t'?
+   12 | object_handle_t gdi_create_context(vga_mode_t mode) {
+      |                                    ^~~~~~~~~~
+      |                                    video_mode_t
+src\executive\gdi\gdi.c: In function 'gdi_destroy_context':
+src\executive\gdi\gdi.c:52:9: error: implicit declaration of function 'kfree' [-Wimplicit-function-declaration]
+   52 |         kfree(context);
+      |         ^~~~~
+src\executive\gdi\gdi.c: In function 'gdi_set_pixel':
+src\executive\gdi\gdi.c:69:5: error: implicit declaration of function 'vga_set_pixel'; did you mean 'gdi_set_pixel'? [-Wimplicit-function-declaration]
+   69 |     vga_set_pixel(x, y, color);
+      |     ^~~~~~~~~~~~~
+      |     gdi_set_pixel
+src\executive\gdi\gdi.c: In function 'gdi_get_pixel':
+src\executive\gdi\gdi.c:77:12: error: implicit declaration of function 'vga_get_pixel'; did you mean 'gdi_get_pixel'? [-Wimplicit-function-declaration]
+   77 |     return vga_get_pixel(x, y);
+      |            ^~~~~~~~~~~~~
+      |            gdi_get_pixel
+src\executive\gdi\gdi.c: In function 'gdi_draw_line':
+src\executive\gdi\gdi.c:84:5: error: implicit declaration of function 'vga_draw_line'; did you mean 'gdi_draw_line'? [-Wimplicit-function-declaration]
+   84 |     vga_draw_line(x1, y1, x2, y2, (uint8_t)color);
+      |     ^~~~~~~~~~~~~
+      |     gdi_draw_line
+src\executive\gdi\gdi.c: In function 'gdi_draw_rect':
+src\executive\gdi\gdi.c:92:5: error: implicit declaration of function 'vga_draw_rect'; did you mean 'gdi_draw_rect'? [-Wimplicit-function-declaration]
+   92 |     vga_draw_rect(x, y, width, height, (uint8_t)color);
+      |     ^~~~~~~~~~~~~
+      |     gdi_draw_rect
+src\executive\gdi\gdi.c: In function 'gdi_fill_rect':
+src\executive\gdi\gdi.c:100:5: error: implicit declaration of function 'vga_fill_rect'; did you mean 'gdi_fill_rect'? [-Wimplicit-function-declaration]
+  100 |     vga_fill_rect(x, y, width, height, (uint8_t)color);
+      |     ^~~~~~~~~~~~~
+      |     gdi_fill_rect
+src\executive\gdi\gdi.c: In function 'gdi_draw_circle':
+src\executive\gdi\gdi.c:108:5: error: implicit declaration of function 'vga_draw_circle'; did you mean 'gdi_draw_circle'? [-Wimplicit-function-declaration]
+  108 |     vga_draw_circle(center_x, center_y, radius, (uint8_t)color);
+      |     ^~~~~~~~~~~~~~~
+      |     gdi_draw_circle
+src\executive\gdi\gdi.c: In function 'gdi_fill_circle':
+src\executive\gdi\gdi.c:116:5: error: implicit declaration of function 'vga_fill_circle'; did you mean 'gdi_fill_circle'? [-Wimplicit-function-declaration]
+  116 |     vga_fill_circle(center_x, center_y, radius, (uint8_t)color);
+      |     ^~~~~~~~~~~~~~~
+      |     gdi_fill_circle
+src\executive\gdi\gdi.c: In function 'gdi_draw_text':
+src\executive\gdi\gdi.c:124:5: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+  124 |     vga_draw_string(x, y, text, (uint8_t)color);
+      |     ^~~~~~~~~~~~~~~
+      |     draw_string
+src\executive\gdi\gdi.c: In function 'gdi_blit_buffer':
+src\executive\gdi\gdi.c:133:5: error: implicit declaration of function 'vga_blit_buffer'; did you mean 'gdi_blit_buffer'? [-Wimplicit-function-declaration]
+  133 |     vga_blit_buffer(src_buffer, src_width, src_height, dest_x, dest_y, width, height);
+      |     ^~~~~~~~~~~~~~~
+      |     gdi_blit_buffer
+
+===== src\impl\gui_app.c =====
+In file included from src\impl\gui_app.c:3:
+src\impl\../intf/graphics.h:54:6: error: conflicting types for 'draw_string'; have 'void(int,  int,  const char *, uint8_t)' {aka 'void(int,  int,  const char *, unsigned char)'}
+   54 | void draw_string(int x, int y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+In file included from src\impl\gui_app.c:2:
+src\impl\../intf/ui.h:82:6: note: previous declaration of 'draw_string' with type 'void(uint32_t,  uint32_t,  const char *, uint8_t)' {aka 'void(unsigned int,  unsigned int,  const char *, unsigned char)'}
+   82 | void draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+src\impl\gui_app.c: In function 'draw_header':
+src\impl\gui_app.c:98:5: error: implicit declaration of function 'vga_fill_rect'; did you mean 'fill_rect'? [-Wimplicit-function-declaration]
+   98 |     vga_fill_rect(win_x + 1, win_y + 1, APP_WINDOW_WIDTH - 2, GUI_HEADER_HEIGHT - 1, COLOR_BLUE);
+      |     ^~~~~~~~~~~~~
+      |     fill_rect
+src\impl\gui_app.c: In function 'draw_tab_bar':
+src\impl\gui_app.c:121:9: error: implicit declaration of function 'vga_draw_rect'; did you mean 'draw_rect'? [-Wimplicit-function-declaration]
+  121 |         vga_draw_rect(tab_x, tab_y, tab_width - 2, TAB_BAR_HEIGHT, COLOR_WHITE);
+      |         ^~~~~~~~~~~~~
+      |         draw_rect
+src\impl\gui_app.c: In function 'gui_app_entry':
+src\impl\gui_app.c:178:9: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+  178 |         vga_draw_string(60, 110, "Failed to create window!", COLOR_RED);
+      |         ^~~~~~~~~~~~~~~
+      |         draw_string
+src\impl\gui_app.c:261:9: error: unknown type name 'mouse_state_t'
+  261 |         mouse_state_t mouse = mouse_get_state();
+      |         ^~~~~~~~~~~~~
+src\impl\gui_app.c:261:31: error: implicit declaration of function 'mouse_get_state'; did you mean 'mouse_get_y'? [-Wimplicit-function-declaration]
+  261 |         mouse_state_t mouse = mouse_get_state();
+      |                               ^~~~~~~~~~~~~~~
+      |                               mouse_get_y
+src\impl\gui_app.c:262:9: error: implicit declaration of function 'vga_draw_bitmap_cursor' [-Wimplicit-function-declaration]
+  262 |         vga_draw_bitmap_cursor(mouse.x, mouse.y);
+      |         ^~~~~~~~~~~~~~~~~~~~~~
+src\impl\gui_app.c:262:37: error: request for member 'x' in something not a structure or union
+  262 |         vga_draw_bitmap_cursor(mouse.x, mouse.y);
+      |                                     ^
+src\impl\gui_app.c:262:46: error: request for member 'y' in something not a structure or union
+  262 |         vga_draw_bitmap_cursor(mouse.x, mouse.y);
+      |                                              ^
+
+===== src\impl\drivers\pci.c =====
+src\impl\drivers\pci.c: In function 'pci_init':
+src\impl\drivers\pci.c:61:17: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+   61 |                 vga_draw_string(10, 10 + (bus * 2) + (device), "Found: ", XP_COLOR_WHITE);
+      |                 ^~~~~~~~~~~~~~~
+      |                 draw_string
+src\impl\drivers\pci.c:61:75: error: 'XP_COLOR_WHITE' undeclared (first use in this function)
+   61 |                 vga_draw_string(10, 10 + (bus * 2) + (device), "Found: ", XP_COLOR_WHITE);
+      |                                                                           ^~~~~~~~~~~~~~
+src\impl\drivers\pci.c:61:75: note: each undeclared identifier is reported only once for each function it appears in
+
+===== src\impl\drivers\usb.c =====
+src\impl\drivers\usb.c: In function 'usb_handle_device':
+src\impl\drivers\usb.c:9:5: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+    9 |     vga_draw_string(10, 50, "USB Device Detected!", XP_COLOR_WHITE);
+      |     ^~~~~~~~~~~~~~~
+      |     draw_string
+src\impl\drivers\usb.c:9:53: error: 'XP_COLOR_WHITE' undeclared (first use in this function)
+    9 |     vga_draw_string(10, 50, "USB Device Detected!", XP_COLOR_WHITE);
+      |                                                     ^~~~~~~~~~~~~~
+src\impl\drivers\usb.c:9:53: note: each undeclared identifier is reported only once for each function it appears in
+
+===== src\impl\drivers\usb_mouse.c =====
+src\impl\drivers\usb_mouse.c: In function 'usb_mouse_init':
+src\impl\drivers\usb_mouse.c:290:19: error: 'current_vga_width' undeclared (first use in this function); did you mean 'current_width'?
+  290 |     usb_mouse_x = current_vga_width / 2;
+      |                   ^~~~~~~~~~~~~~~~~
+      |                   current_width
+src\impl\drivers\usb_mouse.c:290:19: note: each undeclared identifier is reported only once for each function it appears in
+src\impl\drivers\usb_mouse.c:291:19: error: 'current_vga_height' undeclared (first use in this function); did you mean 'current_height'?
+  291 |     usb_mouse_y = current_vga_height / 2;
+      |                   ^~~~~~~~~~~~~~~~~~
+      |                   current_height
+src\impl\drivers\usb_mouse.c:299:9: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+  299 |         vga_draw_string(10, 100, "USB Mouse Detected!", 0x0F);
+      |         ^~~~~~~~~~~~~~~
+      |         draw_string
+
+===== src\impl\drivers\usb_uhci.c =====
+src\impl\drivers\usb_uhci.c: In function 'uhci_init':
+src\impl\drivers\usb_uhci.c:22:13: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+   22 |             vga_draw_string(10, 100 + (port * 10), "UHCI: Device detected on port!", XP_COLOR_WHITE);
+      |             ^~~~~~~~~~~~~~~
+      |             draw_string
+src\impl\drivers\usb_uhci.c:22:86: error: 'XP_COLOR_WHITE' undeclared (first use in this function)
+   22 |             vga_draw_string(10, 100 + (port * 10), "UHCI: Device detected on port!", XP_COLOR_WHITE);
+      |                                                                                      ^~~~~~~~~~~~~~
+src\impl\drivers\usb_uhci.c:22:86: note: each undeclared identifier is reported only once for each function it appears in
+
+===== src\impl\drivers\usb_xhci.c =====
+src\impl\drivers\usb_xhci.c: In function 'xhci_init':
+src\impl\drivers\usb_xhci.c:12:38: warning: left shift count >= width of type [-Wshift-count-overflow]
+   12 |         mmio_base |= ((uint64_t)bar1 << 32);
+      |                                      ^~
+src\impl\drivers\usb_xhci.c:17:5: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+   17 |     vga_draw_string(10, 120, "XHCI: Modern USB 3.0 Controller Initialized", XP_COLOR_WHITE);
+      |     ^~~~~~~~~~~~~~~
+      |     draw_string
+src\impl\drivers\usb_xhci.c:17:77: error: 'XP_COLOR_WHITE' undeclared (first use in this function)
+   17 |     vga_draw_string(10, 120, "XHCI: Modern USB 3.0 Controller Initialized", XP_COLOR_WHITE);
+      |                                                                             ^~~~~~~~~~~~~~
+src\impl\drivers\usb_xhci.c:17:77: note: each undeclared identifier is reported only once for each function it appears in
+
+===== src\impl\drivers\vmware.c =====
+src\impl\drivers\vmware.c: In function 'vmware_get_mouse_data':
+src\impl\drivers\vmware.c:161:24: error: 'current_vga_width' undeclared (first use in this function); did you mean 'current_width'?
+  161 |     data->x = (raw_x * current_vga_width) / 65535;
+      |                        ^~~~~~~~~~~~~~~~~
+      |                        current_width
+src\impl\drivers\vmware.c:161:24: note: each undeclared identifier is reported only once for each function it appears in
+src\impl\drivers\vmware.c:162:24: error: 'current_vga_height' undeclared (first use in this function); did you mean 'current_height'?
+  162 |     data->y = (raw_y * current_vga_height) / 65535;
+      |                        ^~~~~~~~~~~~~~~~~~
+      |                        current_height
+
+===== src\impl\graphics\font8x16.c =====
+src\impl\graphics\font8x16.c: In function 'draw_char_8x16':
+src\impl\graphics\font8x16.c:213:17: error: implicit declaration of function 'vga_set_pixel' [-Wimplicit-function-declaration]
+  213 |                 vga_set_pixel(x + col, y + row, color);
+      |                 ^~~~~~~~~~~~~
+
+===== src\impl\ui_system\ui.c =====
+In file included from src\impl\ui_system\ui.c:2:
+src\impl\ui_system\../../intf/graphics.h:54:6: error: conflicting types for 'draw_string'; have 'void(int,  int,  const char *, uint8_t)' {aka 'void(int,  int,  const char *, unsigned char)'}
+   54 | void draw_string(int x, int y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+In file included from src\impl\ui_system\ui.c:1:
+src\impl\ui_system\../../intf/ui.h:82:6: note: previous declaration of 'draw_string' with type 'void(uint32_t,  uint32_t,  const char *, uint8_t)' {aka 'void(unsigned int,  unsigned int,  const char *, unsigned char)'}
+   82 | void draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+src\impl\ui_system\ui.c:46:13: error: conflicting types for 'draw_char'; have 'void(uint32_t,  uint32_t,  char,  uint8_t)' {aka 'void(unsigned int,  unsigned int,  char,  unsigned char)'}
+   46 | static void draw_char(uint32_t x, uint32_t y, char c, uint8_t color) {
+      |             ^~~~~~~~~
+src\impl\ui_system\../../intf/graphics.h:53:6: note: previous declaration of 'draw_char' with type 'void(int,  int,  char,  uint8_t)' {aka 'void(int,  int,  char,  unsigned char)'}
+   53 | void draw_char(int x, int y, char c, uint8_t color);
+      |      ^~~~~~~~~
+src\impl\ui_system\ui.c: In function 'draw_char':
+src\impl\ui_system\ui.c:56:21: error: implicit declaration of function 'vga_set_pixel' [-Wimplicit-function-declaration]
+   56 |                     vga_set_pixel(x + col, y + row, color);
+      |                     ^~~~~~~~~~~~~
+src\impl\ui_system\ui.c: In function 'ui_draw_tab':
+src\impl\ui_system\ui.c:160:5: error: implicit declaration of function 'vga_fill_rect'; did you mean 'fill_rect'? [-Wimplicit-function-declaration]
+  160 |     vga_fill_rect(x, y, TAB_WIDTH, TAB_HEIGHT, bg_color);
+      |     ^~~~~~~~~~~~~
+      |     fill_rect
+src\impl\ui_system\ui.c:163:5: error: implicit declaration of function 'vga_draw_rect'; did you mean 'draw_rect'? [-Wimplicit-function-declaration]
+  163 |     vga_draw_rect(x, y, TAB_WIDTH, TAB_HEIGHT, XP_WHITE);
+      |     ^~~~~~~~~~~~~
+      |     draw_rect
+src\impl\ui_system\ui.c: In function 'ui_draw_setup_screen':
+src\impl\ui_system\ui.c:195:5: error: implicit declaration of function 'vga_clear' [-Wimplicit-function-declaration]
+  195 |     vga_clear(XP_DESKTOP_BG);
+      |     ^~~~~~~~~
+
+===== src\impl\ui_system\ui_widgets.c =====
+src\impl\ui_system\ui_widgets.c: In function 'ui_render_widget':
+src\impl\ui_system\ui_widgets.c:429:9: error: implicit declaration of function 'vga_draw_shadow' [-Wimplicit-function-declaration]
+  429 |         vga_draw_shadow(widget->x, widget->y, widget->width, widget->height,
+      |         ^~~~~~~~~~~~~~~
+src\impl\ui_system\ui_widgets.c:435:9: error: implicit declaration of function 'vga_fill_rounded_rect' [-Wimplicit-function-declaration]
+  435 |         vga_fill_rounded_rect(widget->x, widget->y, widget->width, widget->height,
+      |         ^~~~~~~~~~~~~~~~~~~~~
+src\impl\ui_system\ui_widgets.c:441:9: error: implicit declaration of function 'vga_draw_rounded_rect' [-Wimplicit-function-declaration]
+  441 |         vga_draw_rounded_rect(widget->x, widget->y, widget->width, widget->height,
+      |         ^~~~~~~~~~~~~~~~~~~~~
+src\impl\ui_system\ui_widgets.c:449:9: error: implicit declaration of function 'vga_draw_string'; did you mean 'draw_string'? [-Wimplicit-function-declaration]
+  449 |         vga_draw_string(text_x, text_y, widget->text, widget->text_color);
+      |         ^~~~~~~~~~~~~~~
+      |         draw_string
+src\impl\ui_system\ui_widgets.c:462:13: error: implicit declaration of function 'vga_draw_rect'; did you mean 'draw_rect'? [-Wimplicit-function-declaration]
+  462 |             vga_draw_rect(cb_x, cb_y, 12, 12, widget->border_color);
+      |             ^~~~~~~~~~~~~
+      |             draw_rect
+src\impl\ui_system\ui_widgets.c:464:17: error: implicit declaration of function 'vga_fill_rect'; did you mean 'fill_rect'? [-Wimplicit-function-declaration]
+  464 |                 vga_fill_rect(cb_x + 2, cb_y + 2, 8, 8, widget->foreground_color);
+      |                 ^~~~~~~~~~~~~
+      |                 fill_rect
+
+===== src\impl\ui_system\window.c =====
+In file included from src\impl\ui_system\window.c:3:
+src\impl\ui_system\../../intf/ui.h:82:6: error: conflicting types for 'draw_string'; have 'void(uint32_t,  uint32_t,  const char *, uint8_t)' {aka 'void(unsigned int,  unsigned int,  const char *, unsigned char)'}
+   82 | void draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+In file included from src\impl\ui_system\window.c:2:
+src\impl\ui_system\../../intf/graphics.h:54:6: note: previous declaration of 'draw_string' with type 'void(int,  int,  const char *, uint8_t)' {aka 'void(int,  int,  const char *, unsigned char)'}
+   54 | void draw_string(int x, int y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+src\impl\ui_system\window.c: In function 'draw_window':
+src\impl\ui_system\window.c:54:13: warning: 'COLOR_DARK_GREY' redefined
+   54 |     #define COLOR_DARK_GREY 7
+      |             ^~~~~~~~~~~~~~~
+src\impl\ui_system\../../intf/ui.h:15:9: note: this is the location of the previous definition
+   15 | #define COLOR_DARK_GREY 8
+      |         ^~~~~~~~~~~~~~~
+src\impl\ui_system\window.c:60:5: error: implicit declaration of function 'vga_fill_rect'; did you mean 'fill_rect'? [-Wimplicit-function-declaration]
+   60 |     vga_fill_rect(win->x, win->y, win->width, win->height, COLOR_DARK_GREY);
+      |     ^~~~~~~~~~~~~
+      |     fill_rect
+src\impl\ui_system\window.c:61:5: error: implicit declaration of function 'vga_draw_rect'; did you mean 'draw_rect'? [-Wimplicit-function-declaration]
+   61 |     vga_draw_rect(win->x, win->y, win->width, win->height, COLOR_WHITE);
+      |     ^~~~~~~~~~~~~
+      |     draw_rect
+
+===== src\user_mode\integral_subsystems\workstation\desktop_manager.c =====
+In file included from src\user_mode\integral_subsystems\workstation\desktop_manager.c:3:
+D:/gameros/v1.1 new/GamerOS/src/intf/ui.h:82:6: error: conflicting types for 'draw_string'; have 'void(uint32_t,  uint32_t,  const char *, uint8_t)' {aka 'void(unsigned int,  unsigned int,  const char *, unsigned char)'}
+   82 | void draw_string(uint32_t x, uint32_t y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+In file included from src\user_mode\integral_subsystems\workstation\desktop_manager.c:2:
+D:/gameros/v1.1 new/GamerOS/src/intf/graphics.h:54:6: note: previous declaration of 'draw_string' with type 'void(int,  int,  const char *, uint8_t)' {aka 'void(int,  int,  const char *, unsigned char)'}
+   54 | void draw_string(int x, int y, const char* str, uint8_t color);
+      |      ^~~~~~~~~~~
+src\user_mode\integral_subsystems\workstation\desktop_manager.c: In function 'desktop_update':
+src\user_mode\integral_subsystems\workstation\desktop_manager.c:98:5: error: unknown type name 'mouse_state_t'
+   98 |     mouse_state_t mouse = mouse_get_state();
+      |     ^~~~~~~~~~~~~
+src\user_mode\integral_subsystems\workstation\desktop_manager.c:98:27: error: implicit declaration of function 'mouse_get_state'; did you mean 'mouse_get_y'? [-Wimplicit-function-declaration]
+   98 |     mouse_state_t mouse = mouse_get_state();
+      |                           ^~~~~~~~~~~~~~~
+      |                           mouse_get_y
+src\user_mode\integral_subsystems\workstation\desktop_manager.c:102:14: error: request for member 'buttons' in something not a structure or union
+  102 |     if (mouse.buttons && !last_buttons) {
+      |              ^
+src\user_mode\integral_subsystems\workstation\desktop_manager.c:104:41: error: request for member 'x' in something not a structure or union
+  104 |         desktop_handle_mouse_click(mouse.x, mouse.y, mouse.buttons);
+      |                                         ^
+src\user_mode\integral_subsystems\workstation\desktop_manager.c:104:50: error: request for member 'y' in something not a structure or union
+  104 |         desktop_handle_mouse_click(mouse.x, mouse.y, mouse.buttons);
+      |                                                  ^
+src\user_mode\integral_subsystems\workstation\desktop_manager.c:104:59: error: request for member 'buttons' in something not a structure or union
+  104 |         desktop_handle_mouse_click(mouse.x, mouse.y, mouse.buttons);
+      |                                                           ^
+src\user_mode\integral_subsystems\workstation\desktop_manager.c:106:25: error: request for member 'buttons' in something not a structure or union
+  106 |     last_buttons = mouse.buttons;
+      |                         ^
+

@@ -59,6 +59,18 @@ int keyboard_has_input(void) {
 
 // Keyboard interrupt handler
 void keyboard_handler(void) {
+    uint8_t status = inb(KBD_STATUS_PORT);
+    if (!(status & 0x01)) {
+        return; // No output buffer data.
+    }
+
+    // If this byte is from the auxiliary device (mouse), consume and ignore it.
+    // Without this, mouse bytes get interpreted as keyboard scancodes.
+    if (status & 0x20) {
+        (void)inb(KBD_DATA_PORT);
+        return;
+    }
+
     uint8_t scancode = inb(KBD_DATA_PORT);
     
     // Extended key prefix
