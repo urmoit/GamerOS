@@ -24,6 +24,7 @@ int32_t mouse_get_x(void);
 int32_t mouse_get_y(void);
 uint8_t mouse_get_buttons(void);
 mouse_state_t mouse_get_state(void);
+int8_t mouse_get_wheel_delta(void);
 void mouse_clear_buttons(void);
 
 void draw_cursor(int32_t x, int32_t y);

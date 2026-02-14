@@ -1,15 +1,120 @@
 #include "../../intf/graphics.h"
 #include "../../intf/ports.h"
 #include "../../intf/font.h"
+#include "../../intf/string.h"
 
 // Current mode settings
-uint32_t current_width = 320;
-uint32_t current_height = 200;
+uint32_t current_width = 640;
+uint32_t current_height = 480;
 uint8_t* framebuffer = (uint8_t*)0xA0000;
-int graphics_mode = 0;
+int graphics_mode = 1;
 
 // Back buffer (max 800x600)
 static uint8_t back_buffer[800 * 600];
+
+static inline void vga_write_seq(uint8_t index, uint8_t value) {
+    outb(0x3C4, index);
+    outb(0x3C5, value);
+}
+
+static inline void vga_write_crtc(uint8_t index, uint8_t value) {
+    outb(0x3D4, index);
+    outb(0x3D5, value);
+}
+
+static inline void vga_write_gc(uint8_t index, uint8_t value) {
+    outb(0x3CE, index);
+    outb(0x3CF, value);
+}
+
+static inline void vga_write_ac(uint8_t index, uint8_t value) {
+    (void)inb(0x3DA); // Reset AC flip-flop before each indexed write.
+    outb(0x3C0, index);
+    outb(0x3C0, value);
+}
+
+static void vga_set_mode_12h_runtime(void) {
+    static const uint8_t crtc_data_12h[25] = {
+        0x5F, 0x4F, 0x50, 0x82, 0x54, 0x80, 0x0B, 0x3E,
+        0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xEA, 0x8C, 0xDF, 0x28, 0x00, 0xE7, 0x04, 0xC3,
+        0xFF
+    };
+
+    outb(0x3C2, 0xE3);
+
+    // Sequencer reset while programming mode registers.
+    vga_write_seq(0x00, 0x01);
+    vga_write_seq(0x01, 0x01);
+    vga_write_seq(0x02, 0x0F);
+    vga_write_seq(0x03, 0x00);
+    vga_write_seq(0x04, 0x06);
+
+    // Unprotect CRTC and load full 640x480 timing set.
+    outb(0x3D4, 0x11);
+    outb(0x3D5, (uint8_t)(inb(0x3D5) & 0x7F));
+    for (uint8_t i = 0; i < 25; i++) {
+        vga_write_crtc(i, crtc_data_12h[i]);
+    }
+
+    // Graphics controller for 16-color planar framebuffer at A0000.
+    vga_write_gc(0x00, 0x00);
+    vga_write_gc(0x01, 0x00);
+    vga_write_gc(0x02, 0x00);
+    vga_write_gc(0x03, 0x00);
+    vga_write_gc(0x04, 0x00);
+    vga_write_gc(0x05, 0x00);
+    vga_write_gc(0x06, 0x05);
+    vga_write_gc(0x07, 0x00);
+    vga_write_gc(0x08, 0xFF);
+
+    // Attribute controller palette/control.
+    for (uint8_t i = 0; i < 16; i++) {
+        vga_write_ac(i, i);
+    }
+    vga_write_ac(0x10, 0x01); // Graphics mode, 16-color path.
+    vga_write_ac(0x11, 0x00);
+    vga_write_ac(0x12, 0x0F);
+    vga_write_ac(0x13, 0x00);
+    vga_write_ac(0x14, 0x00);
+
+    // Re-enable display and sequencer.
+    (void)inb(0x3DA);
+    outb(0x3C0, 0x20);
+    vga_write_seq(0x00, 0x03);
+
+    // Clear visible planes.
+    vga_write_gc(0x05, 0x00);
+    vga_write_gc(0x06, 0x05);
+    vga_write_gc(0x08, 0xFF);
+    vga_write_seq(0x02, 0x0F);
+    volatile uint8_t* vram = (volatile uint8_t*)0xA0000;
+    for (int i = 0; i < (80 * 480); i++) {
+        vram[i] = 0x00;
+    }
+}
+
+static void vga_prepare_mode12_planar_writes(void) {
+    // Sequencer: disable chain-4 and enable planar memory mode.
+    outb(0x3C4, 0x04);
+    outb(0x3C5, 0x06);
+
+    // Graphics controller: deterministic write mode 0 state for planar memory writes.
+    outb(0x3CE, 0x00); // Set/Reset
+    outb(0x3CF, 0x00);
+    outb(0x3CE, 0x01); // Enable Set/Reset
+    outb(0x3CF, 0x00);
+    outb(0x3CE, 0x03); // Data Rotate
+    outb(0x3CF, 0x00);
+    outb(0x3CE, 0x04); // Read Map Select
+    outb(0x3CF, 0x00);
+    outb(0x3CE, 0x05);
+    outb(0x3CF, 0x00);
+    outb(0x3CE, 0x06);
+    outb(0x3CF, 0x05);
+    outb(0x3CE, 0x08);
+    outb(0x3CF, 0xFF);
+}
 
 // VGA Palette setup
 void vga_set_palette(void) {
@@ -45,19 +150,30 @@ void vga_set_palette(void) {
 
 // Set standard VGA 320x200 mode
 void vga_set_mode_13h(void) {
-    // BIOS interrupts are not valid in long mode. The boot stage sets mode 13h.
-    current_width = 320;
-    current_height = 200;
+    // BIOS interrupts are not valid in long mode. Program VGA mode 12h directly.
+    vga_set_mode_12h_runtime();
+    current_width = 640;
+    current_height = 480;
     framebuffer = (uint8_t*)0xA0000;
-    graphics_mode = 0;
-    
+    graphics_mode = 1;
+
+    vga_prepare_mode12_planar_writes();
     vga_set_palette();
 }
 
 // Set VESA mode
 int vesa_set_mode(uint16_t mode) {
-    (void)mode;
-    // Long-mode kernel cannot safely invoke VESA BIOS services.
+    // Reuse pre-set VGA mode 12h as the high-res runtime mode in long mode.
+    if (mode == 0x101) {
+        vga_set_mode_12h_runtime();
+        current_width = 640;
+        current_height = 480;
+        framebuffer = (uint8_t*)0xA0000;
+        graphics_mode = 1;
+        vga_prepare_mode12_planar_writes();
+        vga_set_palette();
+        return 1;
+    }
     return 0;
 }
 
@@ -115,7 +231,7 @@ void draw_rect(int x, int y, int w, int h, uint8_t color) {
         }
     }
     for (int yy = y; yy < y + h && yy < (int)current_height; yy++) {
-        if (x >= 0 && yy >= 0) {
+        if (x >= 0 && x < (int)current_width && yy >= 0) {
             back_buffer[yy * current_width + x] = color;
         }
         if (x + w - 1 >= 0 && x + w - 1 < (int)current_width && yy >= 0) {
@@ -245,10 +361,101 @@ void draw_string(int x, int y, const char* str, uint8_t color) {
 
 // Swap back buffer to screen
 void swap_buffers(void) {
-    uint8_t* target = framebuffer ? framebuffer : (uint8_t*)0xA0000;
-    uint32_t pixel_count = current_width * current_height;
-    for (uint32_t i = 0; i < pixel_count; i++) {
-        target[i] = back_buffer[i];
+    volatile uint8_t* target = framebuffer ? (volatile uint8_t*)framebuffer : (volatile uint8_t*)0xA0000;
+    if (graphics_mode == 1 && current_width == 640 && current_height == 480) {
+        static uint8_t plane_buffer[4][80 * 480];
+        memset(plane_buffer, 0, sizeof(plane_buffer));
+
+        for (int y = 0; y < 480; y++) {
+            for (int x = 0; x < 640; x++) {
+                uint8_t color = back_buffer[(y * 640) + x] & 0x0F;
+                int offset = (y * 80) + (x >> 3);
+                uint8_t bit = (uint8_t)(0x80 >> (x & 7));
+                if (color & 0x01) plane_buffer[0][offset] |= bit;
+                if (color & 0x02) plane_buffer[1][offset] |= bit;
+                if (color & 0x04) plane_buffer[2][offset] |= bit;
+                if (color & 0x08) plane_buffer[3][offset] |= bit;
+            }
+        }
+
+        vga_prepare_mode12_planar_writes();
+        for (int plane = 0; plane < 4; plane++) {
+            outb(0x3CE, 0x04);
+            outb(0x3CF, (uint8_t)plane);
+            outb(0x3CE, 0x08);
+            outb(0x3CF, 0xFF);
+            outb(0x3C4, 0x02);
+            outb(0x3C5, (uint8_t)(1 << plane));
+            for (int i = 0; i < (80 * 480); i++) {
+                target[i] = plane_buffer[plane][i];
+            }
+        }
+        outb(0x3C4, 0x02);
+        outb(0x3C5, 0x0F);
+    } else {
+        uint32_t pixel_count = current_width * current_height;
+        for (uint32_t i = 0; i < pixel_count; i++) {
+            target[i] = back_buffer[i];
+        }
+    }
+}
+
+void present_rect(int x, int y, int w, int h) {
+    if (w <= 0 || h <= 0) return;
+
+    int x0 = x;
+    int y0 = y;
+    int x1 = x + w;
+    int y1 = y + h;
+
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > (int)current_width) x1 = (int)current_width;
+    if (y1 > (int)current_height) y1 = (int)current_height;
+    if (x0 >= x1 || y0 >= y1) return;
+
+    volatile uint8_t* target = framebuffer ? (volatile uint8_t*)framebuffer : (volatile uint8_t*)0xA0000;
+
+    if (graphics_mode == 1 && current_width == 640 && current_height == 480) {
+        int byte_start = x0 >> 3;
+        int byte_end = (x1 - 1) >> 3;
+
+        vga_prepare_mode12_planar_writes();
+        for (int plane = 0; plane < 4; plane++) {
+            outb(0x3CE, 0x04);
+            outb(0x3CF, (uint8_t)plane);
+            outb(0x3CE, 0x08);
+            outb(0x3CF, 0xFF);
+            outb(0x3C4, 0x02);
+            outb(0x3C5, (uint8_t)(1 << plane));
+
+            for (int yy = y0; yy < y1; yy++) {
+                int row_base = yy * 80;
+                int src_row = yy * 640;
+                for (int b = byte_start; b <= byte_end; b++) {
+                    int px = b << 3;
+                    uint8_t out = 0;
+                    for (int bit = 0; bit < 8; bit++) {
+                        int sx = px + bit;
+                        if (sx < 0 || sx >= 640) continue;
+                        uint8_t color = back_buffer[src_row + sx] & 0x0F;
+                        if (color & (1 << plane)) {
+                            out |= (uint8_t)(0x80 >> bit);
+                        }
+                    }
+                    target[row_base + b] = out;
+                }
+            }
+        }
+        outb(0x3C4, 0x02);
+        outb(0x3C5, 0x0F);
+    } else {
+        for (int yy = y0; yy < y1; yy++) {
+            uint32_t row_off = (uint32_t)yy * current_width;
+            for (int xx = x0; xx < x1; xx++) {
+                target[row_off + (uint32_t)xx] = back_buffer[row_off + (uint32_t)xx];
+            }
+        }
     }
 }
 

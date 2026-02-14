@@ -449,6 +449,56 @@ Changes:
 Reason:
 - Eliminated “typing by itself” artifacts and cursor teleporting behavior.
 
+### 34. Added storage-backed filesystem integration for desktop shell
+
+Files:
+- `src/intf/fs.h`
+- `src/impl/filesystem/fs.c`
+- `Makefile`
+- `src/impl/kernel/main.c`
+
+Changes:
+- Expanded FS limits and path support (`MAX_FILES`, `MAX_FILENAME_LEN`).
+- Added basic directory support and existence checks:
+  - `fs_create_directory(...)`
+  - `fs_directory_exists(...)`
+- Added file metadata/list helpers:
+  - `fs_file_exists(...)`
+  - `fs_get_file_size(...)`
+  - `fs_list_entries(...)`
+- Wired `fs.o` into build/link graph in `Makefile`.
+- Initialized storage layout at boot with Windows-style paths:
+  - `C:/Windows`
+  - `C:/Users/Admin`
+  - `C:/Apps/System`
+- Seeded baseline system/app files under storage paths.
+
+Reason:
+- Requested “real filesystem with storage usage” and Windows-like folder layout for apps/system files.
+
+### 35. Added File Explorer app and upgraded Settings to dedicated configurable app
+
+File:
+- `src/impl/kernel/main.c`
+
+Changes:
+- Added `WIN_EXPLORER` window type with desktop and Start menu launch entries.
+- Implemented in-window explorer navigation:
+  - Current path bar
+  - Parent navigation (`[..]`)
+  - Directory/file listing from `fs_list_entries(...)`
+  - Folder click-to-open behavior
+- Added dedicated Settings app behavior (not tied to Notepad):
+  - Runtime toggle controls:
+    - Taskbar compact mode
+    - Desktop glow
+    - Clock seconds display
+  - Live UI updates based on selected settings.
+- Updated taskbar width/time rendering paths to consume Settings state.
+
+Reason:
+- Requested full Settings app and a File Explorer backed by storage/folder structure.
+
 ## Validation Performed
 
 ### Syntax validation across all C files in `src`
@@ -500,6 +550,8 @@ So this pass guarantees local source-level syntax consistency, but not full link
 - `src/impl/drivers/keyboard.c`
 - `Makefile`
 - `src/intf/ports.h`
+- `src/intf/fs.h`
+- `src/impl/filesystem/fs.c`
 
 ## Notes
 

@@ -14,6 +14,7 @@ ASM_SRC = $(SRC_DIR)/impl/x86_64/boot.asm \
 C_SRC = $(SRC_DIR)/impl/kernel/main.c \
         $(SRC_DIR)/impl/graphics/vga_graphics.c \
         $(SRC_DIR)/impl/graphics/font.c \
+        $(SRC_DIR)/impl/filesystem/fs.c \
         $(SRC_DIR)/impl/graphics/cursor.c \
         $(SRC_DIR)/impl/drivers/keyboard.c \
         $(SRC_DIR)/impl/drivers/mouse.c \
@@ -35,6 +36,7 @@ ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o \
 C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
         $(BUILD_DIR)/$(ARCH)/font.o \
+        $(BUILD_DIR)/$(ARCH)/fs.o \
         $(BUILD_DIR)/$(ARCH)/cursor.o \
         $(BUILD_DIR)/$(ARCH)/keyboard.o \
         $(BUILD_DIR)/$(ARCH)/mouse.o \
@@ -105,6 +107,9 @@ $(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/impl/graphics/vga_graphics.c | $
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/font.o: $(SRC_DIR)/impl/graphics/font.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/fs.o: $(SRC_DIR)/impl/filesystem/fs.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/cursor.o: $(SRC_DIR)/impl/graphics/cursor.c | $(BUILD_DIR)/$(ARCH)

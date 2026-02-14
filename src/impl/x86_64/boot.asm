@@ -481,15 +481,15 @@ boot_main32:
     mov byte [0xB8000], 'S'
     mov byte [0xB8001], 0x0E
 
-    ; Force a known-good VGA graphics mode before entering long mode.
+    ; Force a known-good higher-resolution VGA graphics mode before entering long mode.
     ; BIOS interrupts are not available in 64-bit mode.
-    call set_vga_mode13h
+    call set_vga_mode12h
 
     ; Check CPU
     call detect_cpu
     jc .cpu_unsupported
 
-    ; We intentionally run in VGA mode 13h for the current 8-bit renderer.
+    ; We run in VGA mode 12h and use a planar-present path in the 64-bit renderer.
 
     ; Setup paging - Identity map first 4GB using 2MB huge pages
     %define P4_TABLE 0x200000
