@@ -24,6 +24,13 @@ This changelog covers all major work completed after the first alpha changelog r
   - `C:/GamerOS`
   - `C:/GamerOS/System32`
   - App/system entries in System32 (`NOTEPAD.APP`, `SETTINGS.APP`, `EXPLORER.APP`, `KERNEL.SYS`, `SHELL32.DLL`)
+- Font size support API for `8x8`, `12x12`, and `16x16` rendering access.
+- RTC date API (`get_date`) for day/month/year/weekday reads.
+- Window manager interface additions for resize/focus/z-order control.
+- Baseline security subsystem authentication/access-control model.
+- User-mode process isolation table with per-process isolation tags.
+- GUI app input handling for mouse-click tab switching and keyboard shortcuts.
+- Freestanding-safe varargs path for kernel `sprintf`.
 
 ## Changed
 - Build metadata updated from `1.100` to `1.200`.
@@ -46,6 +53,10 @@ This changelog covers all major work completed after the first alpha changelog r
 - Startup/loading animation runtime was shortened by reducing progress-frame count and per-frame delay.
 - Desktop windows now support mouse resizing from a bottom-right grip with min/max bounds.
 - Added GamerOS-branded desktop evaluation watermark text near the lower-right desktop area.
+- Executive and GDI startup paths now expose explicit readiness/error states.
+- Kernel string library expanded with `strncmp`, `strstr`, and `sprintf`.
+- `sprintf` implementation now uses compiler vararg builtins (no hosted libc header dependency).
+- UI window system now tracks focused window state and explicit front-order moves.
 
 ## Fixed
 - VMware popup/crash hardening across Settings, Explorer, and Notepad open/click paths.
@@ -67,6 +78,9 @@ This changelog covers all major work completed after the first alpha changelog r
 - Taskbar interaction mismatch where visual button position and click-hitbox position could drift.
 - Cursor teleport-like jumpiness reduced via lighter mouse-move render path and per-packet delta clamping.
 - Cursor black trail artifacts introduced by partial present byte masking in mode `12h`.
+- GUI app no longer depends on timed auto-tab cycling for interaction.
+- Executive startup now fails fast when critical init steps fail.
+- Fixed `stdarg.h` include failure in freestanding (`-nostdinc`) kernel build path.
 
 ## Notes
 - File Explorer currently runs with safety-first behavior in VMware-focused paths while deeper storage interactions are stabilized.

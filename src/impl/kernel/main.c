@@ -129,6 +129,13 @@ static const char* settings_changelog_lines[] = {
     "- Mouse wheel input API",
     "- Notepad load/save/reload actions",
     "- GamerOS System32 namespace layout",
+    "- Font size API (8/12/16) added",
+    "- RTC date API (day/month/year/weekday)",
+    "- Window API: resize/focus/z-order",
+    "- Security auth/access baseline model",
+    "- User-mode isolated process table",
+    "- GUI app mouse/keyboard tab events",
+    "- Freestanding sprintf varargs support",
     "",
     "Changed",
     "- Build metadata 1.100 -> 1.200",
@@ -148,6 +155,10 @@ static const char* settings_changelog_lines[] = {
     "- Startup screen centered and scaled",
     "- Added GamerOS desktop watermark text",
     "- Windows are now user-resizable",
+    "- Executive/GDI init now report failures",
+    "- String library expanded: strstr/strncmp/sprintf",
+    "- UI window manager now tracks focused window",
+    "- sprintf now uses compiler vararg builtins",
     "",
     "Fixed",
     "- VMware hardening across app paths",
@@ -160,6 +171,9 @@ static const char* settings_changelog_lines[] = {
     "- Taskbar click-hitbox mismatch",
     "- Cursor jumpiness reduced",
     "- Cursor black trail artifacts fixed",
+    "- GUI app no longer relies on timed auto-tab cycle",
+    "- Startup path now fails fast on init errors",
+    "- Fixed stdarg.h build break in freestanding mode",
     "",
     "Notes",
     "- Explorer remains in safety-first mode",
@@ -1518,3 +1532,6 @@ void kernel_main(void) {
         last_buttons = buttons;
     }
 }
+
+// TODO: Replace polling-only desktop loop with timer-driven frame pacing to reduce idle CPU usage.
+// TODO: Derive scene_dirty from centralized event queue instead of scattered state checks.

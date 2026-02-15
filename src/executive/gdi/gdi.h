@@ -37,6 +37,12 @@ int gdi_blit_buffer(object_handle_t context_handle, uint32_t* src_buffer, uint32
 
 // Initialization
 void gdi_init(void);
+int gdi_is_ready(void);
+int gdi_get_last_error(void);
+
+#define GDI_ERR_NONE            0
+#define GDI_ERR_MODE_SET_FAILED 1
+#define GDI_ERR_NOT_READY       2
 
 // TODO: Add polygon drawing functions (draw_polygon, fill_polygon)
 // TODO: Implement bitmap loading and rendering functions

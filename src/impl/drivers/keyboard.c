@@ -151,3 +151,6 @@ void keyboard_init(void) {
     mask &= ~(1 << 1); // Clear bit 1 to unmask IRQ1
     outb(PIC1_DATA, mask);
 }
+
+// TODO: Add configurable keyboard layouts (US/UK/DE) selectable at runtime.
+// TODO: Implement key-repeat timing control for held keys.

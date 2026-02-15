@@ -198,7 +198,41 @@ const uint8_t font_8x8[96][8] = {
     {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 };
 
-// TODO: Add support for different font sizes (16x16, 12x12)
+void font_get_size(font_size_t size, uint8_t* out_w, uint8_t* out_h) {
+    uint8_t wh = 8;
+    if (size == FONT_SIZE_12X12) wh = 12;
+    else if (size == FONT_SIZE_16X16) wh = 16;
+    if (out_w) *out_w = wh;
+    if (out_h) *out_h = wh;
+}
+
+uint8_t font_sample_pixel(char c, font_size_t size, uint8_t x, uint8_t y) {
+    uint8_t w = 8;
+    uint8_t h = 8;
+    font_get_size(size, &w, &h);
+    if (x >= w || y >= h) return 0;
+
+    uint8_t uc = (uint8_t)c;
+    if (uc < 32 || uc > 127) uc = (uint8_t)' ';
+    const uint8_t* glyph = font_8x8[uc - 32];
+
+    // Nearest-neighbor upscale from canonical 8x8 glyphs.
+    uint8_t src_x = (uint8_t)(((uint32_t)x * 8) / w);
+    uint8_t src_y = (uint8_t)(((uint32_t)y * 8) / h);
+    if (src_x > 7) src_x = 7;
+    if (src_y > 7) src_y = 7;
+    return (glyph[src_y] & (uint8_t)(0x80 >> src_x)) ? 1 : 0;
+}
+
+uint32_t font_measure_text(const char* text, font_size_t size) {
+    if (!text) return 0;
+    uint8_t w = 8;
+    font_get_size(size, &w, 0);
+    uint32_t n = 0;
+    while (text[n]) n++;
+    return n * (uint32_t)w;
+}
+
 // TODO: Implement Unicode and international character support
 // TODO: Add proportional font rendering
 // TODO: Implement font loading from files

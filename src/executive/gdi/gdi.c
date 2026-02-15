@@ -2,15 +2,36 @@
 #include "../../intf/mm.h"
 #include "../../intf/string.h"
 
+static int gdi_ready = 0;
+static int gdi_last_error = GDI_ERR_NONE;
+
 void gdi_init(void) {
-    // Initialize graphics system
-    vga_set_mode(VGA_MODE_13H);
-    // TODO: Add error handling for graphics initialization failures
+    gdi_ready = 0;
+    gdi_last_error = GDI_ERR_NONE;
+    if (vga_set_mode(VGA_MODE_13H) != 1) {
+        gdi_last_error = GDI_ERR_MODE_SET_FAILED;
+        return;
+    }
+    gdi_ready = 1;
+}
+
+int gdi_is_ready(void) {
+    return gdi_ready;
+}
+
+int gdi_get_last_error(void) {
+    return gdi_last_error;
 }
 
 object_handle_t gdi_create_context(vga_mode_t mode) {
+    if (!gdi_ready) {
+        gdi_last_error = GDI_ERR_NOT_READY;
+        return INVALID_HANDLE;
+    }
+
     // Set the VGA mode
     if (vga_set_mode(mode) != 1) {
+        gdi_last_error = GDI_ERR_MODE_SET_FAILED;
         return INVALID_HANDLE;
     }
 
@@ -55,6 +76,7 @@ int gdi_destroy_context(object_handle_t context_handle) {
 }
 
 static gdi_context_t* get_context(object_handle_t handle) {
+    if (!gdi_ready) return NULL;
     if (object_get_type(handle) != OBJECT_TYPE_DEVICE) {
         return NULL;
     }

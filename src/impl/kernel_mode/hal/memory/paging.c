@@ -33,3 +33,6 @@ void setup_page_tables() {
     // VGA memory (0xA0000) is already mapped in the first 2MB (p2_table[0])
     // Kernel code/data is also in the first 4MB, so this covers everything
 }
+
+// TODO: Map kernel into higher-half virtual address space and keep low identity map as transitional.
+// TODO: Add per-process page-table roots to support isolated user address spaces.

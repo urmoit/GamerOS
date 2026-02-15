@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="notion">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/notion.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -588,3 +588,6 @@ void vga_draw_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius,
     (void)radius;
     draw_rect(x, y, (int)w, (int)h, (uint8_t)color);
 }
+
+// TODO: Add dirty-rectangle coalescing so multiple small updates batch into one planar present.
+// TODO: Preserve/restore palette state across mode switches to avoid host-dependent color drift.

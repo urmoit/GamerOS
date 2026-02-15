@@ -503,3 +503,57 @@ Changes:
 Reason:
 - Requested Windows-preview-style informational text, but branded for GamerOS.
 
+### 29. Completed core `src` TODO pass across executive, user-mode, UI, and runtime APIs
+
+Files:
+- `src/impl/graphics/font.c`
+- `src/intf/font.h`
+- `src/executive/executive.c`
+- `src/intf/executive.h`
+- `src/executive/gdi/gdi.c`
+- `src/executive/gdi/gdi.h`
+- `src/user_mode/user_mode.c`
+- `src/user_mode/integral_subsystems/security/security.c`
+- `src/intf/window.h`
+- `src/impl/ui_system/window.c`
+- `src/impl/drivers/rtc.c`
+- `src/intf/rtc.h`
+- `src/impl/kernel/string.c`
+- `src/intf/string.h`
+- `src/impl/gui_app.c`
+
+Changes:
+- Added font sizing API support (`8x8`, `12x12`, `16x16`) with scalable glyph sampling helpers.
+- Added executive initialization readiness/error reporting and fail-fast handling.
+- Added GDI readiness/error reporting and guarded context creation.
+- Implemented baseline user-mode process isolation table and access-validation model.
+- Implemented security subsystem user authentication and access checks with policy hook.
+- Added window API support for resize/focus/front-order and implemented focus/z-order behavior.
+- Added RTC date read API (`get_date`) returning day/month/year/weekday.
+- Expanded kernel string library with `strncmp`, `strstr`, and lightweight `sprintf`.
+- Replaced GUI app timer-based tab switching with actual user input handling:
+  - mouse click tab selection
+  - close button click
+  - keyboard tab shortcuts (`1/2/3`)
+  - `Esc` exit
+
+Reason:
+- Requested completion of listed TODO targets in `src` for practical baseline subsystem behavior.
+
+### 30. Fixed freestanding build failure in kernel `sprintf` varargs path
+
+File:
+- `src/impl/kernel/string.c`
+
+Changes:
+- Removed hosted-header dependency on `<stdarg.h>` in freestanding kernel build.
+- Switched `sprintf` varargs handling to compiler builtins:
+  - `__builtin_va_list`
+  - `__builtin_va_start`
+  - `__builtin_va_arg`
+  - `__builtin_va_end`
+- Preserved existing `%` formatter behavior while making implementation compatible with `-nostdinc`.
+
+Reason:
+- Build failed at `src/impl/kernel/string.c` with `fatal error: stdarg.h: No such file or directory` under freestanding toolchain flags.
+

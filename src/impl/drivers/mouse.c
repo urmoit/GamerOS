@@ -203,3 +203,6 @@ int8_t mouse_get_wheel_delta(void) {
 
 // Reset buttons (after processing)
 void mouse_clear_buttons(void) { mouse_buttons = 0; }
+
+// TODO: Add runtime-configurable pointer sensitivity and acceleration profiles.
+// TODO: Add optional movement smoothing filter for high-jitter PS/2 devices.

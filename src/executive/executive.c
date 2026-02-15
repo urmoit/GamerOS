@@ -7,8 +7,22 @@
 extern device_driver_t keyboard_driver;
 extern device_driver_t mouse_driver;
 
+static int executive_ready = 0;
+static int executive_last_error = EXECUTIVE_ERR_NONE;
+
+int executive_is_ready(void) {
+    return executive_ready;
+}
+
+int executive_get_last_error(void) {
+    return executive_last_error;
+}
+
 // Executive Layer initialization
 void executive_init(void) {
+    executive_ready = 0;
+    executive_last_error = EXECUTIVE_ERR_NONE;
+
     // Initialize Object Manager (fundamental service)
     object_manager_init();
 
@@ -20,15 +34,25 @@ void executive_init(void) {
 
     // Initialize graphics service
     gdi_init();
+    if (!gdi_is_ready()) {
+        executive_last_error = EXECUTIVE_ERR_GDI_INIT;
+        return;
+    }
 
     // Register baseline input drivers
-    io_register_driver(&keyboard_driver);
-    io_register_driver(&mouse_driver);
+    if (io_register_driver(&keyboard_driver) != 0 ||
+        io_register_driver(&mouse_driver) != 0) {
+        executive_last_error = EXECUTIVE_ERR_DRIVER_REGISTER;
+        return;
+    }
 
     // Create baseline filesystem objects so executive consumers can open them.
-    fs_create_file("README.TXT");
-    fs_create_file("NOTEPAD.TXT");
+    if (fs_create_file("README.TXT") != 0 ||
+        fs_create_file("NOTEPAD.TXT") != 0) {
+        executive_last_error = EXECUTIVE_ERR_FS_BOOTSTRAP;
+        return;
+    }
 
-    // TODO: Add error handling for initialization failures
+    executive_ready = 1;
     // TODO: Implement logging for executive layer startup
 }

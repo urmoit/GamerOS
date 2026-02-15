@@ -92,6 +92,33 @@ static const char* about_content[] = {
     "and x86-64 Assembly."
 };
 
+static void set_tab_widget_visibility(
+    tab_type_t tab,
+    ui_widget_t* info_label, ui_widget_t* info_desc1, ui_widget_t* info_desc2, ui_widget_t* info_feature1, ui_widget_t* info_feature2,
+    ui_widget_t* about_label, ui_widget_t* about_desc1, ui_widget_t* about_desc2, ui_widget_t* about_desc3,
+    ui_widget_t* changelog_label, ui_widget_t* changelog_desc1, ui_widget_t* changelog_desc2, ui_widget_t* changelog_desc3, ui_widget_t* changelog_desc4) {
+    uint8_t show_info = (tab == TAB_INFO);
+    uint8_t show_about = (tab == TAB_ABOUT);
+    uint8_t show_changelog = (tab == TAB_CHANGELOG);
+
+    if (info_label) ui_set_visible(info_label, show_info);
+    if (info_desc1) ui_set_visible(info_desc1, show_info);
+    if (info_desc2) ui_set_visible(info_desc2, show_info);
+    if (info_feature1) ui_set_visible(info_feature1, show_info);
+    if (info_feature2) ui_set_visible(info_feature2, show_info);
+
+    if (about_label) ui_set_visible(about_label, show_about);
+    if (about_desc1) ui_set_visible(about_desc1, show_about);
+    if (about_desc2) ui_set_visible(about_desc2, show_about);
+    if (about_desc3) ui_set_visible(about_desc3, show_about);
+
+    if (changelog_label) ui_set_visible(changelog_label, show_changelog);
+    if (changelog_desc1) ui_set_visible(changelog_desc1, show_changelog);
+    if (changelog_desc2) ui_set_visible(changelog_desc2, show_changelog);
+    if (changelog_desc3) ui_set_visible(changelog_desc3, show_changelog);
+    if (changelog_desc4) ui_set_visible(changelog_desc4, show_changelog);
+}
+
 // Draw header bar
 void draw_header(int win_x, int win_y) {
     // Header background
@@ -234,77 +261,85 @@ void gui_app_entry() {
         ui_add_child(content_panel, changelog_desc4);
     }
 
-    // Initially show info tab content
-    if (info_label) ui_set_visible(info_label, 1);
-    if (info_desc1) ui_set_visible(info_desc1, 1);
-    if (info_desc2) ui_set_visible(info_desc2, 1);
-    if (info_feature1) ui_set_visible(info_feature1, 1);
-    if (info_feature2) ui_set_visible(info_feature2, 1);
+    set_tab_widget_visibility(current_tab,
+        info_label, info_desc1, info_desc2, info_feature1, info_feature2,
+        about_label, about_desc1, about_desc2, about_desc3,
+        changelog_label, changelog_desc1, changelog_desc2, changelog_desc3, changelog_desc4);
 
-    // Hide about and changelog tab content initially
-    if (about_label) ui_set_visible(about_label, 0);
-    if (about_desc1) ui_set_visible(about_desc1, 0);
-    if (about_desc2) ui_set_visible(about_desc2, 0);
-    if (about_desc3) ui_set_visible(about_desc3, 0);
-
-    if (changelog_label) ui_set_visible(changelog_label, 0);
-    if (changelog_desc1) ui_set_visible(changelog_desc1, 0);
-    if (changelog_desc2) ui_set_visible(changelog_desc2, 0);
-    if (changelog_desc3) ui_set_visible(changelog_desc3, 0);
-    if (changelog_desc4) ui_set_visible(changelog_desc4, 0);
+    uint8_t last_mouse_buttons = 0;
 
     while (1) {
         // Update desktop (draws background, taskbar, handles input)
         desktop_update();
+
+        // Draw app shell window.
+        int win_x = 10;
+        int win_y = 30;
+        vga_fill_rect(win_x, win_y, APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT, COLOR_DARK_GREY);
+        vga_draw_rect(win_x, win_y, APP_WINDOW_WIDTH, APP_WINDOW_HEIGHT, COLOR_WHITE);
+        draw_header(win_x, win_y);
+        draw_tab_bar(win_x, win_y);
+        draw_content_area(win_x, win_y);
+        draw_content(win_x, win_y);
         
-        // Draw the mouse cursor at current position
+        // Process mouse input for close button and tab clicks.
         mouse_state_t mouse = mouse_get_state();
+        uint8_t pressed = mouse.buttons & (uint8_t)(~last_mouse_buttons);
+        if (pressed & MOUSE_BTN_LEFT) {
+            int close_x = win_x + APP_WINDOW_WIDTH - 20;
+            int close_y = win_y + 5;
+            if (mouse.x >= close_x && mouse.x < close_x + 15 &&
+                mouse.y >= close_y && mouse.y < close_y + 15) {
+                break;
+            }
+
+            int tab_width = (APP_WINDOW_WIDTH - 20) / TAB_COUNT;
+            int tab_y = win_y + GUI_HEADER_HEIGHT;
+            if (mouse.y >= tab_y && mouse.y < tab_y + TAB_BAR_HEIGHT) {
+                for (int i = 0; i < TAB_COUNT; i++) {
+                    int tab_x = win_x + 10 + i * tab_width;
+                    if (mouse.x >= tab_x && mouse.x < tab_x + tab_width - 2) {
+                        current_tab = (tab_type_t)i;
+                        set_tab_widget_visibility(current_tab,
+                            info_label, info_desc1, info_desc2, info_feature1, info_feature2,
+                            about_label, about_desc1, about_desc2, about_desc3,
+                            changelog_label, changelog_desc1, changelog_desc2, changelog_desc3, changelog_desc4);
+                        break;
+                    }
+                }
+            }
+        }
+        last_mouse_buttons = mouse.buttons;
+
+        // Keyboard events: 1/2/3 switch tabs, ESC exits app.
+        while (keyboard_has_input()) {
+            char key = keyboard_getchar();
+            if (key == 27) {
+                return;
+            } else if (key == '1') {
+                current_tab = TAB_INFO;
+            } else if (key == '2') {
+                current_tab = TAB_ABOUT;
+            } else if (key == '3') {
+                current_tab = TAB_CHANGELOG;
+            } else {
+                continue;
+            }
+            set_tab_widget_visibility(current_tab,
+                info_label, info_desc1, info_desc2, info_feature1, info_feature2,
+                about_label, about_desc1, about_desc2, about_desc3,
+                changelog_label, changelog_desc1, changelog_desc2, changelog_desc3, changelog_desc4);
+        }
+
+        // Draw the mouse cursor at current position.
         vga_draw_bitmap_cursor(mouse.x, mouse.y);
-
-        // Render UI windows
-        // ui_render_container(main_window);
-
-        // Simple tab switching simulation (in real OS, would handle mouse/keyboard input)
-        static int counter = 0;
-        counter++;
-        if (counter % 3000000 == 0) { // Slow cycle for demo
-            // Switch tabs
-            current_tab = (current_tab + 1) % TAB_COUNT;
-
-            // Update visibility of content widgets based on current tab
-            uint8_t show_info = (current_tab == TAB_INFO);
-            uint8_t show_about = (current_tab == TAB_ABOUT);
-            uint8_t show_changelog = (current_tab == TAB_CHANGELOG);
-
-            if (info_label) ui_set_visible(info_label, show_info);
-            if (info_desc1) ui_set_visible(info_desc1, show_info);
-            if (info_desc2) ui_set_visible(info_desc2, show_info);
-            if (info_feature1) ui_set_visible(info_feature1, show_info);
-            if (info_feature2) ui_set_visible(info_feature2, show_info);
-
-            if (about_label) ui_set_visible(about_label, show_about);
-            if (about_desc1) ui_set_visible(about_desc1, show_about);
-            if (about_desc2) ui_set_visible(about_desc2, show_about);
-            if (about_desc3) ui_set_visible(about_desc3, show_about);
-
-            if (changelog_label) ui_set_visible(changelog_label, show_changelog);
-            if (changelog_desc1) ui_set_visible(changelog_desc1, show_changelog);
-            if (changelog_desc2) ui_set_visible(changelog_desc2, show_changelog);
-            if (changelog_desc3) ui_set_visible(changelog_desc3, show_changelog);
-            if (changelog_desc4) ui_set_visible(changelog_desc4, show_changelog);
-        }
-
-        // Yield to scheduler periodically
-        if (counter % 100000 == 0) {
-            __asm__ volatile("int $0x20");
-        }
+        __asm__ volatile("int $0x20");
     }
 
     // Cleanup (in a real application, this would be called on exit)
     // ui_destroy_widget((ui_widget_t*)main_window);
 }
 
-// TODO: Implement proper event handling for user input (mouse clicks, keyboard)
 // TODO: Add more interactive widgets (text input, checkboxes, dropdowns)
 // TODO: Implement dynamic content loading instead of hardcoded strings
 // TODO: Add window resizing and movement capabilities
