@@ -7,17 +7,22 @@
 #include "../../intf/rtc.h"
 #include "../../intf/font.h"
 #include "../../intf/fs.h"
+#include "../../intf/apps.h"
+#include "../../apps/notepad/notepad_ui.h"
+#include "../../apps/settings/settings_ui.h"
+#include "../../apps/explorer/explorer_ui.h"
+#include "../../resources/wallpapers/background_wallpaper.h"
 #include "stdint.h"
 #include "string.h"
 
 // Window states
 #define MAX_WINDOWS 6
 #define WIN_NONE    0
-#define WIN_NOTEPAD 1
-#define WIN_MYCOMP  2
-#define WIN_ABOUT   3
-#define WIN_SETTINGS 4
-#define WIN_EXPLORER 5
+#define WIN_NOTEPAD APP_WINDOW_NOTEPAD
+#define WIN_MYCOMP  APP_WINDOW_MYCOMP
+#define WIN_ABOUT   APP_WINDOW_ABOUT
+#define WIN_SETTINGS APP_WINDOW_SETTINGS
+#define WIN_EXPLORER APP_WINDOW_EXPLORER
 
 // Desktop shell sizing (compact XP-like layout for 320x200)
 #define TASKBAR_HEIGHT         16
@@ -75,12 +80,28 @@ static uint8_t setting_compact_mode = 1;
 static int settings_tab = 0;
 
 #define SETTINGS_TAB_SYSTEM 0
-#define SETTINGS_TAB_PERSONALIZATION 1
-#define SETTINGS_TAB_ACCOUNTS 2
-#define SETTINGS_TAB_ABOUT 3
-#define SETTINGS_TAB_CHANGELOG 4
-#define SETTINGS_TAB_COUNT 5
+#define SETTINGS_TAB_BLUETOOTH_DEVICES 1
+#define SETTINGS_TAB_NETWORK_INTERNET 2
+#define SETTINGS_TAB_PERSONALIZATION 3
+#define SETTINGS_TAB_APPS 4
+#define SETTINGS_TAB_ACCOUNTS 5
+#define SETTINGS_TAB_TIME_LANGUAGE 6
+#define SETTINGS_TAB_GAMING 7
+#define SETTINGS_TAB_ACCESSIBILITY 8
+#define SETTINGS_TAB_PRIVACY_SECURITY 9
+#define SETTINGS_TAB_GAMEROS_UPDATE 10
+#define SETTINGS_TAB_ABOUT 11
+#define SETTINGS_TAB_COUNT 12
 static int settings_scroll_top[SETTINGS_TAB_COUNT] = {0};
+typedef struct {
+    char text[120];
+    uint8_t color;
+    uint8_t indent;
+} markdown_line_t;
+#define SETTINGS_MD_MAX_LINES 256
+static markdown_line_t settings_md_lines[SETTINGS_MD_MAX_LINES];
+static int settings_md_line_count = 0;
+static uint8_t settings_md_loaded = 0;
 
 #define EXPLORER_MAX_ENTRIES 14
 static char explorer_path[MAX_FILENAME_LEN] = "C:/";
@@ -94,108 +115,40 @@ static char explorer_drive_labels[EXPLORER_MAX_ENTRIES][32];
 static int explorer_drive_count = 0;
 static uint8_t storage_initialized = 0;
 static uint8_t cursor_under[CURSOR_SIZE * CURSOR_SIZE];
+static uint8_t notepad_io_buffer[MAX_FILE_SIZE + 1];
 static int32_t cursor_drawn_x = 0;
 static int32_t cursor_drawn_y = 0;
 static uint8_t cursor_drawn_valid = 0;
+
+static int taskbar_clock_width(void) {
+    int time_chars = setting_show_seconds ? 8 : 5; // HH:MM:SS or HH:MM
+    int date_chars = 10; // DD/MM/YYYY
+    return ((time_chars + 1 + date_chars) * 6) + 8;
+}
+
+typedef struct {
+    int x;
+    int y;
+    int w;
+    int h;
+    int item_h;
+} start_menu_metrics_t;
 
 static void append_string(char* dest, size_t dest_cap, const char* src);
 static void initialize_storage_layout(void);
 static void get_window_min_size(const window_t* win, int* out_w, int* out_h);
 static void draw_desktop_watermark(void);
-
-static const char* settings_tabs[] = {
-    "System",
-    "Personalization",
-    "Accounts",
-    "About",
-    "Changelog"
-};
-
-static const char* settings_changelog_lines[] = {
-    "GamerOS Changelog 2026-02-15",
-    "",
-    "Release",
-    "Version: 00m1",
-    "Build: 1.200",
-    "Date: 2026-02-15",
-    "",
-    "Added",
-    "- Storage-backed filesystem integration",
-    "- Directory support/list helpers",
-    "- File Explorer with This PC drive view",
-    "- Tabbed Settings app",
-    "- About moved into Settings",
-    "- Notepad restored as full app",
-    "- Mouse wheel input API",
-    "- Notepad load/save/reload actions",
-    "- GamerOS System32 namespace layout",
-    "- Font size API (8/12/16) added",
-    "- RTC date API (day/month/year/weekday)",
-    "- Window API: resize/focus/z-order",
-    "- Security auth/access baseline model",
-    "- User-mode isolated process table",
-    "- GUI app mouse/keyboard tab events",
-    "- Freestanding sprintf varargs support",
-    "",
-    "Changed",
-    "- Build metadata 1.100 -> 1.200",
-    "- About panel uses current graphics mode",
-    "- Runtime graphics on VGA mode 12h",
-    "- Desktop/window sizing for 640x480",
-    "- Storage flow changed to lazy init",
-    "- Settings layout refreshed",
-    "- Settings content clipping added",
-    "- Notepad capacity expanded 20x40->160x96",
-    "- Notepad viewport auto-follow",
-    "- Taskbar centered geometry + clock box",
-    "- Taskbar labels centered from metrics",
-    "- Taskbar reserves clock area",
-    "- Cursor-only partial presents on move",
-    "- Mouse-wheel direction normalized",
-    "- Startup screen centered and scaled",
-    "- Added GamerOS desktop watermark text",
-    "- Windows are now user-resizable",
-    "- Executive/GDI init now report failures",
-    "- String library expanded: strstr/strncmp/sprintf",
-    "- UI window manager now tracks focused window",
-    "- sprintf now uses compiler vararg builtins",
-    "",
-    "Fixed",
-    "- VMware hardening across app paths",
-    "- Window/input safety edge cases",
-    "- Boot/runtime graphics mode mismatch",
-    "- Mode 12h planar present instability",
-    "- Missing wheel scroll in core apps",
-    "- Settings text overflow in frame",
-    "- Off-center taskbar render",
-    "- Taskbar click-hitbox mismatch",
-    "- Cursor jumpiness reduced",
-    "- Cursor black trail artifacts fixed",
-    "- GUI app no longer relies on timed auto-tab cycle",
-    "- Startup path now fails fast on init errors",
-    "- Fixed stdarg.h build break in freestanding mode",
-    "",
-    "Notes",
-    "- Explorer remains in safety-first mode",
-    "- Mode 12h received multi-pass hardening"
-};
-
-static const char* settings_lines[] = {
-    "GamerOS Settings",
-    "",
-    "Display: 320x200 VGA",
-    "Theme: XP Classic",
-    "Storage Root: C:/",
-    "",
-    "Toggle options:",
-    "1) Taskbar compact mode",
-    "2) Desktop glow",
-    "3) Clock seconds",
-    "",
-    "System",
-    "Version: 00m1",
-    "Build: 1.200"
-};
+static void draw_desktop_wallpaper(int desktop_h);
+static int get_ui_scale(void);
+static void get_start_menu_metrics(start_menu_metrics_t* m);
+static void launch_application_exe(const char* exe_name, int fallback_x, int fallback_y);
+static void launch_settings_tab(int tab_idx);
+static void notepad_load_from_storage(void);
+static void settings_md_reset(void);
+static void settings_md_add_line(const char* src, uint8_t color, uint8_t indent);
+static void settings_md_parse(const char* markdown);
+static void settings_md_ensure_loaded(void);
+void open_window(int type, int x, int y);
 
 static void explorer_refresh(void) {
     if (explorer_this_pc_view) {
@@ -244,6 +197,7 @@ static void ensure_storage_initialized(void) {
     if (storage_initialized) return;
     initialize_storage_layout();
     storage_initialized = 1;
+    settings_md_loaded = 0;
 }
 
 static const char* path_basename(const char* path) {
@@ -297,13 +251,16 @@ static void initialize_storage_layout(void) {
 
     fs_create_directory("C:/GamerOS");
     fs_create_directory("C:/GamerOS/System32");
+    fs_create_directory("C:/GamerOS/Apps");
+    fs_create_directory("C:/GamerOS/Apps/Settings");
+    fs_create_directory("C:/GamerOS/Apps/BuiltIn");
     fs_create_directory("C:/Users");
     fs_create_directory("C:/Users/Admin");
     fs_create_directory("C:/GamerOS/Logs");
 
     file_t* f = fs_create_file("C:/GamerOS/GAMEROS.INI");
     if (f) {
-        const char* txt = "shell=GamerOS\nbuild=1.200\nsystem=C:/GamerOS/System32\n";
+        const char* txt = "shell=GamerOS\nbuild=1.300\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
     f = fs_create_file("C:/Users/Admin/README.TXT");
@@ -317,19 +274,29 @@ static void initialize_storage_layout(void) {
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
 
-    f = fs_create_file("C:/GamerOS/System32/NOTEPAD.APP");
+    f = fs_create_file("C:/GamerOS/System32/NOTEPAD.EXE");
     if (f) {
-        const char* txt = "App=Notepad\nEntry=WIN_NOTEPAD\n";
+        const char* txt = "MZ\nName=Notepad\nSubsystem=GamerOS\nEntry=WIN_NOTEPAD\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
-    f = fs_create_file("C:/GamerOS/System32/SETTINGS.APP");
+    f = fs_create_file("C:/GamerOS/System32/SETTINGS.EXE");
     if (f) {
-        const char* txt = "App=Settings\nEntry=WIN_SETTINGS\n";
+        const char* txt = "MZ\nName=Settings\nSubsystem=GamerOS\nEntry=WIN_SETTINGS\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
-    f = fs_create_file("C:/GamerOS/System32/EXPLORER.APP");
+    f = fs_create_file("C:/GamerOS/System32/EXPLORER.EXE");
     if (f) {
-        const char* txt = "App=Explorer\nEntry=WIN_EXPLORER\n";
+        const char* txt = "MZ\nName=Explorer\nSubsystem=GamerOS\nEntry=WIN_EXPLORER\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+    f = fs_create_file("C:/GamerOS/Apps/BuiltIn/APPS.LST");
+    if (f) {
+        const char* txt = "NOTEPAD.EXE\nSETTINGS.EXE\nEXPLORER.EXE\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+    f = fs_create_file(settings_ui_changelog_md_path());
+    if (f) {
+        const char* txt = settings_ui_changelog_md_text();
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
     f = fs_create_file("C:/GamerOS/System32/KERNEL.SYS");
@@ -390,8 +357,8 @@ static void draw_compact_string_clipped(int x, int y, int max_chars, const char*
 }
 
 static void draw_desktop_watermark(void) {
-    const char* line1 = "GamerOS 00m1 Preview";
-    const char* line2 = "Evaluation copy. Build 1.200";
+    const char* line1 = "GamerOS 00m1 Aero Preview";
+    const char* line2 = "Windows 7 Style UI - Build 1.300";
     int w1 = (int)strlen(line1) * 6;
     int w2 = (int)strlen(line2) * 6;
     int max_w = (w1 > w2) ? w1 : w2;
@@ -399,8 +366,31 @@ static void draw_desktop_watermark(void) {
     int y = (int)current_height - TASKBAR_HEIGHT - 22;
     if (x < 6) x = 6;
     if (y < 6) y = 6;
-    draw_compact_string(x, y, line1, XP_LGRAY);
+    draw_compact_string(x, y, line1, XP_WHITE);
     draw_compact_string(x, y + 9, line2, XP_LGRAY);
+}
+
+static void draw_desktop_wallpaper(int desktop_h) {
+    if (desktop_h <= 0) return;
+    if (background_wallpaper_width == 0 || background_wallpaper_height == 0) {
+        fill_rect(0, 0, (int)current_width, desktop_h, XP_BLUE);
+        return;
+    }
+
+    uint32_t src_w = background_wallpaper_width;
+    uint32_t src_h = background_wallpaper_height;
+    uint32_t dst_w = current_width;
+    uint32_t dst_h = (uint32_t)desktop_h;
+
+    for (uint32_t y = 0; y < dst_h; y++) {
+        uint32_t sy = (y * src_h) / dst_h;
+        uint32_t row = sy * src_w;
+        for (uint32_t x = 0; x < dst_w; x++) {
+            uint32_t sx = (x * src_w) / dst_w;
+            uint8_t color = background_wallpaper_pixels[row + sx] & 0x0F;
+            draw_pixel((int)x, (int)y, color);
+        }
+    }
 }
 
 static void append_string(char* dest, size_t dest_cap, const char* src) {
@@ -432,6 +422,138 @@ static void get_window_min_size(const window_t* win, int* out_w, int* out_h) {
     if (out_h) *out_h = min_h;
 }
 
+static int get_ui_scale(void) {
+    if (current_width >= 1200 || current_height >= 720) return 3;
+    if (current_width >= 800 || current_height >= 600) return 2;
+    return 1;
+}
+
+static void get_start_menu_metrics(start_menu_metrics_t* m) {
+    if (!m) return;
+    int menu_w = START_MENU_W;
+    int menu_h = START_MENU_H;
+    int item_h = 16;
+    if (menu_w > (int)current_width - 8) menu_w = (int)current_width - 8;
+    if (menu_h > (int)current_height - TASKBAR_HEIGHT - 4) menu_h = (int)current_height - TASKBAR_HEIGHT - 4;
+    m->x = START_MENU_X;
+    m->w = menu_w;
+    m->h = menu_h;
+    m->item_h = item_h;
+    m->y = (int)current_height - TASKBAR_HEIGHT - menu_h;
+}
+
+static void launch_application_exe(const char* exe_name, int fallback_x, int fallback_y) {
+    int win_type = WIN_NONE;
+    int launch_x = fallback_x;
+    int launch_y = fallback_y;
+    if (!apps_resolve_launch(exe_name, &win_type, &launch_x, &launch_y)) {
+        return;
+    }
+    if (fallback_x >= 0) launch_x = fallback_x;
+    if (fallback_y >= 0) launch_y = fallback_y;
+
+    open_window(win_type, launch_x, launch_y);
+    if (win_type == WIN_NOTEPAD && storage_initialized) {
+        notepad_load_from_storage();
+    }
+}
+
+static void launch_settings_tab(int tab_idx) {
+    launch_application_exe("SETTINGS.EXE", -1, -1);
+    if (tab_idx >= 0 && tab_idx < SETTINGS_TAB_COUNT) {
+        settings_tab = tab_idx;
+    }
+}
+
+static void settings_md_reset(void) {
+    settings_md_line_count = 0;
+}
+
+static void settings_md_add_line(const char* src, uint8_t color, uint8_t indent) {
+    if (!src || settings_md_line_count >= SETTINGS_MD_MAX_LINES) return;
+    markdown_line_t* line = &settings_md_lines[settings_md_line_count++];
+    size_t i = 0;
+    while (src[i] && i + 1 < sizeof(line->text)) {
+        if (src[i] != '`') {
+            line->text[i] = src[i];
+        } else {
+            line->text[i] = '\'';
+        }
+        i++;
+    }
+    line->text[i] = 0;
+    line->color = color;
+    line->indent = indent;
+}
+
+static void settings_md_parse(const char* markdown) {
+    settings_md_reset();
+    if (!markdown) return;
+
+    char line_buf[160];
+    size_t pos = 0;
+    uint8_t in_code = 0;
+    for (size_t i = 0;; i++) {
+        char ch = markdown[i];
+        if (ch == '\r') continue;
+        if (ch == '\n' || ch == 0) {
+            line_buf[pos] = 0;
+            if (strcmp(line_buf, "```") == 0) {
+                in_code = (uint8_t)!in_code;
+            } else if (in_code) {
+                settings_md_add_line(line_buf, XP_DGRAY, 8);
+            } else if (strncmp(line_buf, "### ", 4) == 0) {
+                settings_md_add_line(line_buf + 4, XP_BLUE, 0);
+            } else if (strncmp(line_buf, "## ", 3) == 0) {
+                settings_md_add_line(line_buf + 3, XP_BLUE, 0);
+            } else if (strncmp(line_buf, "# ", 2) == 0) {
+                settings_md_add_line(line_buf + 2, XP_LBLUE, 0);
+            } else if (strncmp(line_buf, "  - ", 4) == 0) {
+                char nested[160];
+                nested[0] = '-';
+                nested[1] = ' ';
+                nested[2] = 0;
+                append_string(nested, sizeof(nested), line_buf + 4);
+                settings_md_add_line(nested, XP_BLACK, 12);
+            } else if (strncmp(line_buf, "- ", 2) == 0) {
+                settings_md_add_line(line_buf, XP_BLACK, 6);
+            } else if (line_buf[0] >= '0' && line_buf[0] <= '9' && line_buf[1] == '.' && line_buf[2] == ' ') {
+                settings_md_add_line(line_buf, XP_BLACK, 6);
+            } else {
+                settings_md_add_line(line_buf, XP_BLACK, 0);
+            }
+
+            pos = 0;
+            if (ch == 0) break;
+            continue;
+        }
+        if (pos + 1 < sizeof(line_buf)) {
+            line_buf[pos++] = ch;
+        }
+    }
+}
+
+static void settings_md_ensure_loaded(void) {
+    if (settings_md_loaded) return;
+    settings_md_loaded = 1;
+
+    if (!storage_initialized) {
+        settings_md_parse(settings_ui_changelog_md_text());
+        return;
+    }
+
+    file_t* md_file = fs_open_file(settings_ui_changelog_md_path());
+    if (!md_file || md_file->size == 0) {
+        settings_md_parse(settings_ui_changelog_md_text());
+        return;
+    }
+
+    static uint8_t md_buffer[MAX_FILE_SIZE + 1];
+    memset(md_buffer, 0, sizeof(md_buffer));
+    fs_read_file(md_file, md_buffer, MAX_FILE_SIZE);
+    settings_md_parse((const char*)md_buffer);
+}
+
 static void notepad_clear(void) {
     for (int i = 0; i < NOTEPAD_MAX_LINES; i++) {
         for (int j = 0; j < NOTEPAD_MAX_COLS; j++) {
@@ -449,14 +571,13 @@ static void notepad_load_from_storage(void) {
     notepad_clear();
     if (!file || file->size == 0) return;
 
-    uint8_t buffer[MAX_FILE_SIZE + 1];
-    memset(buffer, 0, sizeof(buffer));
-    fs_read_file(file, buffer, MAX_FILE_SIZE);
+    memset(notepad_io_buffer, 0, sizeof(notepad_io_buffer));
+    fs_read_file(file, notepad_io_buffer, MAX_FILE_SIZE);
 
     int x = 0;
     int y = 0;
-    for (uint32_t i = 0; i < MAX_FILE_SIZE && buffer[i]; i++) {
-        char c = (char)buffer[i];
+    for (uint32_t i = 0; i < MAX_FILE_SIZE && notepad_io_buffer[i]; i++) {
+        char c = (char)notepad_io_buffer[i];
         if (c == '\n') {
             y++;
             x = 0;
@@ -475,20 +596,19 @@ static void notepad_save_to_storage(void) {
     if (!file) file = fs_create_file(NOTEPAD_FILE_PATH);
     if (!file) return;
 
-    uint8_t buffer[MAX_FILE_SIZE];
-    memset(buffer, 0, sizeof(buffer));
+    memset(notepad_io_buffer, 0, sizeof(notepad_io_buffer));
     uint32_t pos = 0;
     for (int y = 0; y < NOTEPAD_MAX_LINES && pos < MAX_FILE_SIZE - 1; y++) {
         int last = NOTEPAD_MAX_COLS - 1;
         while (last >= 0 && notepad_lines[y][last] == 0) last--;
         for (int x = 0; x <= last && pos < MAX_FILE_SIZE - 1; x++) {
-            buffer[pos++] = (uint8_t)notepad_lines[y][x];
+            notepad_io_buffer[pos++] = (uint8_t)notepad_lines[y][x];
         }
         if (y < NOTEPAD_MAX_LINES - 1 && pos < MAX_FILE_SIZE - 1) {
-            buffer[pos++] = '\n';
+            notepad_io_buffer[pos++] = '\n';
         }
     }
-    fs_write_file(file, buffer, pos);
+    fs_write_file(file, notepad_io_buffer, pos);
     notepad_dirty = 0;
 }
 
@@ -506,33 +626,64 @@ static const char* storage_type_name(storage_device_type_t type) {
 
 static void startup_animation(void) {
     const char* title = "GamerOS";
-    const char* subtitle = "Professional";
+    const char* subtitle = "Starting Windows 7 style shell...";
     int title_w = (int)strlen(title) * 8;
     int subtitle_w = (int)strlen(subtitle) * 8;
-    int bar_w = ((int)current_width * 3) / 5;
-    int bar_h = 14;
-    if (bar_w < 240) bar_w = 240;
-    if (bar_w > 420) bar_w = 420;
+    int bar_w = ((int)current_width * 2) / 3;
+    int bar_h = 16;
+    if (bar_w < 260) bar_w = 260;
+    if (bar_w > 460) bar_w = 460;
     int bar_x = ((int)current_width - bar_w) / 2;
-    int bar_y = ((int)current_height / 2) + 26;
+    int bar_y = ((int)current_height / 2) + 32;
     int title_x = ((int)current_width - title_w) / 2;
     int subtitle_x = ((int)current_width - subtitle_w) / 2;
-    int title_y = ((int)current_height / 2) - 26;
-    int subtitle_y = title_y + 16;
+    int title_y = ((int)current_height / 2) - 34;
+    int subtitle_y = title_y + 18;
 
-    clear_screen(XP_BLUE);
-    draw_string(title_x, title_y, title, XP_WHITE);
-    draw_string(subtitle_x, subtitle_y, subtitle, XP_WHITE);
-    draw_rect(bar_x, bar_y, bar_w, bar_h, XP_WHITE);
-    int fill_target = bar_w - 4;
-    int step = fill_target / 120;
-    if (step < 2) step = 2;
-    for (int p = 0; p < fill_target; p += step) {
-        int draw_w = p + step;
+    int bg_h = (int)current_height;
+    int band = bg_h / 3;
+    int fill_target = bar_w - 8;
+    int frames = 68;
+
+    for (int f = 0; f <= frames; f++) {
+        int eased_num = (2 * f * frames) - (f * f);
+        int eased_den = frames * frames;
+        int draw_w = (fill_target * eased_num) / eased_den;
+        if (draw_w < 0) draw_w = 0;
         if (draw_w > fill_target) draw_w = fill_target;
-        fill_rect(bar_x + 2, bar_y + 2, draw_w, bar_h - 4, XP_LBLUE);
+
+        // Aero-like background bands.
+        fill_rect(0, 0, current_width, band, XP_LBLUE);
+        fill_rect(0, band, current_width, band, XP_BLUE);
+        fill_rect(0, band * 2, current_width, bg_h - (band * 2), XP_CYAN);
+
+        // Soft center panel.
+        int panel_w = bar_w + 80;
+        int panel_h = 96;
+        int panel_x = ((int)current_width - panel_w) / 2;
+        int panel_y = title_y - 12;
+        fill_rect(panel_x, panel_y, panel_w, panel_h, XP_DGRAY);
+        draw_rect(panel_x, panel_y, panel_w, panel_h, XP_LBLUE);
+        draw_rect(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, XP_BLUE);
+
+        draw_string(title_x, title_y, title, XP_WHITE);
+        draw_string(subtitle_x, subtitle_y, subtitle, XP_LGRAY);
+
+        // Progress rail.
+        fill_rect(bar_x, bar_y, bar_w, bar_h, XP_BLACK);
+        draw_rect(bar_x, bar_y, bar_w, bar_h, XP_WHITE);
+        draw_rect(bar_x + 1, bar_y + 1, bar_w - 2, bar_h - 2, XP_DGRAY);
+        fill_rect(bar_x + 4, bar_y + 4, draw_w, bar_h - 8, XP_LBLUE);
+
+        // Moving highlight for modern feel.
+        int glow = (f * 6) % (fill_target + 1);
+        if (glow < draw_w) {
+            fill_rect(bar_x + 4 + glow, bar_y + 4, 10, bar_h - 8, XP_WHITE);
+        }
+
         swap_buffers();
-        for (volatile int d = 0; d < 2500; d++) {
+        int delay_cycles = 900 + ((frames - f) * 6);
+        for (volatile int d = 0; d < delay_cycles; d++) {
             __asm__ volatile ("nop");
         }
     }
@@ -578,7 +729,7 @@ void open_window(int type, int x, int y) {
             windows[i].h = 150;
             
             if (type == WIN_NOTEPAD) {
-                strncpy(windows[i].title, "Notepad", 31);
+                strncpy(windows[i].title, notepad_ui_title(), 31);
                 windows[i].w = (int)current_width - 20;
                 windows[i].h = (int)current_height - TASKBAR_HEIGHT - 26;
                 windows[i].x = 10;
@@ -590,7 +741,7 @@ void open_window(int type, int x, int y) {
                 windows[i].w = 210;
                 windows[i].h = 152;
             } else if (type == WIN_SETTINGS) {
-                strncpy(windows[i].title, "Settings", 31);
+                strncpy(windows[i].title, settings_ui_panel_title(), 31);
                 windows[i].w = (int)current_width - 16;
                 windows[i].h = (int)current_height - TASKBAR_HEIGHT - 22;
                 windows[i].x = 8;
@@ -659,17 +810,22 @@ void draw_window(window_t* win) {
     if (w < 24 || h < 24) return;
     
     int is_active_window = (active_window >= 0 && win == &windows[active_window]);
-    fill_rect(x, y, w, h, XP_WHITE);
-    fill_rect(x, y, w, 18, is_active_window ? XP_LBLUE : XP_DGRAY);
-    draw_string(x + 4, y + 5, win->title, XP_WHITE);
+    fill_rect(x, y, w, h, XP_DGRAY);
+    fill_rect(x + 2, y + 20, w - 4, h - 22, XP_WHITE);
+    fill_rect(x, y, w, 18, is_active_window ? XP_BLUE : XP_DGRAY);
+    fill_rect(x, y + 1, w, 4, is_active_window ? XP_LBLUE : XP_LGRAY);
+    fill_rect(x, y + 14, w, 2, is_active_window ? XP_LBLUE : XP_DGRAY);
+    draw_string(x + 6, y + 5, win->title, XP_WHITE);
     
     // Close button
     fill_rect(x + w - 16, y + 2, 14, 14, XP_RED);
     draw_rect(x + w - 16, y + 2, 14, 14, XP_WHITE);
+    draw_rect(x + w - 15, y + 3, 12, 12, XP_DGRAY);
     draw_string(x + w - 12, y + 5, "x", XP_WHITE);
     
     draw_rect(x, y, w, h, XP_BLACK);
-    draw_rect(x + 1, y + 1, w - 2, h - 2, XP_LGRAY);
+    draw_rect(x + 1, y + 1, w - 2, h - 2, XP_LBLUE);
+    draw_rect(x + 2, y + 2, w - 4, h - 4, XP_DGRAY);
     // Bottom-right resize grip.
     for (int g = 0; g < 4; g++) {
         int gx = x + w - 3 - (g * 3);
@@ -678,10 +834,13 @@ void draw_window(window_t* win) {
     }
     
     if (win->type == WIN_NOTEPAD) {
-        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
-        fill_rect(x + 5, y + h - 14, w - 10, 8, XP_LGRAY);
-        int text_top = y + 26;
+        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
+        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
+        draw_rect(x + 5, y + 23, w - 10, h - 28, XP_DGRAY);
+        fill_rect(x + 6, y + 24, w - 12, 10, XP_BLUE);
+        draw_compact_string(x + 8, y + 24, notepad_ui_toolbar_hint(), XP_BLACK);
+        fill_rect(x + 5, y + h - 14, w - 10, 8, XP_BLUE);
+        int text_top = y + 36;
         int text_bottom = y + h - 18;
         int visible_lines = (text_bottom - text_top) / 5;
         if (visible_lines < 1) visible_lines = 1;
@@ -690,53 +849,59 @@ void draw_window(window_t* win) {
             notepad_view_top = NOTEPAD_MAX_LINES - visible_lines;
             if (notepad_view_top < 0) notepad_view_top = 0;
         }
-        int max_chars = (w - 16) / 6;
+        fill_rect(x + 8, y + 36, w - 16, h - 56, XP_WHITE);
+        draw_rect(x + 8, y + 36, w - 16, h - 56, XP_LGRAY);
+        int max_chars = (w - 22) / 6;
         if (max_chars < 1) max_chars = 1;
         if (max_chars > NOTEPAD_MAX_COLS) max_chars = NOTEPAD_MAX_COLS;
         for (int row = 0; row < visible_lines; row++) {
             int i = notepad_view_top + row;
             if (i >= NOTEPAD_MAX_LINES) break;
             if (notepad_lines[i][0]) {
-                draw_compact_string_clipped(x + 8, text_top + row * 5, max_chars, notepad_lines[i], XP_BLACK);
+                draw_compact_string_clipped(x + 11, text_top + row * 5, max_chars, notepad_lines[i], XP_BLACK);
             }
         }
-        draw_compact_string(x + 8, y + h - 13, notepad_dirty ? "Modified (PgUp Save, PgDn Reload)" : "Saved (PgUp Save, PgDn Reload)", XP_BLACK);
+        draw_compact_string(x + 8, y + h - 13, notepad_dirty ? notepad_ui_status_modified() : notepad_ui_status_saved(), XP_WHITE);
         if (win == &windows[active_window]) {
-            int cx = x + 8 + notepad_cursor_x * 6;
+            int cx = x + 11 + notepad_cursor_x * 6;
             int cy = text_top + (notepad_cursor_y - notepad_view_top) * 5;
             if (cy >= text_top && cy < text_bottom) {
                 fill_rect(cx, cy, 5, 6, XP_BLACK);
             }
         }
     } else if (win->type == WIN_SETTINGS) {
-        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
+        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
+        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
+        draw_rect(x + 5, y + 23, w - 10, h - 28, XP_DGRAY);
         int nav_x = x + 6;
         int nav_y = y + 24;
         int nav_w = 108;
         int nav_h = h - 30;
-        fill_rect(nav_x, nav_y, nav_w, nav_h, XP_LGRAY);
-        draw_rect(nav_x, nav_y, nav_w, nav_h, XP_WHITE);
+        fill_rect(nav_x, nav_y, nav_w, nav_h, XP_WHITE);
+        draw_rect(nav_x, nav_y, nav_w, nav_h, XP_DGRAY);
         fill_rect(nav_x + 1, nav_y + 1, nav_w - 2, 12, XP_BLUE);
-        draw_compact_string(nav_x + 6, nav_y + 3, "Settings", XP_WHITE);
+        draw_compact_string(nav_x + 6, nav_y + 3, settings_ui_panel_title(), XP_WHITE);
 
         int content_x = nav_x + nav_w + 6;
         int content_y = y + 24;
         int content_w = w - (content_x - x) - 6;
         int content_h = h - 30;
+        int body_y = content_y + 12;
         fill_rect(content_x, content_y, content_w, content_h, XP_WHITE);
-        draw_rect(content_x, content_y, content_w, content_h, XP_LGRAY);
+        draw_rect(content_x, content_y, content_w, content_h, XP_DGRAY);
+        fill_rect(content_x + 1, content_y + 1, content_w - 2, 10, XP_LBLUE);
+        draw_compact_string_clipped(content_x + 6, content_y + 2, (content_w - 12) / 6, "Modern Control Center", XP_WHITE);
         int content_chars = (content_w - 12) / 6;
         if (content_chars < 1) content_chars = 1;
 
         for (int i = 0; i < SETTINGS_TAB_COUNT; i++) {
             int ty = nav_y + 20 + i * 16;
-            fill_rect(nav_x + 3, ty - 1, nav_w - 6, 13, (settings_tab == i) ? XP_LBLUE : XP_WHITE);
+            fill_rect(nav_x + 3, ty - 1, nav_w - 6, 13, (settings_tab == i) ? XP_LBLUE : XP_LGRAY);
             draw_rect(nav_x + 3, ty - 1, nav_w - 6, 13, XP_DGRAY);
             if (settings_tab == i) {
                 draw_rect(nav_x + 4, ty, nav_w - 8, 11, XP_WHITE);
             }
-            draw_compact_string_clipped(nav_x + 8, ty + 2, (nav_w - 14) / 6, settings_tabs[i], XP_BLACK);
+            draw_compact_string_clipped(nav_x + 8, ty + 2, (nav_w - 14) / 6, settings_ui_tab_name(i), XP_BLACK);
         }
 
         if (settings_tab == SETTINGS_TAB_SYSTEM) {
@@ -752,11 +917,11 @@ void draw_window(window_t* win) {
             strncpy(opt3, "3) Clock seconds: ", sizeof(opt3) - 1);
             opt3[sizeof(opt3) - 1] = 0;
             append_string(opt3, sizeof(opt3), setting_show_seconds ? "On" : "Off");
-            draw_compact_string_clipped(content_x + 6, content_y + 6, content_chars, "System Controls", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 22, content_chars, opt1, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 34, content_chars, opt2, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 46, content_chars, opt3, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 60, content_chars, "Storage devices:", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "System Controls", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, opt1, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, opt2, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, opt3, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 60, content_chars, "Storage devices:", XP_BLACK);
             int sc = fs_storage_get_device_count();
             char storage_line[44];
             strncpy(storage_line, "Detected profiles: ", sizeof(storage_line) - 1);
@@ -766,55 +931,142 @@ void draw_window(window_t* win) {
             c[0] = (char)('0' + sc);
             c[1] = 0;
             append_string(storage_line, sizeof(storage_line), c);
-            draw_compact_string_clipped(content_x + 6, content_y + 70, content_chars, storage_line, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 78, content_chars, "HDD SSD NVMe USB CDROM RAM", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, storage_line, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 78, content_chars, "HDD SSD NVMe USB CDROM RAM", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_PERSONALIZATION) {
-            draw_compact_string_clipped(content_x + 6, content_y + 6, content_chars, "Personalization", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 22, content_chars, "Theme: XP Classic", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 34, content_chars, "Desktop: 640x480", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 46, content_chars, "Color profile: Blue", XP_BLACK);
+            char res_line[40];
+            char scale_line[40];
+            sprintf(res_line, "Desktop: %ux%u", (unsigned int)current_width, (unsigned int)current_height);
+            sprintf(scale_line, "UI Scale Profile: x%d", get_ui_scale());
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Personalization", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Theme: XP Classic", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, res_line, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, scale_line, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, "Color profile: Blue", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_BLUETOOTH_DEVICES) {
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Bluetooth & devices", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Bluetooth: Off", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Mouse: PS/2 Compatible", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "Keyboard: PS/2 Standard", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_NETWORK_INTERNET) {
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Network & internet", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Network stack: Not enabled", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Adapter: Virtual profile", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_APPS) {
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Apps", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Built-in executables:", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "- NOTEPAD.EXE", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "- SETTINGS.EXE", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, "- EXPLORER.EXE", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 72, content_chars, "App root: C:/GamerOS/Apps", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_ACCOUNTS) {
-            draw_compact_string_clipped(content_x + 6, content_y + 6, content_chars, "Accounts", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 22, content_chars, "Current user: Admin", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 34, content_chars, "Profile: C:/Users/Admin", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 46, content_chars, "Mode: Local", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Accounts", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Current user: Admin", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Profile: C:/Users/Admin", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "Mode: Local", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
+            uint8_t hrt = 0, mnt = 0, sct = 0;
+            get_time(&hrt, &mnt, &sct);
+            char tm[16];
+            sprintf(tm, "Time: %u:%u:%u", (unsigned int)hrt, (unsigned int)mnt, (unsigned int)sct);
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Time & language", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, tm, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Language: English (US)", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_GAMING) {
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Gaming", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Graphics mode: VGA 16-color", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Input latency mode: Balanced", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_ACCESSIBILITY) {
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Accessibility", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "High contrast: Off", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Large text mode: Off", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_PRIVACY_SECURITY) {
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Privacy & security", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Auth model: Enabled", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Isolation table: Active", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_ABOUT) {
-            draw_compact_string_clipped(content_x + 6, content_y + 6, content_chars, "About GamerOS", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 22, content_chars, "Version: 00m1", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 34, content_chars, "Build: 1.200", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 46, content_chars, "Kernel: x86_64", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 58, content_chars, "Graphics: VGA 640x480x16", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 70, content_chars, "System32: C:/GamerOS/System32", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 82, content_chars, "Apps: NOTEPAD/SETTINGS/EXPLORER", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, content_y + 94, content_chars, "Author: Chosentechies", XP_BLACK);
-        } else if (settings_tab == SETTINGS_TAB_CHANGELOG) {
-            int total = (int)(sizeof(settings_changelog_lines) / sizeof(settings_changelog_lines[0]));
+            char gfx_line[48];
+            sprintf(gfx_line, "Graphics: VGA %ux%ux16", (unsigned int)current_width, (unsigned int)current_height);
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "About GamerOS", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Version: 00m1", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Build: 1.300", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "Kernel: x86_64", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, gfx_line, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, "System32: C:/GamerOS/System32", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 82, content_chars, "Apps: *.EXE (NOTEPAD/SETTINGS/EXPLORER)", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 94, content_chars, "Author: Chosentechies", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
+            settings_md_ensure_loaded();
+            int total = settings_md_line_count;
             int row_h = 10;
-            int visible = (content_h - 20) / row_h;
+            int visible = (content_h - 30) / row_h;
             if (visible < 1) visible = 1;
-            int top = settings_scroll_top[SETTINGS_TAB_CHANGELOG];
+            int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
             if (top < 0) top = 0;
             if (top > total - visible) top = total - visible;
             if (top < 0) top = 0;
-            settings_scroll_top[SETTINGS_TAB_CHANGELOG] = top;
+            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
             for (int r = 0; r < visible; r++) {
                 int idx = top + r;
                 if (idx >= total) break;
-                draw_compact_string_clipped(content_x + 6, content_y + 8 + r * row_h, content_chars, settings_changelog_lines[idx], XP_BLACK);
+                markdown_line_t* md = &settings_md_lines[idx];
+                draw_compact_string_clipped(content_x + 6 + md->indent, body_y + 6 + r * row_h, content_chars, md->text, md->color);
             }
-            draw_compact_string_clipped(content_x + 6, content_y + content_h - 10, content_chars, "Mouse wheel: scroll changelog", XP_DGRAY);
+            draw_compact_string_clipped(content_x + 6, content_y + content_h - 10, content_chars, "Markdown viewer: mouse wheel scroll", XP_DGRAY);
         }
     } else if (win->type == WIN_EXPLORER) {
-        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
+        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
+        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
+        draw_rect(x + 5, y + 23, w - 10, h - 28, XP_DGRAY);
 
         fill_rect(x + 6, y + 24, w - 12, 12, XP_LBLUE);
-        draw_compact_string(x + 10, y + 26, "This PC", XP_WHITE);
-        draw_compact_string(x + 10, y + 42, "Explorer Safe Mode", XP_BLACK);
-        draw_compact_string(x + 10, y + 54, "Drive view temporarily", XP_BLACK);
-        draw_compact_string(x + 10, y + 66, "limited for VMware stability.", XP_BLACK);
-        draw_compact_string(x + 10, y + 82, "C: Local Disk", XP_BLACK);
-        draw_compact_string(x + 10, y + 94, "D: Data", XP_BLACK);
+        draw_compact_string(x + 10, y + 26, explorer_this_pc_view ? explorer_ui_title() : explorer_path, XP_WHITE);
+        if (!explorer_this_pc_view) {
+            fill_rect(x + w - 48, y + 25, 40, 10, XP_LGRAY);
+            draw_rect(x + w - 48, y + 25, 40, 10, XP_DGRAY);
+            draw_compact_string(x + w - 43, y + 26, "[Up]", XP_BLACK);
+        }
+        fill_rect(x + 8, y + 40, 82, h - 50, XP_WHITE);
+        draw_rect(x + 8, y + 40, 82, h - 50, XP_DGRAY);
+        draw_compact_string(x + 12, y + 44, "Quick Access", XP_BLACK);
+        draw_compact_string(x + 12, y + 56, "Desktop", XP_BLACK);
+        draw_compact_string(x + 12, y + 68, "Documents", XP_BLACK);
+        draw_compact_string(x + 12, y + 80, "Downloads", XP_BLACK);
+        draw_compact_string(x + 12, y + 92, "This PC", XP_BLACK);
+        fill_rect(x + 94, y + 40, w - 100, h - 50, XP_WHITE);
+        draw_rect(x + 94, y + 40, w - 100, h - 50, XP_DGRAY);
+        int list_x = x + 100;
+        int list_y = y + 44;
+        int list_w = w - 110;
+        int max_chars = list_w / 6;
+        if (max_chars < 1) max_chars = 1;
+        int row_h = 12;
+
+        if (explorer_this_pc_view) {
+            for (int i = 0; i < explorer_drive_count; i++) {
+                int row_y = list_y + i * row_h;
+                fill_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
+                draw_compact_string_clipped(list_x, row_y, max_chars, explorer_drive_labels[i], XP_BLACK);
+            }
+        } else {
+            for (int i = 0; i < explorer_entry_count; i++) {
+                int row_y = list_y + i * row_h;
+                const char* base = path_basename(explorer_entries[i]);
+                char line[MAX_FILENAME_LEN + 8];
+                line[0] = 0;
+                if (explorer_is_dir[i]) {
+                    append_string(line, sizeof(line), "[DIR] ");
+                } else {
+                    append_string(line, sizeof(line), "      ");
+                }
+                append_string(line, sizeof(line), base);
+                fill_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
+                draw_compact_string_clipped(list_x, row_y, max_chars, line, XP_BLACK);
+            }
+            if (explorer_entry_count == 0) {
+                draw_compact_string_clipped(list_x, list_y, max_chars, "(empty folder)", XP_DGRAY);
+            }
+        }
     }
 }
 
@@ -822,15 +1074,27 @@ void draw_window(window_t* win) {
 typedef struct {
     int x, y;
     const char* label;
-    int type;
+    const char* exe_name;
+    int window_type;
 } desktop_icon_t;
 
 static desktop_icon_t desktop_icons[] = {
-    {18, 18, "Notepad", WIN_NOTEPAD},
-    {18, 62, "Settings", WIN_SETTINGS},
-    {18, 106, "Explorer", WIN_EXPLORER},
+    {18, 18, "Notepad", "NOTEPAD.EXE", WIN_NOTEPAD},
+    {18, 62, "Settings", "SETTINGS.EXE", WIN_SETTINGS},
+    {18, 106, "Explorer", "EXPLORER.EXE", WIN_EXPLORER},
 };
 #define NUM_ICONS (sizeof(desktop_icons) / sizeof(desktop_icons[0]))
+
+static void layout_desktop_icons(void) {
+    int scale = get_ui_scale();
+    int base_x = 18 + (scale - 1) * 10;
+    int base_y = 18 + (scale - 1) * 8;
+    int spacing = 44 + (scale - 1) * 16;
+    for (int i = 0; i < (int)NUM_ICONS; i++) {
+        desktop_icons[i].x = base_x;
+        desktop_icons[i].y = base_y + (i * spacing);
+    }
+}
 
 static void draw_notepad_icon(int x, int y) {
     // Paper body
@@ -860,11 +1124,11 @@ static void draw_explorer_icon(int x, int y) {
     draw_rect(x, y + 5, DESKTOP_ICON_W, DESKTOP_ICON_H - 5, XP_WHITE);
 }
 
-static void draw_desktop_icon(int x, int y, int type) {
-    if (type == WIN_SETTINGS) {
+static void draw_desktop_icon(int x, int y, int window_type) {
+    if (window_type == WIN_SETTINGS) {
         draw_settings_icon(x, y);
         return;
-    } else if (type == WIN_EXPLORER) {
+    } else if (window_type == WIN_EXPLORER) {
         draw_explorer_icon(x, y);
         return;
     }
@@ -872,49 +1136,64 @@ static void draw_desktop_icon(int x, int y, int type) {
 }
 
 static void draw_start_menu(void) {
-    int menu_x = START_MENU_X;
-    int menu_w = START_MENU_W;
-    int menu_h = START_MENU_H;
-    int menu_y = (int)current_height - TASKBAR_HEIGHT - START_MENU_H;
-    int item_h = START_MENU_ITEM_H;
+    start_menu_metrics_t sm = {0};
+    get_start_menu_metrics(&sm);
+    int menu_x = sm.x;
+    int menu_w = sm.w;
+    int menu_h = sm.h;
+    int menu_y = sm.y;
+    int item_h = sm.item_h;
 
-    // Outer shell
-    fill_rect(menu_x, menu_y, menu_w, menu_h, XP_LGRAY);
-    draw_rect(menu_x, menu_y, menu_w, menu_h, XP_WHITE);
+    // Aero-like shell
+    fill_rect(menu_x, menu_y, menu_w, menu_h, XP_DGRAY);
+    draw_rect(menu_x, menu_y, menu_w, menu_h, XP_LBLUE);
     draw_rect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, XP_BLUE);
 
-    // Left user pane
-    fill_rect(menu_x + 4, menu_y + 4, 38, menu_h - 8, XP_BLUE);
-    draw_string(menu_x + 10, menu_y + 10, "XP", XP_WHITE);
+    // Left profile pane
+    fill_rect(menu_x + 4, menu_y + 4, 42, menu_h - 8, XP_BLUE);
+    fill_rect(menu_x + 4, menu_y + 4, 42, 18, XP_LBLUE);
+    draw_string(menu_x + 10, menu_y + 10, "GO", XP_WHITE);
 
     // Header bar
-    fill_rect(menu_x + 44, menu_y + 4, menu_w - 48, 18, XP_LBLUE);
-    draw_string(menu_x + 48, menu_y + 9, "GamerOS", XP_WHITE);
+    fill_rect(menu_x + 48, menu_y + 4, menu_w - 52, 18, XP_BLUE);
+    fill_rect(menu_x + 48, menu_y + 4, menu_w - 52, 4, XP_LBLUE);
+    draw_string(menu_x + 52, menu_y + 9, "GamerOS", XP_WHITE);
 
     // Menu items
-    fill_rect(menu_x + 46, menu_y + 28, menu_w - 52, item_h - 2, XP_WHITE);
-    draw_string(menu_x + 52, menu_y + 34, "Notepad", XP_BLACK);
+    const char* items[] = {
+        "Notepad",
+        "Settings",
+        "File Explorer",
+        "GamerOS Update",
+        "About GamerOS"
+    };
+    int item_count = 5;
+    for (int i = 0; i < item_count; i++) {
+        int iy = menu_y + 28 + i * item_h;
+        fill_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, (i == 0) ? XP_LBLUE : XP_LGRAY);
+        draw_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, XP_DGRAY);
+        draw_string(menu_x + 56, iy + 6, items[i], XP_BLACK);
+    }
 
-    fill_rect(menu_x + 46, menu_y + 28 + item_h, menu_w - 52, item_h - 2, XP_LGRAY);
-    draw_string(menu_x + 52, menu_y + 34 + item_h, "Settings", XP_BLACK);
-
-    fill_rect(menu_x + 46, menu_y + 28 + (item_h * 2), menu_w - 52, item_h - 2, XP_LGRAY);
-    draw_string(menu_x + 52, menu_y + 34 + (item_h * 2), "File Explorer", XP_BLACK);
-
-    fill_rect(menu_x + 44, menu_y + menu_h - 24, menu_w - 48, 16, XP_DGRAY);
-    draw_string(menu_x + 50, menu_y + menu_h - 20, "Shut Down", XP_WHITE);
+    fill_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_BLUE);
+    draw_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_WHITE);
+    draw_string(menu_x + 54, menu_y + menu_h - 20, "Shut Down", XP_WHITE);
 }
 
 void draw_desktop(void) {
-    fill_rect(0, 0, current_width, current_height - TASKBAR_HEIGHT, 0x39);
+    layout_desktop_icons();
+    int desktop_h = (int)current_height - TASKBAR_HEIGHT;
+    draw_desktop_wallpaper(desktop_h);
     if (setting_desktop_glow) {
-        fill_rect(0, current_height - TASKBAR_HEIGHT - 14, current_width, 14, XP_LBLUE);
+        fill_rect(0, current_height - TASKBAR_HEIGHT - 20, current_width, 20, XP_LBLUE);
+        fill_rect(0, current_height - TASKBAR_HEIGHT - 10, current_width, 10, XP_BLUE);
     }
+    draw_desktop_watermark();
     
     for (int i = 0; i < (int)NUM_ICONS; i++) {
         int x = desktop_icons[i].x;
         int y = desktop_icons[i].y;
-        draw_desktop_icon(x, y, desktop_icons[i].type);
+        draw_desktop_icon(x, y, desktop_icons[i].window_type);
         int label_w = (int)strlen(desktop_icons[i].label) * 6;
         int label_x = x + (DESKTOP_ICON_W / 2) - (label_w / 2);
         draw_compact_string(label_x, y + DESKTOP_ICON_H + 3, desktop_icons[i].label, XP_WHITE);
@@ -925,18 +1204,18 @@ void draw_desktop(void) {
             draw_window(&windows[i]);
         }
     }
-
-    draw_desktop_watermark();
     
     // Taskbar
     int taskbar_y = (int)current_height - TASKBAR_HEIGHT;
     int start_y = taskbar_y + ((TASKBAR_HEIGHT - START_BTN_H) / 2);
     int taskbtn_y = taskbar_y + ((TASKBAR_HEIGHT - TASKBTN_H) / 2);
-    fill_rect(0, taskbar_y, current_width, TASKBAR_HEIGHT, XP_BLUE);
-    draw_rect(0, taskbar_y, current_width, TASKBAR_HEIGHT, XP_WHITE);
+    fill_rect(0, taskbar_y, current_width, 3, XP_LBLUE);
+    fill_rect(0, taskbar_y + 3, current_width, TASKBAR_HEIGHT - 3, XP_DGRAY);
+    draw_rect(0, taskbar_y, current_width, TASKBAR_HEIGHT, XP_BLUE);
 
     // Start button (center text inside the button using compact font for consistent metrics)
-    fill_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_GREEN);
+    fill_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_BLUE);
+    fill_rect(START_BTN_X, start_y, START_BTN_W, 4, XP_LBLUE);
     draw_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_WHITE);
     {
         const char* start_label = "Start";
@@ -953,8 +1232,7 @@ void draw_desktop(void) {
     // Taskbar items
     int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
     int task_x = 56;
-    int clock_chars = setting_show_seconds ? 8 : 5;
-    int clock_w = (clock_chars * 6) + 8;
+    int clock_w = taskbar_clock_width();
     int clock_h = TASKBTN_H;
     int clock_x = (int)current_width - clock_w - 4;
     int clock_y = taskbar_y + ((TASKBAR_HEIGHT - clock_h) / 2);
@@ -985,28 +1263,42 @@ void draw_desktop(void) {
     
     // Clock
     uint8_t hour = 0, minute = 0, second = 0;
+    uint8_t day = 0, month = 0, weekday = 0;
+    uint16_t year = 0;
     get_time(&hour, &minute, &second);
-    char time_str[9];
-    time_str[0] = (char)('0' + ((hour / 10) % 10));
-    time_str[1] = (char)('0' + (hour % 10));
-    time_str[2] = ':';
-    time_str[3] = (char)('0' + ((minute / 10) % 10));
-    time_str[4] = (char)('0' + (minute % 10));
+    get_date(&day, &month, &year, &weekday);
+    char datetime_str[20];
+    datetime_str[0] = (char)('0' + ((hour / 10) % 10));
+    datetime_str[1] = (char)('0' + (hour % 10));
+    datetime_str[2] = ':';
+    datetime_str[3] = (char)('0' + ((minute / 10) % 10));
+    datetime_str[4] = (char)('0' + (minute % 10));
+    int datetime_len = 5;
     if (setting_show_seconds) {
-        time_str[5] = ':';
-        time_str[6] = (char)('0' + ((second / 10) % 10));
-        time_str[7] = (char)('0' + (second % 10));
-        time_str[8] = 0;
-    } else {
-        time_str[5] = 0;
+        datetime_str[5] = ':';
+        datetime_str[6] = (char)('0' + ((second / 10) % 10));
+        datetime_str[7] = (char)('0' + (second % 10));
+        datetime_len = 8;
     }
+    datetime_str[datetime_len++] = ' ';
+    datetime_str[datetime_len++] = (char)('0' + ((day / 10) % 10));
+    datetime_str[datetime_len++] = (char)('0' + (day % 10));
+    datetime_str[datetime_len++] = '/';
+    datetime_str[datetime_len++] = (char)('0' + ((month / 10) % 10));
+    datetime_str[datetime_len++] = (char)('0' + (month % 10));
+    datetime_str[datetime_len++] = '/';
+    datetime_str[datetime_len++] = (char)('0' + ((year / 1000) % 10));
+    datetime_str[datetime_len++] = (char)('0' + ((year / 100) % 10));
+    datetime_str[datetime_len++] = (char)('0' + ((year / 10) % 10));
+    datetime_str[datetime_len++] = (char)('0' + (year % 10));
+    datetime_str[datetime_len] = 0;
     fill_rect(clock_x, clock_y, clock_w, clock_h, XP_LBLUE);
     draw_rect(clock_x, clock_y, clock_w, clock_h, XP_WHITE);
     {
-        int clock_text_w = ((int)strlen(time_str)) * 6;
+        int clock_text_w = ((int)strlen(datetime_str)) * 6;
         int clock_text_x = clock_x + (clock_w - clock_text_w) / 2;
         int clock_text_y = clock_y + (clock_h - 8) / 2;
-        draw_compact_string(clock_text_x, clock_text_y, time_str, XP_WHITE);
+        draw_compact_string(clock_text_x, clock_text_y, datetime_str, XP_WHITE);
     }
 }
 
@@ -1046,8 +1338,9 @@ static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
     if (settings_tab == SETTINGS_TAB_SYSTEM) {
         int content_x = nav_x + nav_w + 6;
         int content_y = win->y + 24;
+        int body_y = content_y + 12;
         int rel_x = mx - (content_x + 6);
-        int rel_y = my - (content_y + 22);
+        int rel_y = my - (body_y + 22);
         if (rel_x >= 0 && rel_x < 150) {
             if (rel_y >= 0 && rel_y < 8) {
                 setting_compact_mode = (uint8_t)!setting_compact_mode;
@@ -1067,16 +1360,68 @@ static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
 }
 
 static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
-    (void)win;
-    (void)mx;
-    (void)my;
-    // Safe mode: no dynamic actions until VMware fault source is fully isolated.
+    if (!win) return 0;
+    int x = win->x;
+    int y = win->y;
+    int w = win->w;
+    int h = win->h;
+
+    // Up button in header when inside a drive view.
+    if (!explorer_this_pc_view &&
+        mx >= x + w - 48 && mx < x + w - 8 &&
+        my >= y + 25 && my < y + 35) {
+        explorer_go_parent();
+        return 1;
+    }
+
+    // Quick access: This PC
+    if (mx >= x + 8 && mx < x + 90 && my >= y + 90 && my < y + 102) {
+        if (!storage_initialized) {
+            ensure_storage_initialized();
+            explorer_build_this_pc_entries();
+        }
+        explorer_open_this_pc();
+        return 1;
+    }
+
+    // Main list area
+    int list_x = x + 96;
+    int list_y = y + 40;
+    int list_w = w - 100;
+    int list_h = h - 50;
+    if (list_w <= 0 || list_h <= 0) return 0;
+    if (mx < list_x || mx >= list_x + list_w || my < list_y || my >= list_y + list_h) return 0;
+
+    int row = (my - (y + 44)) / 12;
+    if (row < 0) return 1;
+
+    if (explorer_this_pc_view) {
+        if (!storage_initialized) {
+            ensure_storage_initialized();
+            explorer_build_this_pc_entries();
+        }
+        if (row >= explorer_drive_count) return 1;
+        explorer_selected = row;
+        strncpy(explorer_path, explorer_drive_paths[row], sizeof(explorer_path) - 1);
+        explorer_path[sizeof(explorer_path) - 1] = 0;
+        explorer_this_pc_view = 0;
+        explorer_refresh();
+        return 1;
+    }
+
+    if (row >= explorer_entry_count) return 1;
+    explorer_selected = row;
+    if (explorer_is_dir[row]) {
+        strncpy(explorer_path, explorer_entries[row], sizeof(explorer_path) - 1);
+        explorer_path[sizeof(explorer_path) - 1] = 0;
+        explorer_refresh();
+    }
     return 1;
 }
 
 static int handle_notepad_wheel(window_t* win, int8_t wheel_delta) {
     if (!win || wheel_delta == 0) return 0;
-    int text_top = win->y + 26;
+    int text_top = win->y + 36;
     int text_bottom = win->y + win->h - 18;
     int visible_lines = (text_bottom - text_top) / 5;
     if (visible_lines < 1) visible_lines = 1;
@@ -1103,16 +1448,17 @@ static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t w
         return 0;
     }
 
-    if (settings_tab == SETTINGS_TAB_CHANGELOG) {
-        int total = (int)(sizeof(settings_changelog_lines) / sizeof(settings_changelog_lines[0]));
-        int visible = (content_h - 20) / 10;
+    if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
+        settings_md_ensure_loaded();
+        int total = settings_md_line_count;
+        int visible = (content_h - 30) / 10;
         if (visible < 1) visible = 1;
-        int top = settings_scroll_top[SETTINGS_TAB_CHANGELOG] - (int)wheel_delta;
+        int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] - (int)wheel_delta;
         if (top < 0) top = 0;
         if (top > total - visible) top = total - visible;
         if (top < 0) top = 0;
-        if (top != settings_scroll_top[SETTINGS_TAB_CHANGELOG]) {
-            settings_scroll_top[SETTINGS_TAB_CHANGELOG] = top;
+        if (top != settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE]) {
+            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
             return 1;
         }
     }
@@ -1135,19 +1481,25 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
 
         // Start menu items
         if (start_menu_open) {
-            int menu_x = START_MENU_X;
-            int menu_w = START_MENU_W;
-            int menu_h = START_MENU_H;
-            int menu_y = (int)current_height - TASKBAR_HEIGHT - menu_h;
-            int menu_item_h = START_MENU_ITEM_H;
+            start_menu_metrics_t sm = {0};
+            get_start_menu_metrics(&sm);
+            int menu_x = sm.x;
+            int menu_w = sm.w;
+            int menu_h = sm.h;
+            int menu_y = sm.y;
+            int menu_item_h = sm.item_h;
             if (mx >= menu_x && mx < menu_x + menu_w && my >= menu_y && my < menu_y + menu_h) {
                 int rel_y = my - (menu_y + 28);
                 if (rel_y >= 0 && rel_y < menu_item_h) {
-                    open_window(WIN_NOTEPAD, 50, 28);
+                    launch_application_exe("NOTEPAD.EXE", -1, -1);
                 } else if (rel_y >= menu_item_h && rel_y < (menu_item_h * 2)) {
-                    open_window(WIN_SETTINGS, 50, 24);
+                    launch_application_exe("SETTINGS.EXE", -1, -1);
                 } else if (rel_y >= (menu_item_h * 2) && rel_y < (menu_item_h * 3)) {
-                    open_window(WIN_EXPLORER, 42, 28);
+                    launch_application_exe("EXPLORER.EXE", -1, -1);
+                } else if (rel_y >= (menu_item_h * 3) && rel_y < (menu_item_h * 4)) {
+                    launch_settings_tab(SETTINGS_TAB_GAMEROS_UPDATE);
+                } else if (rel_y >= (menu_item_h * 4) && rel_y < (menu_item_h * 5)) {
+                    launch_settings_tab(SETTINGS_TAB_ABOUT);
                 } else if (my >= menu_y + menu_h - 24 && my < menu_y + menu_h - 8 &&
                            mx >= menu_x + 44 && mx < menu_x + menu_w - 4) {
                     shutdown_os();
@@ -1206,7 +1558,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             int iy = desktop_icons[i].y;
             if (mx >= ix && mx < ix + DESKTOP_ICON_HIT_W &&
                 my >= iy && my < iy + DESKTOP_ICON_HIT_H) {
-                open_window(desktop_icons[i].type, 60 + i * 30, 40 + i * 20);
+                launch_application_exe(desktop_icons[i].exe_name, 60 + i * 30, 40 + i * 20);
                 RETURN_MOUSE();
             }
         }
@@ -1216,8 +1568,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
         int taskbtn_y = taskbar_y + ((TASKBAR_HEIGHT - TASKBTN_H) / 2);
         int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
         int task_x = 56;
-        int clock_chars = setting_show_seconds ? 8 : 5;
-        int clock_w = (clock_chars * 6) + 8;
+        int clock_w = taskbar_clock_width();
         int clock_x = (int)current_width - clock_w - 4;
         int task_right_limit = clock_x - 4;
         for (int i = 0; i < MAX_WINDOWS; i++) {
@@ -1303,14 +1654,12 @@ int process_keyboard(void) {
         
         if (win->type == WIN_NOTEPAD) {
             if ((uint8_t)c == KEY_PGUP) {
-                if (storage_initialized) {
-                    notepad_save_to_storage();
-                }
+                if (!storage_initialized) ensure_storage_initialized();
+                if (storage_initialized) notepad_save_to_storage();
                 changed = 1;
             } else if ((uint8_t)c == KEY_PGDN) {
-                if (storage_initialized) {
-                    notepad_load_from_storage();
-                }
+                if (!storage_initialized) ensure_storage_initialized();
+                if (storage_initialized) notepad_load_from_storage();
                 changed = 1;
             } else if ((uint8_t)c == KEY_DEL) {
                 if (notepad_cursor_x < NOTEPAD_MAX_COLS - 1) {
@@ -1404,7 +1753,7 @@ int process_keyboard(void) {
             if (notepad_cursor_y < notepad_view_top) {
                 notepad_view_top = notepad_cursor_y;
             } else {
-                int text_top = win->y + 26;
+                int text_top = win->y + 36;
                 int text_bottom = win->y + win->h - 18;
                 int visible_lines = (text_bottom - text_top) / 5;
                 if (visible_lines < 1) visible_lines = 1;
@@ -1530,6 +1879,13 @@ void kernel_main(void) {
         last_mx = mx;
         last_my = my;
         last_buttons = buttons;
+
+        // Tiny idle pause to reduce VM jitter when frame is unchanged.
+        if (!full_redraw && !mouse_moved && !keyboard_changed && wheel_delta == 0) {
+            for (volatile int i = 0; i < 1200; i++) {
+                __asm__ volatile ("pause");
+            }
+        }
     }
 }
 

@@ -14,6 +14,11 @@ ASM_SRC = $(SRC_DIR)/impl/x86_64/boot.asm \
 C_SRC = $(SRC_DIR)/impl/kernel/main.c \
         $(SRC_DIR)/impl/graphics/vga_graphics.c \
         $(SRC_DIR)/impl/graphics/font.c \
+        $(SRC_DIR)/apps/apps.c \
+        $(SRC_DIR)/apps/notepad/notepad_ui.c \
+        $(SRC_DIR)/apps/settings/settings_ui.c \
+        $(SRC_DIR)/apps/explorer/explorer_ui.c \
+        $(SRC_DIR)/resources/wallpapers/background_wallpaper.c \
         $(SRC_DIR)/impl/filesystem/fs.c \
         $(SRC_DIR)/impl/graphics/cursor.c \
         $(SRC_DIR)/impl/drivers/keyboard.c \
@@ -36,6 +41,11 @@ ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o \
 C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
         $(BUILD_DIR)/$(ARCH)/font.o \
+        $(BUILD_DIR)/$(ARCH)/apps.o \
+        $(BUILD_DIR)/$(ARCH)/apps_notepad_ui.o \
+        $(BUILD_DIR)/$(ARCH)/apps_settings_ui.o \
+        $(BUILD_DIR)/$(ARCH)/apps_explorer_ui.o \
+        $(BUILD_DIR)/$(ARCH)/background_wallpaper.o \
         $(BUILD_DIR)/$(ARCH)/fs.o \
         $(BUILD_DIR)/$(ARCH)/cursor.o \
         $(BUILD_DIR)/$(ARCH)/keyboard.o \
@@ -107,6 +117,21 @@ $(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/impl/graphics/vga_graphics.c | $
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/font.o: $(SRC_DIR)/impl/graphics/font.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/apps.o: $(SRC_DIR)/apps/apps.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/apps_notepad_ui.o: $(SRC_DIR)/apps/notepad/notepad_ui.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/apps_settings_ui.o: $(SRC_DIR)/apps/settings/settings_ui.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/apps_explorer_ui.o: $(SRC_DIR)/apps/explorer/explorer_ui.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/background_wallpaper.o: $(SRC_DIR)/resources/wallpapers/background_wallpaper.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/fs.o: $(SRC_DIR)/impl/filesystem/fs.c | $(BUILD_DIR)/$(ARCH)

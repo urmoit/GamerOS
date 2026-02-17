@@ -1,0 +1,5 @@
+Name=Notepad
+Executable=NOTEPAD.EXE
+SystemPath=C:/GamerOS/System32/NOTEPAD.EXE
+Subsystem=GamerOS
+Entry=WIN_NOTEPAD

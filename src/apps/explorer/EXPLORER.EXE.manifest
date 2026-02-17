@@ -1,0 +1,5 @@
+Name=File Explorer
+Executable=EXPLORER.EXE
+SystemPath=C:/GamerOS/System32/EXPLORER.EXE
+Subsystem=GamerOS
+Entry=WIN_EXPLORER

@@ -6,7 +6,7 @@
 #define KBD_STATUS_PORT 0x64
 
 // Keyboard buffer
-#define KBD_BUFFER_SIZE 64
+#define KBD_BUFFER_SIZE 256
 static char kbd_buffer[KBD_BUFFER_SIZE];
 static int kbd_read_idx = 0;
 static int kbd_write_idx = 0;
@@ -37,10 +37,12 @@ static int caps_lock = 0;
 // Add character to buffer
 static void kbd_buffer_put(char c) {
     int next = (kbd_write_idx + 1) % KBD_BUFFER_SIZE;
-    if (next != kbd_read_idx) {
-        kbd_buffer[kbd_write_idx] = c;
-        kbd_write_idx = next;
+    if (next == kbd_read_idx) {
+        // Preserve newest input under burst typing by discarding oldest byte.
+        kbd_read_idx = (kbd_read_idx + 1) % KBD_BUFFER_SIZE;
     }
+    kbd_buffer[kbd_write_idx] = c;
+    kbd_write_idx = next;
 }
 
 // Get character from buffer
