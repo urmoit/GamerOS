@@ -358,7 +358,7 @@ static void draw_compact_string_clipped(int x, int y, int max_chars, const char*
 
 static void draw_desktop_watermark(void) {
     const char* line1 = "GamerOS 00m1 Aero Preview";
-    const char* line2 = "Windows 7 Style UI - Build 1.300";
+    const char* line2 = "Windows 7 Style UI - Build 1.400";
     int w1 = (int)strlen(line1) * 6;
     int w2 = (int)strlen(line2) * 6;
     int max_w = (w1 > w2) ? w1 : w2;
