@@ -2,6 +2,7 @@
 #define GRAPHICS_H
 
 #include "stdint.h"
+struct multiboot_info;
 
 // Video modes
 #define VGA_MODE_13H_WIDTH 320
@@ -32,7 +33,8 @@ extern int graphics_mode;
 typedef enum {
     MODE_VGA_320x200,
     MODE_VESA_640x480,
-    MODE_VESA_800x600
+    MODE_VESA_800x600,
+    MODE_VESA_1920x1080
 } video_mode_t;
 
 typedef video_mode_t vga_mode_t;
@@ -55,6 +57,12 @@ void draw_rect(int x, int y, int w, int h, uint8_t color);
 void draw_line(int x1, int y1, int x2, int y2, uint8_t color);
 void swap_buffers(void);
 void present_rect(int x, int y, int w, int h);
+int graphics_use_multiboot_framebuffer(const struct multiboot_info* mb_info);
+int graphics_is_truecolor(void);
+uint32_t graphics_get_pixel_rgb(int x, int y);
+uint8_t graphics_get_bpp(void);
+void draw_pixel_rgb(int x, int y, uint32_t rgb);
+void clear_screen_rgb(uint32_t rgb);
 
 // Text
 void draw_char(int x, int y, char c, uint8_t color);

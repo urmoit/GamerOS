@@ -4,17 +4,17 @@ section .multiboot_header
 align 4
 header_start:
     dd 0x1BADB002
-    dd 0x00000003       ; Flags: ALIGN | MEMINFO
-    dd -(0x1BADB002 + 0x00000003) ; Checksum
+    dd 0x00000007       ; Flags: ALIGN | MEMINFO | VIDEO_MODE
+    dd -(0x1BADB002 + 0x00000007) ; Checksum
 
     ; Address fields (unused if bit 16 is not set, but kept for alignment if needed, usually 0)
     dd 0, 0, 0, 0, 0
 
-    ; Graphics request fields are ignored unless VIDEO_MODE flag is set.
+    ; Graphics request fields (Multiboot 1): linear graphics mode 1920x1080x32.
     dd 0
-    dd 0
-    dd 0
-    dd 0
+    dd 1920
+    dd 1080
+    dd 32
 header_end:
 
 section .text
@@ -491,38 +491,36 @@ boot_main32:
 
     ; We run in VGA mode 12h and use a planar-present path in the 64-bit renderer.
 
-    ; Setup paging - Identity map first 4GB using 2MB huge pages
-    %define P4_TABLE 0x200000
-    %define P3_TABLE 0x201000
-    %define P2_TABLE 0x202000 ; Uses 4 pages: 202000-205FFFF
+    ; Setup paging - Identity map first 4GB using 2MB huge pages.
+    ; Use page-aligned tables allocated in kernel BSS to avoid fixed-address conflicts.
 
     ; Clear P4, P3, and 4 P2 tables (6 pages = 24KB)
-    mov edi, P4_TABLE
+    mov edi, p4_table
     mov ecx, 512 * 6 * 2 ; 512 entries/page * 6 pages * 2 (8 bytes/entry)
     xor eax, eax
     rep stosd
 
     ; P4[0] -> P3
-    mov eax, P3_TABLE
+    mov eax, p3_table
     or eax, 0b11
-    mov [P4_TABLE], eax
+    mov [p4_table], eax
 
     ; P3[0-3] -> P2 tables (4 entries)
     mov ecx, 0
 .p3_init:
-    mov eax, P2_TABLE
+    mov eax, p2_tables
     mov edx, ecx
     shl edx, 12          ; ecx * 4096
     add eax, edx
     or eax, 0b11
-    mov [P3_TABLE + ecx*8], eax
-    mov dword [P3_TABLE + ecx*8 + 4], 0
+    mov [p3_table + ecx*8], eax
+    mov dword [p3_table + ecx*8 + 4], 0
     inc ecx
     cmp ecx, 4
     jl .p3_init
 
     ; Fill P2 tables with 2MB huge pages (2048 entries total = 4GB)
-    mov edi, P2_TABLE
+    mov edi, p2_tables
     mov ecx, 2048
     mov eax, 0x83        ; Present + Writable + Huge
 .p2_loop:
@@ -538,7 +536,7 @@ boot_main32:
     or eax, 1 << 5
     mov cr4, eax
 
-    mov eax, P4_TABLE
+    mov eax, p4_table
     mov cr3, eax
 
     mov ecx, 0xC0000080
@@ -585,6 +583,16 @@ cpu_vendor:
     
 multiboot_ptr:
     resd 1
+
+align 4096
+p4_table:
+    resq 512
+align 4096
+p3_table:
+    resq 512
+align 4096
+p2_tables:
+    resq (512 * 4)
 
 stack_bottom:
     resb 16384

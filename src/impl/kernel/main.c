@@ -8,6 +8,7 @@
 #include "../../intf/font.h"
 #include "../../intf/fs.h"
 #include "../../intf/apps.h"
+#include "../../intf/multiboot.h"
 #include "../../apps/notepad/notepad_ui.h"
 #include "../../apps/settings/settings_ui.h"
 #include "../../apps/explorer/explorer_ui.h"
@@ -114,7 +115,7 @@ static char explorer_drive_paths[EXPLORER_MAX_ENTRIES][4];
 static char explorer_drive_labels[EXPLORER_MAX_ENTRIES][32];
 static int explorer_drive_count = 0;
 static uint8_t storage_initialized = 0;
-static uint8_t cursor_under[CURSOR_SIZE * CURSOR_SIZE];
+static uint32_t cursor_under_rgb[CURSOR_SIZE * CURSOR_SIZE];
 static uint8_t notepad_io_buffer[MAX_FILE_SIZE + 1];
 static int32_t cursor_drawn_x = 0;
 static int32_t cursor_drawn_y = 0;
@@ -143,6 +144,8 @@ static int get_ui_scale(void);
 static void get_start_menu_metrics(start_menu_metrics_t* m);
 static void launch_application_exe(const char* exe_name, int fallback_x, int fallback_y);
 static void launch_settings_tab(int tab_idx);
+static void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color);
+static void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color);
 static void notepad_load_from_storage(void);
 static void settings_md_reset(void);
 static void settings_md_add_line(const char* src, uint8_t color, uint8_t indent);
@@ -356,9 +359,29 @@ static void draw_compact_string_clipped(int x, int y, int max_chars, const char*
     }
 }
 
+static void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
+    if (w <= 0 || h <= 0) return;
+    if (w < 3 || h < 3) {
+        fill_rect(x, y, w, h, color);
+        return;
+    }
+    fill_rect(x + 1, y, w - 2, h, color);
+    fill_rect(x, y + 1, w, h - 2, color);
+}
+
+static void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
+    if (w <= 0 || h <= 0) return;
+    if (w < 3 || h < 3) {
+        draw_rect(x, y, w, h, color);
+        return;
+    }
+    draw_rect(x + 1, y, w - 2, h, color);
+    draw_rect(x, y + 1, w, h - 2, color);
+}
+
 static void draw_desktop_watermark(void) {
-    const char* line1 = "GamerOS 00m1 Aero Preview";
-    const char* line2 = "Windows 7 Style UI - Build 1.400";
+    const char* line1 = "GamerOS 00m1 Modern Shell";
+    const char* line2 = "UI Preview - Build 1.400";
     int w1 = (int)strlen(line1) * 6;
     int w2 = (int)strlen(line2) * 6;
     int max_w = (w1 > w2) ? w1 : w2;
@@ -366,14 +389,90 @@ static void draw_desktop_watermark(void) {
     int y = (int)current_height - TASKBAR_HEIGHT - 22;
     if (x < 6) x = 6;
     if (y < 6) y = 6;
-    draw_compact_string(x, y, line1, XP_WHITE);
-    draw_compact_string(x, y + 9, line2, XP_LGRAY);
+    draw_compact_string(x, y, line1, XP_LGRAY);
+    draw_compact_string(x, y + 9, line2, XP_DGRAY);
+}
+
+static int wallpaper_is_too_dark(void) {
+    static int cached = -1;
+    if (cached >= 0) return cached;
+    if (background_wallpaper_width == 0 || background_wallpaper_height == 0) {
+        cached = 1;
+        return cached;
+    }
+
+    uint32_t step_x = background_wallpaper_width / 32;
+    uint32_t step_y = background_wallpaper_height / 24;
+    if (step_x == 0) step_x = 1;
+    if (step_y == 0) step_y = 1;
+
+    uint32_t sum = 0;
+    uint32_t count = 0;
+    for (uint32_t y = 0; y < background_wallpaper_height; y += step_y) {
+        uint32_t row = y * background_wallpaper_width;
+        for (uint32_t x = 0; x < background_wallpaper_width; x += step_x) {
+            sum += (uint32_t)(background_wallpaper_pixels[row + x] & 0x0F);
+            count++;
+        }
+    }
+    if (count == 0) {
+        cached = 1;
+        return cached;
+    }
+    cached = ((sum / count) <= 2U) ? 1 : 0;
+    return cached;
 }
 
 static void draw_desktop_wallpaper(int desktop_h) {
     if (desktop_h <= 0) return;
-    if (background_wallpaper_width == 0 || background_wallpaper_height == 0) {
-        fill_rect(0, 0, (int)current_width, desktop_h, XP_BLUE);
+    if (graphics_is_truecolor()) {
+        // Bright modern backdrop to keep shell readable even when wallpaper asset is very dark.
+        for (int y = 0; y < desktop_h; y++) {
+            uint32_t t = (uint32_t)((y * 255) / ((desktop_h > 1) ? (desktop_h - 1) : 1));
+            uint32_t r = 184 + ((22 * t) / 255);
+            uint32_t g = 214 + ((14 * t) / 255);
+            uint32_t b = 255;
+            uint32_t rgb = (r << 16) | (g << 8) | b;
+            for (uint32_t x = 0; x < current_width; x++) {
+                draw_pixel_rgb((int)x, y, rgb);
+            }
+        }
+
+        for (int y = desktop_h / 3; y < desktop_h; y++) {
+            uint32_t t = (uint32_t)(((y - (desktop_h / 3)) * 255) / (((desktop_h - (desktop_h / 3)) > 1) ? (desktop_h - (desktop_h / 3) - 1) : 1));
+            uint32_t rgb = ((170 + ((20 * t) / 255)) << 16) | ((208 + ((18 * t) / 255)) << 8) | (255 - ((18 * t) / 255));
+            for (uint32_t x = 0; x < current_width; x++) {
+                if (((x + (uint32_t)y) & 3U) == 0U) draw_pixel_rgb((int)x, y, rgb);
+            }
+        }
+
+        if (!wallpaper_is_too_dark()) {
+            uint32_t src_w = background_wallpaper_width;
+            uint32_t src_h = background_wallpaper_height;
+            uint32_t dst_w = current_width;
+            uint32_t dst_h = (uint32_t)desktop_h;
+            for (uint32_t y = 0; y < dst_h; y++) {
+                uint32_t sy = (y * src_h) / dst_h;
+                uint32_t row = sy * src_w;
+                for (uint32_t x = 0; x < dst_w; x++) {
+                    uint32_t sx = (x * src_w) / dst_w;
+                    uint8_t color = background_wallpaper_pixels[row + sx] & 0x0F;
+                    if ((color & 0x0F) > 2 && ((x + y) % 5 == 0)) {
+                        draw_pixel((int)x, (int)y, color);
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    if (background_wallpaper_width == 0 || background_wallpaper_height == 0 || wallpaper_is_too_dark()) {
+        for (int y = 0; y < desktop_h; y++) {
+            uint8_t c = XP_LBLUE;
+            if (y > (desktop_h * 2) / 3) c = XP_LGRAY;
+            else if (y > desktop_h / 3) c = ((y & 1) == 0) ? XP_LBLUE : XP_WHITE;
+            fill_rect(0, y, (int)current_width, 1, c);
+        }
         return;
     }
 
@@ -626,60 +725,86 @@ static const char* storage_type_name(storage_device_type_t type) {
 
 static void startup_animation(void) {
     const char* title = "GamerOS";
-    const char* subtitle = "Starting Windows 7 style shell...";
+    const char* subtitle = "Preparing your workspace...";
     int title_w = (int)strlen(title) * 8;
     int subtitle_w = (int)strlen(subtitle) * 8;
-    int bar_w = ((int)current_width * 2) / 3;
-    int bar_h = 16;
-    if (bar_w < 260) bar_w = 260;
-    if (bar_w > 460) bar_w = 460;
-    int bar_x = ((int)current_width - bar_w) / 2;
-    int bar_y = ((int)current_height / 2) + 32;
+    int panel_w = 340;
+    if (panel_w > (int)current_width - 24) panel_w = (int)current_width - 24;
+    int panel_h = 132;
     int title_x = ((int)current_width - title_w) / 2;
     int subtitle_x = ((int)current_width - subtitle_w) / 2;
-    int title_y = ((int)current_height / 2) - 34;
+    int title_y = ((int)current_height / 2) - 48;
     int subtitle_y = title_y + 18;
+    int panel_x = ((int)current_width - panel_w) / 2;
+    int panel_y = title_y - 14;
+    int loader_cx = (int)current_width / 2;
+    int loader_cy = panel_y + panel_h - 34;
+    const int loader_r = 18;
+    const int loader_dot_r = 3;
 
     int bg_h = (int)current_height;
-    int band = bg_h / 3;
-    int fill_target = bar_w - 8;
     int frames = 68;
+    static const int8_t ring_dx[24] = {
+         0,  5,  9, 13, 15, 17, 18, 17, 15, 13,  9,  5,
+         0, -5, -9,-13,-15,-17,-18,-17,-15,-13, -9, -5
+    };
+    static const int8_t ring_dy[24] = {
+       -18,-17,-15,-12, -9, -5,  0,  5,  9, 12, 15, 17,
+        18, 17, 15, 12,  9,  5,  0, -5, -9,-12,-15,-17
+    };
 
     for (int f = 0; f <= frames; f++) {
-        int eased_num = (2 * f * frames) - (f * f);
-        int eased_den = frames * frames;
-        int draw_w = (fill_target * eased_num) / eased_den;
-        if (draw_w < 0) draw_w = 0;
-        if (draw_w > fill_target) draw_w = fill_target;
-
-        // Aero-like background bands.
-        fill_rect(0, 0, current_width, band, XP_LBLUE);
-        fill_rect(0, band, current_width, band, XP_BLUE);
-        fill_rect(0, band * 2, current_width, bg_h - (band * 2), XP_CYAN);
-
-        // Soft center panel.
-        int panel_w = bar_w + 80;
-        int panel_h = 96;
-        int panel_x = ((int)current_width - panel_w) / 2;
-        int panel_y = title_y - 12;
-        fill_rect(panel_x, panel_y, panel_w, panel_h, XP_DGRAY);
-        draw_rect(panel_x, panel_y, panel_w, panel_h, XP_LBLUE);
-        draw_rect(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, XP_BLUE);
-
-        draw_string(title_x, title_y, title, XP_WHITE);
-        draw_string(subtitle_x, subtitle_y, subtitle, XP_LGRAY);
-
-        // Progress rail.
-        fill_rect(bar_x, bar_y, bar_w, bar_h, XP_BLACK);
-        draw_rect(bar_x, bar_y, bar_w, bar_h, XP_WHITE);
-        draw_rect(bar_x + 1, bar_y + 1, bar_w - 2, bar_h - 2, XP_DGRAY);
-        fill_rect(bar_x + 4, bar_y + 4, draw_w, bar_h - 8, XP_LBLUE);
-
-        // Moving highlight for modern feel.
-        int glow = (f * 6) % (fill_target + 1);
-        if (glow < draw_w) {
-            fill_rect(bar_x + 4 + glow, bar_y + 4, 10, bar_h - 8, XP_WHITE);
+        // Smoother background: bright gradient where available, dithered fallback otherwise.
+        if (graphics_is_truecolor()) {
+            for (int y = 0; y < bg_h; y++) {
+                uint32_t t = (uint32_t)((y * 255) / ((bg_h > 1) ? (bg_h - 1) : 1));
+                uint32_t r = 188 + ((22 * t) / 255);
+                uint32_t g = 220 + ((12 * t) / 255);
+                uint32_t b = 255;
+                uint32_t rgb = (r << 16) | (g << 8) | b;
+                for (uint32_t x = 0; x < current_width; x++) {
+                    draw_pixel_rgb((int)x, y, rgb);
+                }
+            }
+            // Soft ambient band near lower third.
+            int glow_y0 = (bg_h * 2) / 3;
+            for (int y = glow_y0; y < bg_h; y++) {
+                uint32_t t = (uint32_t)(((y - glow_y0) * 255) / ((bg_h - glow_y0 > 1) ? (bg_h - glow_y0 - 1) : 1));
+                uint32_t rgb = ((170 + ((16 * t) / 255)) << 16) | ((205 + ((22 * t) / 255)) << 8) | (255 - ((16 * t) / 255));
+                for (uint32_t x = 0; x < current_width; x++) {
+                    if (((x + (uint32_t)y) & 1U) == 0U) draw_pixel_rgb((int)x, y, rgb);
+                }
+            }
+        } else {
+            for (int y = 0; y < bg_h; y++) {
+                uint8_t c = XP_LBLUE;
+                if (y > (bg_h * 2) / 3) c = ((y & 1) == 0) ? XP_WHITE : XP_LGRAY;
+                else if (y > bg_h / 3) c = ((y & 1) == 0) ? XP_LGRAY : XP_LBLUE;
+                fill_rect(0, y, (int)current_width, 1, c);
+            }
         }
+
+        // Center card.
+        fill_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_WHITE);
+        draw_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_LGRAY);
+        draw_chamfer_rect(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, XP_DGRAY);
+        fill_rect(panel_x + 2, panel_y + 2, panel_w - 4, 2, XP_LBLUE);
+
+        draw_string(title_x, title_y, title, XP_BLACK);
+        draw_string(subtitle_x, subtitle_y, subtitle, XP_DGRAY);
+
+        // Circular loading indicator.
+        int lit = ((f * 24) / frames);
+        if (lit < 1) lit = 1;
+        if (lit > 24) lit = 24;
+        for (int i = 0; i < 24; i++) {
+            int px = loader_cx + ring_dx[i];
+            int py = loader_cy + ring_dy[i];
+            uint8_t col = (i < lit) ? XP_BLUE : XP_LGRAY;
+            if (i == lit - 1) col = XP_LBLUE;
+            vga_fill_circle(px, py, loader_dot_r, col);
+        }
+        draw_compact_string(loader_cx - 24, loader_cy - 3, "Loading", XP_DGRAY);
 
         swap_buffers();
         int delay_cycles = 900 + ((frames - f) * 6);
@@ -810,22 +935,18 @@ void draw_window(window_t* win) {
     if (w < 24 || h < 24) return;
     
     int is_active_window = (active_window >= 0 && win == &windows[active_window]);
-    fill_rect(x, y, w, h, XP_DGRAY);
-    fill_rect(x + 2, y + 20, w - 4, h - 22, XP_WHITE);
-    fill_rect(x, y, w, 18, is_active_window ? XP_BLUE : XP_DGRAY);
-    fill_rect(x, y + 1, w, 4, is_active_window ? XP_LBLUE : XP_LGRAY);
-    fill_rect(x, y + 14, w, 2, is_active_window ? XP_LBLUE : XP_DGRAY);
-    draw_string(x + 6, y + 5, win->title, XP_WHITE);
+    fill_chamfer_rect(x, y, w, h, XP_LGRAY);
+    draw_chamfer_rect(x, y, w, h, XP_WHITE);
+    draw_chamfer_rect(x + 1, y + 1, w - 2, h - 2, XP_DGRAY);
+    fill_chamfer_rect(x + 2, y + 20, w - 4, h - 22, XP_WHITE);
+    fill_chamfer_rect(x + 2, y + 2, w - 4, 16, is_active_window ? XP_LBLUE : XP_WHITE);
+    fill_rect(x + 3, y + 3, w - 6, 2, is_active_window ? XP_WHITE : XP_LGRAY);
+    draw_string(x + 8, y + 6, win->title, XP_BLACK);
     
     // Close button
-    fill_rect(x + w - 16, y + 2, 14, 14, XP_RED);
-    draw_rect(x + w - 16, y + 2, 14, 14, XP_WHITE);
-    draw_rect(x + w - 15, y + 3, 12, 12, XP_DGRAY);
-    draw_string(x + w - 12, y + 5, "x", XP_WHITE);
-    
-    draw_rect(x, y, w, h, XP_BLACK);
-    draw_rect(x + 1, y + 1, w - 2, h - 2, XP_LBLUE);
-    draw_rect(x + 2, y + 2, w - 4, h - 4, XP_DGRAY);
+    fill_chamfer_rect(x + w - 18, y + 3, 13, 12, XP_WHITE);
+    draw_chamfer_rect(x + w - 18, y + 3, 13, 12, XP_DGRAY);
+    draw_compact_string(x + w - 14, y + 5, "X", XP_BLACK);
     // Bottom-right resize grip.
     for (int g = 0; g < 4; g++) {
         int gx = x + w - 3 - (g * 3);
@@ -834,12 +955,12 @@ void draw_window(window_t* win) {
     }
     
     if (win->type == WIN_NOTEPAD) {
-        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
-        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_rect(x + 5, y + 23, w - 10, h - 28, XP_DGRAY);
-        fill_rect(x + 6, y + 24, w - 12, 10, XP_BLUE);
-        draw_compact_string(x + 8, y + 24, notepad_ui_toolbar_hint(), XP_BLACK);
-        fill_rect(x + 5, y + h - 14, w - 10, 8, XP_BLUE);
+        fill_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
+        draw_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_DGRAY);
+        fill_chamfer_rect(x + 6, y + 24, w - 12, 10, XP_LGRAY);
+        fill_rect(x + 7, y + 25, w - 14, 1, XP_LBLUE);
+        draw_compact_string(x + 8, y + 24, notepad_ui_toolbar_hint(), XP_DGRAY);
+        fill_chamfer_rect(x + 5, y + h - 14, w - 10, 8, XP_LGRAY);
         int text_top = y + 36;
         int text_bottom = y + h - 18;
         int visible_lines = (text_bottom - text_top) / 5;
@@ -849,8 +970,8 @@ void draw_window(window_t* win) {
             notepad_view_top = NOTEPAD_MAX_LINES - visible_lines;
             if (notepad_view_top < 0) notepad_view_top = 0;
         }
-        fill_rect(x + 8, y + 36, w - 16, h - 56, XP_WHITE);
-        draw_rect(x + 8, y + 36, w - 16, h - 56, XP_LGRAY);
+        fill_chamfer_rect(x + 8, y + 36, w - 16, h - 56, XP_WHITE);
+        draw_chamfer_rect(x + 8, y + 36, w - 16, h - 56, XP_LGRAY);
         int max_chars = (w - 22) / 6;
         if (max_chars < 1) max_chars = 1;
         if (max_chars > NOTEPAD_MAX_COLS) max_chars = NOTEPAD_MAX_COLS;
@@ -861,7 +982,7 @@ void draw_window(window_t* win) {
                 draw_compact_string_clipped(x + 11, text_top + row * 5, max_chars, notepad_lines[i], XP_BLACK);
             }
         }
-        draw_compact_string(x + 8, y + h - 13, notepad_dirty ? notepad_ui_status_modified() : notepad_ui_status_saved(), XP_WHITE);
+        draw_compact_string(x + 8, y + h - 13, notepad_dirty ? notepad_ui_status_modified() : notepad_ui_status_saved(), XP_DGRAY);
         if (win == &windows[active_window]) {
             int cx = x + 11 + notepad_cursor_x * 6;
             int cy = text_top + (notepad_cursor_y - notepad_view_top) * 5;
@@ -870,36 +991,36 @@ void draw_window(window_t* win) {
             }
         }
     } else if (win->type == WIN_SETTINGS) {
-        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
-        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_rect(x + 5, y + 23, w - 10, h - 28, XP_DGRAY);
+        fill_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
+        draw_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_DGRAY);
         int nav_x = x + 6;
         int nav_y = y + 24;
         int nav_w = 108;
         int nav_h = h - 30;
-        fill_rect(nav_x, nav_y, nav_w, nav_h, XP_WHITE);
-        draw_rect(nav_x, nav_y, nav_w, nav_h, XP_DGRAY);
-        fill_rect(nav_x + 1, nav_y + 1, nav_w - 2, 12, XP_BLUE);
-        draw_compact_string(nav_x + 6, nav_y + 3, settings_ui_panel_title(), XP_WHITE);
+        fill_chamfer_rect(nav_x, nav_y, nav_w, nav_h, XP_WHITE);
+        draw_chamfer_rect(nav_x, nav_y, nav_w, nav_h, XP_DGRAY);
+        fill_chamfer_rect(nav_x + 1, nav_y + 1, nav_w - 2, 12, XP_LGRAY);
+        draw_compact_string(nav_x + 6, nav_y + 3, settings_ui_panel_title(), XP_DGRAY);
 
         int content_x = nav_x + nav_w + 6;
         int content_y = y + 24;
         int content_w = w - (content_x - x) - 6;
         int content_h = h - 30;
         int body_y = content_y + 12;
-        fill_rect(content_x, content_y, content_w, content_h, XP_WHITE);
-        draw_rect(content_x, content_y, content_w, content_h, XP_DGRAY);
-        fill_rect(content_x + 1, content_y + 1, content_w - 2, 10, XP_LBLUE);
-        draw_compact_string_clipped(content_x + 6, content_y + 2, (content_w - 12) / 6, "Modern Control Center", XP_WHITE);
+        fill_chamfer_rect(content_x, content_y, content_w, content_h, XP_WHITE);
+        draw_chamfer_rect(content_x, content_y, content_w, content_h, XP_DGRAY);
+        fill_chamfer_rect(content_x + 1, content_y + 1, content_w - 2, 10, XP_WHITE);
+        fill_rect(content_x + 1, content_y + 1, content_w - 2, 1, XP_LBLUE);
+        draw_compact_string_clipped(content_x + 6, content_y + 2, (content_w - 12) / 6, "Modern Control Center", XP_DGRAY);
         int content_chars = (content_w - 12) / 6;
         if (content_chars < 1) content_chars = 1;
 
         for (int i = 0; i < SETTINGS_TAB_COUNT; i++) {
             int ty = nav_y + 20 + i * 16;
-            fill_rect(nav_x + 3, ty - 1, nav_w - 6, 13, (settings_tab == i) ? XP_LBLUE : XP_LGRAY);
-            draw_rect(nav_x + 3, ty - 1, nav_w - 6, 13, XP_DGRAY);
+            fill_chamfer_rect(nav_x + 3, ty - 1, nav_w - 6, 13, (settings_tab == i) ? XP_LBLUE : XP_WHITE);
+            draw_chamfer_rect(nav_x + 3, ty - 1, nav_w - 6, 13, XP_DGRAY);
             if (settings_tab == i) {
-                draw_rect(nav_x + 4, ty, nav_w - 8, 11, XP_WHITE);
+                draw_chamfer_rect(nav_x + 4, ty, nav_w - 8, 11, XP_WHITE);
             }
             draw_compact_string_clipped(nav_x + 8, ty + 2, (nav_w - 14) / 6, settings_ui_tab_name(i), XP_BLACK);
         }
@@ -939,7 +1060,7 @@ void draw_window(window_t* win) {
             sprintf(res_line, "Desktop: %ux%u", (unsigned int)current_width, (unsigned int)current_height);
             sprintf(scale_line, "UI Scale Profile: x%d", get_ui_scale());
             draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Personalization", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Theme: XP Classic", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Theme: GamerOS Modern", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, res_line, XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, scale_line, XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, "Color profile: Blue", XP_BLACK);
@@ -973,8 +1094,13 @@ void draw_window(window_t* win) {
             draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, tm, XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Language: English (US)", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_GAMING) {
+            char gfx_mode_line[44];
+            uint8_t bpp = graphics_get_bpp();
+            sprintf(gfx_mode_line, "Graphics mode: %s %u-bpp",
+                    graphics_is_truecolor() ? "VESA true-color" : "VGA indexed",
+                    (unsigned int)bpp);
             draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Gaming", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Graphics mode: VGA 16-color", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, gfx_mode_line, XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Input latency mode: Balanced", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_ACCESSIBILITY) {
             draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Accessibility", XP_BLACK);
@@ -985,11 +1111,16 @@ void draw_window(window_t* win) {
             draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Auth model: Enabled", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Isolation table: Active", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_ABOUT) {
-            char gfx_line[48];
-            sprintf(gfx_line, "Graphics: VGA %ux%ux16", (unsigned int)current_width, (unsigned int)current_height);
+            char gfx_line[64];
+            uint8_t bpp = graphics_get_bpp();
+            sprintf(gfx_line, "Graphics: %ux%ux%u %s",
+                    (unsigned int)current_width,
+                    (unsigned int)current_height,
+                    (unsigned int)bpp,
+                    graphics_is_truecolor() ? "RGBA" : "Indexed");
             draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "About GamerOS", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Version: 00m1", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Build: 1.300", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Build: 1.400", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "Kernel: x86_64", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, gfx_line, XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, "System32: C:/GamerOS/System32", XP_BLACK);
@@ -1015,26 +1146,25 @@ void draw_window(window_t* win) {
             draw_compact_string_clipped(content_x + 6, content_y + content_h - 10, content_chars, "Markdown viewer: mouse wheel scroll", XP_DGRAY);
         }
     } else if (win->type == WIN_EXPLORER) {
-        fill_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
-        draw_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_rect(x + 5, y + 23, w - 10, h - 28, XP_DGRAY);
+        fill_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
+        draw_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_DGRAY);
 
-        fill_rect(x + 6, y + 24, w - 12, 12, XP_LBLUE);
+        fill_chamfer_rect(x + 6, y + 24, w - 12, 12, XP_LBLUE);
         draw_compact_string(x + 10, y + 26, explorer_this_pc_view ? explorer_ui_title() : explorer_path, XP_WHITE);
         if (!explorer_this_pc_view) {
-            fill_rect(x + w - 48, y + 25, 40, 10, XP_LGRAY);
-            draw_rect(x + w - 48, y + 25, 40, 10, XP_DGRAY);
+            fill_chamfer_rect(x + w - 48, y + 25, 40, 10, XP_LGRAY);
+            draw_chamfer_rect(x + w - 48, y + 25, 40, 10, XP_DGRAY);
             draw_compact_string(x + w - 43, y + 26, "[Up]", XP_BLACK);
         }
-        fill_rect(x + 8, y + 40, 82, h - 50, XP_WHITE);
-        draw_rect(x + 8, y + 40, 82, h - 50, XP_DGRAY);
+        fill_chamfer_rect(x + 8, y + 40, 82, h - 50, XP_WHITE);
+        draw_chamfer_rect(x + 8, y + 40, 82, h - 50, XP_DGRAY);
         draw_compact_string(x + 12, y + 44, "Quick Access", XP_BLACK);
         draw_compact_string(x + 12, y + 56, "Desktop", XP_BLACK);
         draw_compact_string(x + 12, y + 68, "Documents", XP_BLACK);
         draw_compact_string(x + 12, y + 80, "Downloads", XP_BLACK);
         draw_compact_string(x + 12, y + 92, "This PC", XP_BLACK);
-        fill_rect(x + 94, y + 40, w - 100, h - 50, XP_WHITE);
-        draw_rect(x + 94, y + 40, w - 100, h - 50, XP_DGRAY);
+        fill_chamfer_rect(x + 94, y + 40, w - 100, h - 50, XP_WHITE);
+        draw_chamfer_rect(x + 94, y + 40, w - 100, h - 50, XP_DGRAY);
         int list_x = x + 100;
         int list_y = y + 44;
         int list_w = w - 110;
@@ -1045,7 +1175,7 @@ void draw_window(window_t* win) {
         if (explorer_this_pc_view) {
             for (int i = 0; i < explorer_drive_count; i++) {
                 int row_y = list_y + i * row_h;
-                fill_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
+                fill_chamfer_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
                 draw_compact_string_clipped(list_x, row_y, max_chars, explorer_drive_labels[i], XP_BLACK);
             }
         } else {
@@ -1060,7 +1190,7 @@ void draw_window(window_t* win) {
                     append_string(line, sizeof(line), "      ");
                 }
                 append_string(line, sizeof(line), base);
-                fill_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
+                fill_chamfer_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
                 draw_compact_string_clipped(list_x, row_y, max_chars, line, XP_BLACK);
             }
             if (explorer_entry_count == 0) {
@@ -1144,20 +1274,24 @@ static void draw_start_menu(void) {
     int menu_y = sm.y;
     int item_h = sm.item_h;
 
-    // Aero-like shell
-    fill_rect(menu_x, menu_y, menu_w, menu_h, XP_DGRAY);
-    draw_rect(menu_x, menu_y, menu_w, menu_h, XP_LBLUE);
-    draw_rect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, XP_BLUE);
+    // Modern light panel style.
+    fill_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_WHITE);
+    draw_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_LGRAY);
+    draw_chamfer_rect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, XP_DGRAY);
 
-    // Left profile pane
-    fill_rect(menu_x + 4, menu_y + 4, 42, menu_h - 8, XP_BLUE);
-    fill_rect(menu_x + 4, menu_y + 4, 42, 18, XP_LBLUE);
-    draw_string(menu_x + 10, menu_y + 10, "GO", XP_WHITE);
+    // Left profile rail + avatar chip.
+    fill_chamfer_rect(menu_x + 4, menu_y + 4, 38, menu_h - 8, XP_LGRAY);
+    fill_rect(menu_x + 5, menu_y + 5, 36, 2, XP_WHITE);
+    fill_chamfer_rect(menu_x + 12, menu_y + 10, 22, 12, XP_LBLUE);
+    draw_compact_string(menu_x + 17, menu_y + 12, "A", XP_BLACK);
 
-    // Header bar
-    fill_rect(menu_x + 48, menu_y + 4, menu_w - 52, 18, XP_BLUE);
-    fill_rect(menu_x + 48, menu_y + 4, menu_w - 52, 4, XP_LBLUE);
-    draw_string(menu_x + 52, menu_y + 9, "GamerOS", XP_WHITE);
+    // Header + search strip.
+    fill_chamfer_rect(menu_x + 46, menu_y + 4, menu_w - 50, 18, XP_WHITE);
+    fill_rect(menu_x + 47, menu_y + 5, menu_w - 52, 2, XP_LBLUE);
+    draw_string(menu_x + 52, menu_y + 9, "GamerOS", XP_BLACK);
+    fill_chamfer_rect(menu_x + 50, menu_y + 26, menu_w - 56, 12, XP_LGRAY);
+    draw_chamfer_rect(menu_x + 50, menu_y + 26, menu_w - 56, 12, XP_DGRAY);
+    draw_compact_string(menu_x + 54, menu_y + 28, "Search apps", XP_BLACK);
 
     // Menu items
     const char* items[] = {
@@ -1169,15 +1303,16 @@ static void draw_start_menu(void) {
     };
     int item_count = 5;
     for (int i = 0; i < item_count; i++) {
-        int iy = menu_y + 28 + i * item_h;
-        fill_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, (i == 0) ? XP_LBLUE : XP_LGRAY);
-        draw_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, XP_DGRAY);
-        draw_string(menu_x + 56, iy + 6, items[i], XP_BLACK);
+        int iy = menu_y + 42 + i * item_h;
+        fill_chamfer_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, (i == 0) ? XP_LBLUE : XP_LGRAY);
+        draw_chamfer_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, XP_DGRAY);
+        fill_chamfer_rect(menu_x + 54, iy + 4, 6, 6, XP_WHITE);
+        draw_string(menu_x + 64, iy + 6, items[i], XP_BLACK);
     }
 
-    fill_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_BLUE);
-    draw_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_WHITE);
-    draw_string(menu_x + 54, menu_y + menu_h - 20, "Shut Down", XP_WHITE);
+    fill_chamfer_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_LBLUE);
+    draw_chamfer_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_DGRAY);
+    draw_string(menu_x + 54, menu_y + menu_h - 20, "Shut Down", XP_BLACK);
 }
 
 void draw_desktop(void) {
@@ -1185,8 +1320,8 @@ void draw_desktop(void) {
     int desktop_h = (int)current_height - TASKBAR_HEIGHT;
     draw_desktop_wallpaper(desktop_h);
     if (setting_desktop_glow) {
-        fill_rect(0, current_height - TASKBAR_HEIGHT - 20, current_width, 20, XP_LBLUE);
-        fill_rect(0, current_height - TASKBAR_HEIGHT - 10, current_width, 10, XP_BLUE);
+        // Keep a subtle separation above taskbar without tinting wallpaper.
+        fill_rect(0, current_height - TASKBAR_HEIGHT - 6, current_width, 6, XP_DGRAY);
     }
     draw_desktop_watermark();
     
@@ -1196,7 +1331,7 @@ void draw_desktop(void) {
         draw_desktop_icon(x, y, desktop_icons[i].window_type);
         int label_w = (int)strlen(desktop_icons[i].label) * 6;
         int label_x = x + (DESKTOP_ICON_W / 2) - (label_w / 2);
-        draw_compact_string(label_x, y + DESKTOP_ICON_H + 3, desktop_icons[i].label, XP_WHITE);
+        draw_compact_string(label_x, y + DESKTOP_ICON_H + 3, desktop_icons[i].label, XP_BLACK);
     }
     
     for (int i = 0; i < MAX_WINDOWS; i++) {
@@ -1209,20 +1344,20 @@ void draw_desktop(void) {
     int taskbar_y = (int)current_height - TASKBAR_HEIGHT;
     int start_y = taskbar_y + ((TASKBAR_HEIGHT - START_BTN_H) / 2);
     int taskbtn_y = taskbar_y + ((TASKBAR_HEIGHT - TASKBTN_H) / 2);
-    fill_rect(0, taskbar_y, current_width, 3, XP_LBLUE);
-    fill_rect(0, taskbar_y + 3, current_width, TASKBAR_HEIGHT - 3, XP_DGRAY);
-    draw_rect(0, taskbar_y, current_width, TASKBAR_HEIGHT, XP_BLUE);
+    fill_rect(0, taskbar_y, current_width, TASKBAR_HEIGHT, XP_LGRAY);
+    fill_rect(0, taskbar_y, current_width, 1, XP_WHITE);
+    fill_rect(0, taskbar_y + TASKBAR_HEIGHT - 1, current_width, 1, XP_DGRAY);
 
     // Start button (center text inside the button using compact font for consistent metrics)
-    fill_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_BLUE);
-    fill_rect(START_BTN_X, start_y, START_BTN_W, 4, XP_LBLUE);
-    draw_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_WHITE);
+    fill_chamfer_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_WHITE);
+    fill_rect(START_BTN_X + 1, start_y + 1, START_BTN_W - 2, 2, XP_LBLUE);
+    draw_chamfer_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_DGRAY);
     {
         const char* start_label = "Start";
         int start_text_w = (int)strlen(start_label) * 6;
         int start_text_x = START_BTN_X + (START_BTN_W - start_text_w) / 2;
         int start_text_y = start_y + (START_BTN_H - 8) / 2;
-        draw_compact_string(start_text_x, start_text_y, start_label, XP_WHITE);
+        draw_compact_string(start_text_x, start_text_y, start_label, XP_BLACK);
     }
 
     if (start_menu_open) {
@@ -1243,11 +1378,11 @@ void draw_desktop(void) {
                 break;
             }
             if (i == active_window) {
-                fill_rect(task_x, taskbtn_y, taskbtn_w, TASKBTN_H, XP_LBLUE);
+                fill_chamfer_rect(task_x, taskbtn_y, taskbtn_w, TASKBTN_H, XP_LBLUE);
             } else {
-                fill_rect(task_x, taskbtn_y, taskbtn_w, TASKBTN_H, XP_BLUE);
+                fill_chamfer_rect(task_x, taskbtn_y, taskbtn_w, TASKBTN_H, XP_WHITE);
             }
-            draw_rect(task_x, taskbtn_y, taskbtn_w, TASKBTN_H, XP_WHITE);
+            draw_chamfer_rect(task_x, taskbtn_y, taskbtn_w, TASKBTN_H, XP_DGRAY);
 
             char task_text[9];
             size_t len = strlen(windows[i].title);
@@ -1256,7 +1391,7 @@ void draw_desktop(void) {
             task_text[len] = 0;
             int tx = task_x + (taskbtn_w - ((int)len * 6)) / 2;
             int ty = taskbtn_y + (TASKBTN_H - 8) / 2;
-            draw_compact_string(tx, ty, task_text, XP_WHITE);
+            draw_compact_string(tx, ty, task_text, XP_BLACK);
             task_x += taskbtn_w + 2;
         }
     }
@@ -1292,13 +1427,13 @@ void draw_desktop(void) {
     datetime_str[datetime_len++] = (char)('0' + ((year / 10) % 10));
     datetime_str[datetime_len++] = (char)('0' + (year % 10));
     datetime_str[datetime_len] = 0;
-    fill_rect(clock_x, clock_y, clock_w, clock_h, XP_LBLUE);
-    draw_rect(clock_x, clock_y, clock_w, clock_h, XP_WHITE);
+    fill_chamfer_rect(clock_x, clock_y, clock_w, clock_h, XP_WHITE);
+    draw_chamfer_rect(clock_x, clock_y, clock_w, clock_h, XP_DGRAY);
     {
         int clock_text_w = ((int)strlen(datetime_str)) * 6;
         int clock_text_x = clock_x + (clock_w - clock_text_w) / 2;
         int clock_text_y = clock_y + (clock_h - 8) / 2;
-        draw_compact_string(clock_text_x, clock_text_y, datetime_str, XP_WHITE);
+        draw_compact_string(clock_text_x, clock_text_y, datetime_str, XP_BLACK);
     }
 }
 
@@ -1771,7 +1906,11 @@ static void cursor_restore_background(void) {
     for (int row = 0; row < CURSOR_SIZE; row++) {
         for (int col = 0; col < CURSOR_SIZE; col++) {
             int idx = row * CURSOR_SIZE + col;
-            draw_pixel(cursor_drawn_x + col, cursor_drawn_y + row, cursor_under[idx]);
+            if (graphics_is_truecolor()) {
+                draw_pixel_rgb(cursor_drawn_x + col, cursor_drawn_y + row, cursor_under_rgb[idx]);
+            } else {
+                draw_pixel(cursor_drawn_x + col, cursor_drawn_y + row, (uint8_t)(cursor_under_rgb[idx] & 0xFF));
+            }
         }
     }
 }
@@ -1780,7 +1919,11 @@ static void cursor_capture_background(int32_t x, int32_t y) {
     for (int row = 0; row < CURSOR_SIZE; row++) {
         for (int col = 0; col < CURSOR_SIZE; col++) {
             int idx = row * CURSOR_SIZE + col;
-            cursor_under[idx] = vga_get_pixel(x + col, y + row);
+            if (graphics_is_truecolor()) {
+                cursor_under_rgb[idx] = graphics_get_pixel_rgb(x + col, y + row);
+            } else {
+                cursor_under_rgb[idx] = vga_get_pixel(x + col, y + row);
+            }
         }
     }
 }
@@ -1795,12 +1938,23 @@ static void cursor_compose_on_backbuffer(int32_t x, int32_t y) {
 }
 
 // Main kernel entry
-void kernel_main(void) {
+void kernel_main(multiboot_info_t* mb_info) {
     serial_init();
     serial_write_string("GamerOS Starting...\n");
     
-    // Set graphics mode (mode 12h pipeline in long mode).
-    set_video_mode(MODE_VESA_640x480);
+    // Prefer safe-validated multiboot framebuffer path; fallback to stable VGA renderer.
+    if (!graphics_use_multiboot_framebuffer(mb_info)) {
+        set_video_mode(MODE_VESA_640x480);
+    }
+    {
+        char gfx_boot_line[72];
+        sprintf(gfx_boot_line, "Graphics mode: %ux%ux%u %s\n",
+                (unsigned int)current_width,
+                (unsigned int)current_height,
+                (unsigned int)graphics_get_bpp(),
+                graphics_is_truecolor() ? "RGBA" : "Indexed");
+        serial_write_string(gfx_boot_line);
+    }
     
     // Initialize subsystems
     keyboard_init();

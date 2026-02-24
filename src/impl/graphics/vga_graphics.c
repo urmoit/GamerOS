@@ -2,6 +2,7 @@
 #include "../../intf/ports.h"
 #include "../../intf/font.h"
 #include "../../intf/string.h"
+#include "../../intf/multiboot.h"
 
 // Current mode settings
 uint32_t current_width = 640;
@@ -9,8 +10,58 @@ uint32_t current_height = 480;
 uint8_t* framebuffer = (uint8_t*)0xA0000;
 int graphics_mode = 1;
 
-// Back buffer (max 800x600)
-static uint8_t back_buffer[800 * 600];
+// Back buffers (max 1920x1080). Keep indexed and RGB paths for compatibility.
+#define MAX_RENDER_WIDTH 1920
+#define MAX_RENDER_HEIGHT 1080
+#define MAX_RENDER_PIXELS (MAX_RENDER_WIDTH * MAX_RENDER_HEIGHT)
+static uint8_t back_buffer_idx[MAX_RENDER_PIXELS];
+static uint32_t back_buffer_rgb[MAX_RENDER_PIXELS];
+static uint32_t framebuffer_pitch_bytes = 0;
+static uint8_t framebuffer_bpp = 0;
+static uint8_t framebuffer_truecolor = 0;
+
+static uint32_t palette_rgb[256];
+static uint8_t palette_ready = 0;
+
+static inline uint8_t pal6_to_8(uint8_t v6) {
+    return (uint8_t)((v6 * 255U) / 63U);
+}
+
+static void palette_set_entry(uint8_t idx, uint8_t r6, uint8_t g6, uint8_t b6) {
+    palette_rgb[idx] = ((uint32_t)pal6_to_8(r6) << 16) |
+                       ((uint32_t)pal6_to_8(g6) << 8) |
+                       ((uint32_t)pal6_to_8(b6));
+}
+
+static void palette_init_defaults(void) {
+    for (int i = 0; i < 256; i++) {
+        uint8_t c = (uint8_t)i;
+        palette_rgb[i] = ((uint32_t)c << 16) | ((uint32_t)c << 8) | c;
+    }
+}
+
+static void palette_apply_shell_entries(void) {
+    static const uint8_t pal16[16][3] = {
+        {0,0,0}, {0,0,42}, {0,42,0}, {0,42,42},
+        {42,0,0}, {42,0,42}, {42,21,0}, {42,42,42},
+        {21,21,21}, {21,21,63}, {21,63,21}, {21,63,63},
+        {63,21,21}, {63,21,63}, {63,63,21}, {63,63,63}
+    };
+    for (uint8_t i = 0; i < 16; i++) {
+        palette_set_entry(i, pal16[i][0], pal16[i][1], pal16[i][2]);
+    }
+    // Custom shell palette indices used by desktop/theme assets.
+    palette_set_entry(0x39, 36, 50, 58);
+    palette_set_entry(0x2A, 38, 48, 12);
+    palette_set_entry(0x3D, 56, 46, 18);
+}
+
+static void ensure_palette_ready(void) {
+    if (palette_ready) return;
+    palette_init_defaults();
+    palette_apply_shell_entries();
+    palette_ready = 1;
+}
 
 static inline void vga_write_seq(uint8_t index, uint8_t value) {
     outb(0x3C4, index);
@@ -118,34 +169,37 @@ static void vga_prepare_mode12_planar_writes(void) {
 
 // VGA Palette setup
 void vga_set_palette(void) {
-    // Set standard 16 colors
-    for (int i = 0; i < 16; i++) {
+    palette_init_defaults();
+    palette_apply_shell_entries();
+    palette_ready = 1;
+
+    for (uint8_t i = 0; i < 16; i++) {
         outb(0x3C8, i);
-        switch(i) {
-            case 0: outb(0x3C9, 0); outb(0x3C9, 0); outb(0x3C9, 0); break; // Black
-            case 1: outb(0x3C9, 0); outb(0x3C9, 0); outb(0x3C9, 42); break; // Blue
-            case 2: outb(0x3C9, 0); outb(0x3C9, 42); outb(0x3C9, 0); break; // Green
-            case 3: outb(0x3C9, 0); outb(0x3C9, 42); outb(0x3C9, 42); break; // Cyan
-            case 4: outb(0x3C9, 42); outb(0x3C9, 0); outb(0x3C9, 0); break; // Red
-            case 5: outb(0x3C9, 42); outb(0x3C9, 0); outb(0x3C9, 42); break; // Magenta
-            case 6: outb(0x3C9, 42); outb(0x3C9, 21); outb(0x3C9, 0); break; // Brown
-            case 7: outb(0x3C9, 42); outb(0x3C9, 42); outb(0x3C9, 42); break; // Light Gray
-            case 8: outb(0x3C9, 21); outb(0x3C9, 21); outb(0x3C9, 21); break; // Dark Gray
-            case 9: outb(0x3C9, 21); outb(0x3C9, 21); outb(0x3C9, 63); break; // Light Blue
-            case 10: outb(0x3C9, 21); outb(0x3C9, 63); outb(0x3C9, 21); break; // Light Green
-            case 11: outb(0x3C9, 21); outb(0x3C9, 63); outb(0x3C9, 63); break; // Light Cyan
-            case 12: outb(0x3C9, 63); outb(0x3C9, 21); outb(0x3C9, 21); break; // Light Red
-            case 13: outb(0x3C9, 63); outb(0x3C9, 21); outb(0x3C9, 63); break; // Light Magenta
-            case 14: outb(0x3C9, 63); outb(0x3C9, 63); outb(0x3C9, 21); break; // Yellow
-            case 15: outb(0x3C9, 63); outb(0x3C9, 63); outb(0x3C9, 63); break; // White
-        }
+        // Keep VGA DAC in sync with software palette mapping.
+        uint32_t rgb = palette_rgb[i];
+        uint8_t r6 = (uint8_t)(((rgb >> 16) & 0xFF) * 63 / 255);
+        uint8_t g6 = (uint8_t)(((rgb >> 8) & 0xFF) * 63 / 255);
+        uint8_t b6 = (uint8_t)((rgb & 0xFF) * 63 / 255);
+        outb(0x3C9, r6);
+        outb(0x3C9, g6);
+        outb(0x3C9, b6);
     }
-    
-    // XP Desktop blue (color 0x39)
+
+    // Preserve custom shell indices used by UI assets/icons.
     outb(0x3C8, 0x39);
-    outb(0x3C9, 36);  // R
-    outb(0x3C9, 82);  // G
-    outb(0x3C9, 120); // B
+    outb(0x3C9, 36);
+    outb(0x3C9, 50);
+    outb(0x3C9, 58);
+
+    outb(0x3C8, 0x2A);
+    outb(0x3C9, 38);
+    outb(0x3C9, 48);
+    outb(0x3C9, 12);
+
+    outb(0x3C8, 0x3D);
+    outb(0x3C9, 56);
+    outb(0x3C9, 46);
+    outb(0x3C9, 18);
 }
 
 // Set standard VGA 320x200 mode
@@ -156,6 +210,9 @@ void vga_set_mode_13h(void) {
     current_height = 480;
     framebuffer = (uint8_t*)0xA0000;
     graphics_mode = 1;
+    framebuffer_pitch_bytes = current_width;
+    framebuffer_bpp = 8;
+    framebuffer_truecolor = 0;
 
     vga_prepare_mode12_planar_writes();
     vga_set_palette();
@@ -170,11 +227,63 @@ int vesa_set_mode(uint16_t mode) {
         current_height = 480;
         framebuffer = (uint8_t*)0xA0000;
         graphics_mode = 1;
+        framebuffer_pitch_bytes = current_width;
+        framebuffer_bpp = 8;
+        framebuffer_truecolor = 0;
         vga_prepare_mode12_planar_writes();
         vga_set_palette();
         return 1;
     }
     return 0;
+}
+
+int graphics_use_multiboot_framebuffer(const struct multiboot_info* mb_info) {
+    ensure_palette_ready();
+    if (!mb_info) return 0;
+    if (!(mb_info->flags & MULTIBOOT_FLAG_FB)) return 0;
+    if (mb_info->framebuffer_addr == 0) return 0;
+    if (mb_info->framebuffer_type != 1) return 0; // Require RGB framebuffer.
+    if (mb_info->framebuffer_width == 0 || mb_info->framebuffer_height == 0) return 0;
+    if (mb_info->framebuffer_width > MAX_RENDER_WIDTH || mb_info->framebuffer_height > MAX_RENDER_HEIGHT) return 0;
+    if (!(mb_info->framebuffer_bpp == 24 || mb_info->framebuffer_bpp == 32)) return 0;
+    if (mb_info->framebuffer_pitch == 0) return 0;
+
+    uint32_t bytes_per_pixel = (uint32_t)(mb_info->framebuffer_bpp / 8);
+    uint32_t min_pitch = mb_info->framebuffer_width * bytes_per_pixel;
+    if (mb_info->framebuffer_pitch < min_pitch) return 0;
+
+    // Kernel currently identity-maps only the first 4GB of physical memory.
+    // Reject framebuffers that are outside this range to avoid page faults/triple faults.
+    uint64_t fb_addr = mb_info->framebuffer_addr;
+    uint64_t fb_size = (uint64_t)mb_info->framebuffer_pitch * (uint64_t)mb_info->framebuffer_height;
+    if (fb_addr > 0xFFFFFFFFULL) return 0;
+    if (fb_size == 0) return 0;
+    if ((fb_addr + fb_size) > 0x100000000ULL) return 0;
+
+    framebuffer = (uint8_t*)(uintptr_t)fb_addr;
+    current_width = mb_info->framebuffer_width;
+    current_height = mb_info->framebuffer_height;
+    framebuffer_pitch_bytes = mb_info->framebuffer_pitch;
+    framebuffer_bpp = mb_info->framebuffer_bpp;
+    framebuffer_truecolor = 1;
+    graphics_mode = 2;
+    return 1;
+}
+
+int graphics_is_truecolor(void) {
+    return framebuffer_truecolor ? 1 : 0;
+}
+
+uint32_t graphics_get_pixel_rgb(int x, int y) {
+    if (x < 0 || y < 0 || x >= (int)current_width || y >= (int)current_height) return 0;
+    return back_buffer_rgb[(y * (int)current_width) + x] & 0x00FFFFFF;
+}
+
+uint8_t graphics_get_bpp(void) {
+    if (framebuffer_truecolor && (framebuffer_bpp == 24 || framebuffer_bpp == 32)) {
+        return framebuffer_bpp;
+    }
+    return 16;
 }
 
 // Set video mode
@@ -193,20 +302,48 @@ void set_video_mode(video_mode_t mode) {
                 vga_set_mode_13h(); // Fallback
             }
             break;
+        case MODE_VESA_1920x1080:
+            // True 1080p is provided via multiboot framebuffer path.
+            // Keep this mode token as an explicit fallback target.
+            if (!vesa_set_mode(0x101)) {
+                vga_set_mode_13h();
+            }
+            break;
     }
 }
 
 // Clear back buffer
 void clear_screen(uint8_t color) {
-    for (uint32_t i = 0; i < current_width * current_height; i++) {
-        back_buffer[i] = color;
+    ensure_palette_ready();
+    uint32_t pixel_count = current_width * current_height;
+    uint32_t rgb = palette_rgb[color];
+    for (uint32_t i = 0; i < pixel_count; i++) {
+        back_buffer_idx[i] = color;
+        back_buffer_rgb[i] = rgb;
     }
 }
 
 // Draw pixel to back buffer
 void draw_pixel(int x, int y, uint8_t color) {
+    ensure_palette_ready();
     if (x < 0 || x >= (int)current_width || y < 0 || y >= (int)current_height) return;
-    back_buffer[y * current_width + x] = color;
+    uint32_t off = ((uint32_t)y * current_width) + (uint32_t)x;
+    back_buffer_idx[off] = color;
+    back_buffer_rgb[off] = palette_rgb[color];
+}
+
+void draw_pixel_rgb(int x, int y, uint32_t rgb) {
+    if (x < 0 || x >= (int)current_width || y < 0 || y >= (int)current_height) return;
+    uint32_t off = ((uint32_t)y * current_width) + (uint32_t)x;
+    back_buffer_rgb[off] = rgb & 0x00FFFFFF;
+}
+
+void clear_screen_rgb(uint32_t rgb) {
+    uint32_t pixel_count = current_width * current_height;
+    uint32_t color = rgb & 0x00FFFFFF;
+    for (uint32_t i = 0; i < pixel_count; i++) {
+        back_buffer_rgb[i] = color;
+    }
 }
 
 // Fill rectangle
@@ -214,7 +351,8 @@ void fill_rect(int x, int y, int w, int h, uint8_t color) {
     for (int yy = y; yy < y + h && yy < (int)current_height; yy++) {
         for (int xx = x; xx < x + w && xx < (int)current_width; xx++) {
             if (xx >= 0 && yy >= 0) {
-                back_buffer[yy * current_width + xx] = color;
+                back_buffer_idx[yy * current_width + xx] = color;
+                back_buffer_rgb[(yy * current_width) + xx] = palette_rgb[color];
             }
         }
     }
@@ -224,18 +362,22 @@ void fill_rect(int x, int y, int w, int h, uint8_t color) {
 void draw_rect(int x, int y, int w, int h, uint8_t color) {
     for (int xx = x; xx < x + w && xx < (int)current_width; xx++) {
         if (xx >= 0 && y >= 0 && y < (int)current_height) {
-            back_buffer[y * current_width + xx] = color;
+            back_buffer_idx[y * current_width + xx] = color;
+            back_buffer_rgb[(y * current_width) + xx] = palette_rgb[color];
         }
         if (xx >= 0 && y + h - 1 >= 0 && y + h - 1 < (int)current_height) {
-            back_buffer[(y + h - 1) * current_width + xx] = color;
+            back_buffer_idx[(y + h - 1) * current_width + xx] = color;
+            back_buffer_rgb[((y + h - 1) * current_width) + xx] = palette_rgb[color];
         }
     }
     for (int yy = y; yy < y + h && yy < (int)current_height; yy++) {
         if (x >= 0 && x < (int)current_width && yy >= 0) {
-            back_buffer[yy * current_width + x] = color;
+            back_buffer_idx[yy * current_width + x] = color;
+            back_buffer_rgb[(yy * current_width) + x] = palette_rgb[color];
         }
         if (x + w - 1 >= 0 && x + w - 1 < (int)current_width && yy >= 0) {
-            back_buffer[yy * current_width + (x + w - 1)] = color;
+            back_buffer_idx[yy * current_width + (x + w - 1)] = color;
+            back_buffer_rgb[(yy * current_width) + (x + w - 1)] = palette_rgb[color];
         }
     }
 }
@@ -368,7 +510,7 @@ void swap_buffers(void) {
 
         for (int y = 0; y < 480; y++) {
             for (int x = 0; x < 640; x++) {
-                uint8_t color = back_buffer[(y * 640) + x] & 0x0F;
+                uint8_t color = back_buffer_idx[(y * 640) + x] & 0x0F;
                 int offset = (y * 80) + (x >> 3);
                 uint8_t bit = (uint8_t)(0x80 >> (x & 7));
                 if (color & 0x01) plane_buffer[0][offset] |= bit;
@@ -392,10 +534,29 @@ void swap_buffers(void) {
         }
         outb(0x3C4, 0x02);
         outb(0x3C5, 0x0F);
+    } else if (framebuffer_truecolor && (framebuffer_bpp == 32 || framebuffer_bpp == 24)) {
+        for (uint32_t y = 0; y < current_height; y++) {
+            uint8_t* row = (uint8_t*)target + ((uint32_t)y * framebuffer_pitch_bytes);
+            uint32_t src_off = y * current_width;
+            if (framebuffer_bpp == 32) {
+                uint32_t* row32 = (uint32_t*)row;
+                for (uint32_t x = 0; x < current_width; x++) {
+                    row32[x] = back_buffer_rgb[src_off + x];
+                }
+            } else {
+                for (uint32_t x = 0; x < current_width; x++) {
+                    uint32_t rgb = back_buffer_rgb[src_off + x];
+                    uint8_t* px = row + (x * 3);
+                    px[0] = (uint8_t)(rgb & 0xFF);         // B
+                    px[1] = (uint8_t)((rgb >> 8) & 0xFF);  // G
+                    px[2] = (uint8_t)((rgb >> 16) & 0xFF); // R
+                }
+            }
+        }
     } else {
         uint32_t pixel_count = current_width * current_height;
         for (uint32_t i = 0; i < pixel_count; i++) {
-            target[i] = back_buffer[i];
+            target[i] = back_buffer_idx[i];
         }
     }
 }
@@ -438,7 +599,7 @@ void present_rect(int x, int y, int w, int h) {
                     for (int bit = 0; bit < 8; bit++) {
                         int sx = px + bit;
                         if (sx < 0 || sx >= 640) continue;
-                        uint8_t color = back_buffer[src_row + sx] & 0x0F;
+                        uint8_t color = back_buffer_idx[src_row + sx] & 0x0F;
                         if (color & (1 << plane)) {
                             out |= (uint8_t)(0x80 >> bit);
                         }
@@ -449,11 +610,30 @@ void present_rect(int x, int y, int w, int h) {
         }
         outb(0x3C4, 0x02);
         outb(0x3C5, 0x0F);
+    } else if (framebuffer_truecolor && (framebuffer_bpp == 32 || framebuffer_bpp == 24)) {
+        for (int yy = y0; yy < y1; yy++) {
+            uint32_t src_row_off = (uint32_t)yy * current_width;
+            uint8_t* row = (uint8_t*)target + ((uint32_t)yy * framebuffer_pitch_bytes);
+            if (framebuffer_bpp == 32) {
+                uint32_t* row32 = (uint32_t*)row;
+                for (int xx = x0; xx < x1; xx++) {
+                    row32[xx] = back_buffer_rgb[src_row_off + (uint32_t)xx];
+                }
+            } else {
+                for (int xx = x0; xx < x1; xx++) {
+                    uint32_t rgb = back_buffer_rgb[src_row_off + (uint32_t)xx];
+                    uint8_t* px = row + ((uint32_t)xx * 3);
+                    px[0] = (uint8_t)(rgb & 0xFF);
+                    px[1] = (uint8_t)((rgb >> 8) & 0xFF);
+                    px[2] = (uint8_t)((rgb >> 16) & 0xFF);
+                }
+            }
+        }
     } else {
         for (int yy = y0; yy < y1; yy++) {
             uint32_t row_off = (uint32_t)yy * current_width;
             for (int xx = x0; xx < x1; xx++) {
-                target[row_off + (uint32_t)xx] = back_buffer[row_off + (uint32_t)xx];
+                target[row_off + (uint32_t)xx] = back_buffer_idx[row_off + (uint32_t)xx];
             }
         }
     }
@@ -482,7 +662,7 @@ uint8_t vga_get_pixel(int x, int y) {
     if (x < 0 || y < 0 || x >= (int)current_width || y >= (int)current_height) {
         return 0;
     }
-    return back_buffer[(y * (int)current_width) + x];
+    return back_buffer_idx[(y * (int)current_width) + x];
 }
 
 void vga_fill_rect(int x, int y, int w, int h, uint8_t color) {
