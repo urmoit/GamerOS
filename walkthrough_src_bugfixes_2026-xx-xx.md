@@ -249,3 +249,171 @@ Changes:
 
 Reason:
 - Requested a full modernized shell style and reported that the desktop became too dark to use.
+
+### 14. Added basic app lifecycle tracking and virtual storage paths
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/apps.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Introduced a small runtime table that tracks each built-in app via its `app_descriptor_t` and maintains a simple lifecycle state (stopped/running/suspended).
+- Updated the shell’s app launcher to mark apps as running when their window is opened and as stopped when their top-level window is closed.
+- Added a GamerOS virtual storage path scheme (`GOS:/User`, `GOS:/System`, `GOS:/Apps`) with a helper that resolves these into concrete filesystem paths on C:.
+- Switched Notepad’s document path to `GOS:/User/Notepad/NOTEPAD.TXT` and routed its load/save routines through the new GOS path helpers.
+- Extended the storage layout with per-app user folders (Notepad, Settings, Explorer, Saves) and a `C:/GamerOS/Apps/Manifests` area for app metadata.
+- Created initial `.gosapp` manifest files for Notepad, Settings, and Explorer describing IDs, EXE paths, entry symbols, categories, and basic permissions.
+- Seeded a couple of placeholder save-slot files in the user `Saves` folder to support future game/launcher integrations.
+
+Reason:
+- Requested that apps feel more like real, first-class GamerOS applications with explicit lifecycle state and a cleaner, more future-proof storage model.
+
+### 15. Improved Settings changelog markdown layout
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Updated the `GamerOS Update` tab in Settings to continue using the existing markdown parser but render section headings with the larger standard font instead of the compact text style.
+- Kept list and body content on the compact font for density while giving `#` / `##` headings a clearer visual hierarchy.
+- Confirmed that the in-Settings changelog text matches the main `changelog_2026-xx-xx.md` contents so both views stay in sync.
+
+Reason:
+- Requested that the Settings changelog view better respect markdown formatting and present the document with a clearer, more readable layout.
+
+### 16. Enlarged window headers, taskbar, and app UI layouts
+
+Files:
+- `src/impl/kernel/main.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Increased the window title bar height and close button size to make app headers easier to see and click, while expanding the draggable caption area.
+- Raised the global taskbar height and widened task buttons and the Start button so they feel less cramped at 320x200 and at higher framebuffer resolutions.
+- Adjusted Notepad’s toolbar/status bar and text viewport positions to align with the taller header, preserving the readable text area.
+- Refined the Settings panel layout with a slightly wider navigation rail and content area, plus updated spacing, so each tab’s information breathes more and reads more like a modern control center.
+- Updated the Explorer window chrome, toolbar, and side/list panels to match the new window header proportions and provide larger hit targets for path controls and quick-access entries.
+
+Reason:
+- Requested that headers, taskbar elements, and Settings/app UI controls be larger and visually cleaner so the whole shell feels more like a modern desktop environment.
+
+### 17. Enlarged Settings buttons and polished GamerOS Update split view
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Increased Settings left-nav width and row height so tab buttons are easier to click and tab labels are less cramped.
+- Rebalanced Settings content/header spacing to keep a cleaner modern layout while preserving usable content area.
+- Enlarged `GamerOS Update` top sub-buttons and synchronized click hitboxes with rendered geometry so button text fits and targets feel reliable.
+- Kept markdown heading rendering with larger font and preserved split behavior:
+  - `Build 1.400 changelog` shows release/add/changed/fixed/notes
+  - `Roadmap` starts from `## Planned` onward
+- Synced the same notes in both top-level changelog markdown and the in-Settings embedded changelog text.
+
+Reason:
+- Requested additional Settings UI improvements with bigger buttons, especially where button labels were too large for prior button sizes.
+
+### 18. Split About into standalone app and added desktop right-click menu
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/apps.c`
+- `src/apps/about/ABOUT.EXE.manifest`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Removed `About` from Settings tabs and kept Settings focused on system controls/update views.
+- Moved About rendering into its own top-level `About GamerOS` app window (`WIN_ABOUT`) with build/kernel/graphics/system info.
+- Registered standalone `ABOUT.EXE` in app descriptors, system app list, and app manifests so it launches like other first-class apps.
+- Updated Start menu `About GamerOS` action to open `ABOUT.EXE` directly.
+- Added desktop right-click context menu with actions:
+  - `About GamerOS`
+  - `Settings`
+  - `Refresh Desktop`
+- Expanded `## Planned` roadmap entries in changelog so the Settings `Roadmap` sub-view shows the new planned items too.
+
+Reason:
+- Requested that About be its own app, removed from Settings, plus a desktop right-click options menu including About, and synced changelog/roadmap updates.
+
+### 19. Hardened desktop right-click input handling for VMware stability
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Added defensive mouse coordinate clamping in `process_mouse(...)` before UI hit-testing.
+- Masked mouse button state to supported left/right bits only for desktop shell input handling.
+- Ignored ambiguous dual-button packets to avoid unstable right-click context-menu transitions in VM input edge cases.
+- Restricted primary click path to pure left-click (no simultaneous right button) for safer action dispatch.
+- Synced release note text in top-level changelog and Settings embedded changelog.
+
+Reason:
+- User reported VMware guest halt popup when opening the desktop context menu via right click.
+
+### 20. Clamped raw mouse coordinates before cursor rendering
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Added coordinate clamping immediately after `mouse_get_x()` / `mouse_get_y()` in the main loop.
+- Ensured cursor composition and draw paths never receive negative or out-of-bounds mouse coordinates.
+- Kept prior right-click packet hardening in `process_mouse(...)` and synced release notes text.
+
+Reason:
+- Right-click still triggered VMware guest halt popup; raw polled coordinates could still bypass earlier click-handler-only clamping and crash during render/input paths.
+
+### 21. Added in-OS runtime error popup for easier fault diagnosis
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Added a modal in-OS runtime error popup (`Error` window style with `OK`) rendered on top of desktop UI.
+- Added `raise_runtime_error(...)` helper to surface detectable runtime anomalies in both UI and serial logs.
+- Wired popup triggers for:
+  - ambiguous dual-button mouse packets (`L+R` together),
+  - out-of-bounds raw polled mouse coordinates.
+- Made the popup modal for input handling so accidental background actions do not hide the error condition.
+
+Reason:
+- Requested visible in-OS error handling so failures are easier to detect and diagnose than VM-level generic popup messages.
+
+### 22. Modernized Start menu layout and aligned click geometry
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Increased Start menu panel width/height and retained modern light card styling with cleaner spacing.
+- Reworked Start menu internal layout (profile rail, header, search strip, action rows) to reduce cramped text and clipping.
+- Ensured `About GamerOS` is a clear dedicated Start menu entry and remains mapped to `ABOUT.EXE`.
+- Updated Start menu click hit-testing to use the new row geometry so visual rows and interactive rows match exactly.
+
+Reason:
+- Requested a more modern Start menu and explicit About app access from Start menu, with the screenshot showing cramped/truncated entries.

@@ -26,19 +26,19 @@
 #define WIN_EXPLORER APP_WINDOW_EXPLORER
 
 // Desktop shell sizing (compact XP-like layout for 320x200)
-#define TASKBAR_HEIGHT         16
+#define TASKBAR_HEIGHT         20
 #define START_BTN_X            4
-#define START_BTN_W            46
-#define START_BTN_H            14
+#define START_BTN_W            52
+#define START_BTN_H            16
 #define DESKTOP_ICON_W         20
 #define DESKTOP_ICON_H         20
 #define DESKTOP_ICON_HIT_W     28
 #define DESKTOP_ICON_HIT_H     32
-#define TASKBTN_W              62
-#define TASKBTN_H              14
+#define TASKBTN_W              70
+#define TASKBTN_H              16
 #define START_MENU_X           0
-#define START_MENU_W           170
-#define START_MENU_H           136
+#define START_MENU_W           220
+#define START_MENU_H           164
 #define START_MENU_ITEM_H      20
 #define WINDOW_RESIZE_GRIP     12
 #define WINDOW_MIN_W_DEFAULT   140
@@ -69,12 +69,22 @@ static int notepad_cursor_x = 0;
 static int notepad_cursor_y = 0;
 static int notepad_view_top = 0;
 static uint8_t notepad_dirty = 0;
-#define NOTEPAD_FILE_PATH "C:/Users/Admin/NOTEPAD.TXT"
+// Use a virtual GamerOS-style path for Notepad data; this is resolved
+// into a concrete filesystem path by the GOS path helpers below.
+#define NOTEPAD_FILE_PATH "GOS:/User/Notepad/NOTEPAD.TXT"
 
 // Input state
 static uint8_t last_buttons = 0;
 static uint8_t start_menu_open = 0;
+static uint8_t desktop_menu_open = 0;
+static int desktop_menu_x = 0;
+static int desktop_menu_y = 0;
 static uint8_t shutdown_requested = 0;
+static uint8_t error_popup_open = 0;
+static char error_popup_title[40];
+static char error_popup_message[160];
+static uint8_t warned_mouse_packet = 0;
+static uint8_t warned_mouse_bounds = 0;
 static uint8_t setting_show_seconds = 0;
 static uint8_t setting_desktop_glow = 1;
 static uint8_t setting_compact_mode = 1;
@@ -91,8 +101,7 @@ static int settings_tab = 0;
 #define SETTINGS_TAB_ACCESSIBILITY 8
 #define SETTINGS_TAB_PRIVACY_SECURITY 9
 #define SETTINGS_TAB_GAMEROS_UPDATE 10
-#define SETTINGS_TAB_ABOUT 11
-#define SETTINGS_TAB_COUNT 12
+#define SETTINGS_TAB_COUNT 11
 static int settings_scroll_top[SETTINGS_TAB_COUNT] = {0};
 typedef struct {
     char text[120];
@@ -103,6 +112,14 @@ typedef struct {
 static markdown_line_t settings_md_lines[SETTINGS_MD_MAX_LINES];
 static int settings_md_line_count = 0;
 static uint8_t settings_md_loaded = 0;
+static int settings_md_plan_start = -1;
+
+typedef enum {
+    SETTINGS_UPDATE_VIEW_CHANGELOG = 0,
+    SETTINGS_UPDATE_VIEW_ROADMAP = 1
+} settings_update_view_t;
+
+static int settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
 
 #define EXPLORER_MAX_ENTRIES 14
 static char explorer_path[MAX_FILENAME_LEN] = "C:/";
@@ -121,6 +138,136 @@ static int32_t cursor_drawn_x = 0;
 static int32_t cursor_drawn_y = 0;
 static uint8_t cursor_drawn_valid = 0;
 
+// Simple app lifecycle tracking so the shell has a notion of which
+// first-class apps are running or stopped.
+typedef enum {
+    APP_STATE_STOPPED = 0,
+    APP_STATE_RUNNING = 1,
+    APP_STATE_SUSPENDED = 2
+} app_state_t;
+
+typedef struct {
+    const app_descriptor_t* descriptor;
+    app_state_t state;
+} app_runtime_entry_t;
+
+#define MAX_APP_RUNTIME_SLOTS 8
+static app_runtime_entry_t g_app_runtime[MAX_APP_RUNTIME_SLOTS];
+static int g_app_runtime_count = 0;
+
+static app_runtime_entry_t* app_runtime_find(const app_descriptor_t* descriptor) {
+    if (!descriptor) return 0;
+    for (int i = 0; i < g_app_runtime_count; i++) {
+        if (g_app_runtime[i].descriptor == descriptor) {
+            return &g_app_runtime[i];
+        }
+    }
+    return 0;
+}
+
+static app_runtime_entry_t* app_runtime_get_or_create(const app_descriptor_t* descriptor) {
+    if (!descriptor) return 0;
+    app_runtime_entry_t* entry = app_runtime_find(descriptor);
+    if (entry) return entry;
+    if (g_app_runtime_count >= MAX_APP_RUNTIME_SLOTS) {
+        return 0;
+    }
+    entry = &g_app_runtime[g_app_runtime_count++];
+    entry->descriptor = descriptor;
+    entry->state = APP_STATE_STOPPED;
+    return entry;
+}
+
+static void app_lifecycle_mark_launched(const app_descriptor_t* descriptor) {
+    app_runtime_entry_t* entry = app_runtime_get_or_create(descriptor);
+    if (!entry) return;
+    entry->state = APP_STATE_RUNNING;
+}
+
+static void app_lifecycle_mark_closed_by_type(int win_type) {
+    if (win_type == WIN_NONE) return;
+
+    // Find the app descriptor that owns this window type.
+    const app_descriptor_t* descriptor = 0;
+    int app_count = apps_get_count();
+    for (int i = 0; i < app_count; i++) {
+        const app_descriptor_t* candidate = apps_get_by_index(i);
+        if (candidate && candidate->window_type == win_type) {
+            descriptor = candidate;
+            break;
+        }
+    }
+    if (!descriptor) return;
+
+    app_runtime_entry_t* entry = app_runtime_find(descriptor);
+    if (!entry) return;
+    entry->state = APP_STATE_STOPPED;
+}
+
+// High-level GamerOS virtual path helper for app and user storage.
+// Maps prefixes like:
+//   GOS:/User/...   -> C:/Users/Admin/...
+//   GOS:/System/... -> C:/GamerOS/System32/...
+//   GOS:/Apps/...   -> C:/GamerOS/Apps/...
+static int gos_path_resolve(const char* gos_path, char* out_fs_path, size_t out_cap) {
+    if (!gos_path || !out_fs_path || out_cap == 0) return 0;
+
+    // If this is already a concrete path, just copy it through.
+    if (strncmp(gos_path, "GOS:/", 5) != 0) {
+        strncpy(out_fs_path, gos_path, out_cap - 1);
+        out_fs_path[out_cap - 1] = 0;
+        return 1;
+    }
+
+    const char* rest = gos_path + 5;
+    const char* base_fs = 0;
+
+    if (strncmp(rest, "User/", 5) == 0) {
+        base_fs = "C:/Users/Admin/";
+        rest += 5;
+    } else if (strncmp(rest, "System/", 7) == 0) {
+        base_fs = "C:/GamerOS/System32/";
+        rest += 7;
+    } else if (strncmp(rest, "Apps/", 5) == 0) {
+        base_fs = "C:/GamerOS/Apps/";
+        rest += 5;
+    } else {
+        // Fallback to the root of C: if the sub-prefix is unknown.
+        base_fs = "C:/";
+    }
+
+    size_t base_len = strlen(base_fs);
+    size_t rest_len = strlen(rest);
+    if (base_len + rest_len + 1 > out_cap) {
+        if (out_cap <= base_len + 1) {
+            // Not enough room even for the base path and terminator.
+            return 0;
+        }
+        rest_len = out_cap - base_len - 1;
+    }
+
+    memcpy(out_fs_path, base_fs, base_len);
+    memcpy(out_fs_path + base_len, rest, rest_len);
+    out_fs_path[base_len + rest_len] = 0;
+    return 1;
+}
+
+static file_t* gos_fs_open_file(const char* gos_path) {
+    char fs_path[MAX_FILENAME_LEN];
+    if (!gos_path_resolve(gos_path, fs_path, sizeof(fs_path))) {
+        return 0;
+    }
+    return fs_open_file(fs_path);
+}
+
+static file_t* gos_fs_create_file(const char* gos_path) {
+    char fs_path[MAX_FILENAME_LEN];
+    if (!gos_path_resolve(gos_path, fs_path, sizeof(fs_path))) {
+        return 0;
+    }
+    return fs_create_file(fs_path);
+}
+
 static int taskbar_clock_width(void) {
     int time_chars = setting_show_seconds ? 8 : 5; // HH:MM:SS or HH:MM
     int date_chars = 10; // DD/MM/YYYY
@@ -135,6 +282,14 @@ typedef struct {
     int item_h;
 } start_menu_metrics_t;
 
+typedef struct {
+    int x;
+    int y;
+    int w;
+    int h;
+    int item_h;
+} desktop_menu_metrics_t;
+
 static void append_string(char* dest, size_t dest_cap, const char* src);
 static void initialize_storage_layout(void);
 static void get_window_min_size(const window_t* win, int* out_w, int* out_h);
@@ -142,6 +297,8 @@ static void draw_desktop_watermark(void);
 static void draw_desktop_wallpaper(int desktop_h);
 static int get_ui_scale(void);
 static void get_start_menu_metrics(start_menu_metrics_t* m);
+static void get_desktop_menu_metrics(desktop_menu_metrics_t* m);
+static void raise_runtime_error(const char* title, const char* message);
 static void launch_application_exe(const char* exe_name, int fallback_x, int fallback_y);
 static void launch_settings_tab(int tab_idx);
 static void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color);
@@ -257,21 +414,27 @@ static void initialize_storage_layout(void) {
     fs_create_directory("C:/GamerOS/Apps");
     fs_create_directory("C:/GamerOS/Apps/Settings");
     fs_create_directory("C:/GamerOS/Apps/BuiltIn");
+    fs_create_directory("C:/GamerOS/Apps/Manifests");
+    fs_create_directory("C:/GamerOS/Registry");
     fs_create_directory("C:/Users");
     fs_create_directory("C:/Users/Admin");
+    fs_create_directory("C:/Users/Admin/Notepad");
+    fs_create_directory("C:/Users/Admin/Settings");
+    fs_create_directory("C:/Users/Admin/Explorer");
+    fs_create_directory("C:/Users/Admin/Saves");
     fs_create_directory("C:/GamerOS/Logs");
 
-    file_t* f = fs_create_file("C:/GamerOS/GAMEROS.INI");
+    file_t* f = gos_fs_create_file("GOS:/System/GAMEROS.INI");
     if (f) {
         const char* txt = "shell=GamerOS\nbuild=1.300\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
-    f = fs_create_file("C:/Users/Admin/README.TXT");
+    f = gos_fs_create_file("GOS:/User/README.TXT");
     if (f) {
         const char* txt = "Welcome to GamerOS user profile.\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
-    f = fs_create_file("C:/Users/Admin/NOTEPAD.TXT");
+    f = gos_fs_create_file(NOTEPAD_FILE_PATH);
     if (f) {
         const char* txt = "GamerOS Notepad\n\nType here...\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
@@ -292,9 +455,14 @@ static void initialize_storage_layout(void) {
         const char* txt = "MZ\nName=Explorer\nSubsystem=GamerOS\nEntry=WIN_EXPLORER\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
+    f = fs_create_file("C:/GamerOS/System32/ABOUT.EXE");
+    if (f) {
+        const char* txt = "MZ\nName=About\nSubsystem=GamerOS\nEntry=WIN_ABOUT\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
     f = fs_create_file("C:/GamerOS/Apps/BuiltIn/APPS.LST");
     if (f) {
-        const char* txt = "NOTEPAD.EXE\nSETTINGS.EXE\nEXPLORER.EXE\n";
+        const char* txt = "NOTEPAD.EXE\nSETTINGS.EXE\nEXPLORER.EXE\nABOUT.EXE\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
     f = fs_create_file(settings_ui_changelog_md_path());
@@ -310,6 +478,68 @@ static void initialize_storage_layout(void) {
     f = fs_create_file("C:/GamerOS/System32/SHELL32.DLL");
     if (f) {
         const char* txt = "Shell library placeholder\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+
+    // App manifest-style metadata for built-in apps so they behave more like
+    // real, first-class applications.
+    f = fs_create_file("C:/GamerOS/Apps/Manifests/Notepad.gosapp");
+    if (f) {
+        const char* txt =
+            "Id=NOTEPAD\n"
+            "DisplayName=Notepad\n"
+            "Exe=C:/GamerOS/System32/NOTEPAD.EXE\n"
+            "Entry=WIN_NOTEPAD\n"
+            "Category=Utility\n"
+            "Permissions=filesystem:user-data\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+
+    f = fs_create_file("C:/GamerOS/Apps/Manifests/Settings.gosapp");
+    if (f) {
+        const char* txt =
+            "Id=SETTINGS\n"
+            "DisplayName=Settings\n"
+            "Exe=C:/GamerOS/System32/SETTINGS.EXE\n"
+            "Entry=WIN_SETTINGS\n"
+            "Category=System\n"
+            "Permissions=filesystem:system-info\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+
+    f = fs_create_file("C:/GamerOS/Apps/Manifests/Explorer.gosapp");
+    if (f) {
+        const char* txt =
+            "Id=EXPLORER\n"
+            "DisplayName=File Explorer\n"
+            "Exe=C:/GamerOS/System32/EXPLORER.EXE\n"
+            "Entry=WIN_EXPLORER\n"
+            "Category=System\n"
+            "Permissions=filesystem:all-volumes\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+
+    f = fs_create_file("C:/GamerOS/Apps/Manifests/About.gosapp");
+    if (f) {
+        const char* txt =
+            "Id=ABOUT\n"
+            "DisplayName=About GamerOS\n"
+            "Exe=C:/GamerOS/System32/ABOUT.EXE\n"
+            "Entry=WIN_ABOUT\n"
+            "Category=System\n"
+            "Permissions=filesystem:system-info\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+
+    // Simple save-slot style data for future games or launchers.
+    f = fs_create_file("C:/Users/Admin/Saves/SAVE1.GOS");
+    if (f) {
+        const char* txt = "Empty save slot 1\n";
+        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
+    }
+    f = fs_create_file("C:/Users/Admin/Saves/SAVE2.GOS");
+    if (f) {
+        const char* txt = "Empty save slot 2\n";
         fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
     }
     explorer_build_this_pc_entries();
@@ -531,7 +761,7 @@ static void get_start_menu_metrics(start_menu_metrics_t* m) {
     if (!m) return;
     int menu_w = START_MENU_W;
     int menu_h = START_MENU_H;
-    int item_h = 16;
+    int item_h = START_MENU_ITEM_H;
     if (menu_w > (int)current_width - 8) menu_w = (int)current_width - 8;
     if (menu_h > (int)current_height - TASKBAR_HEIGHT - 4) menu_h = (int)current_height - TASKBAR_HEIGHT - 4;
     m->x = START_MENU_X;
@@ -541,10 +771,49 @@ static void get_start_menu_metrics(start_menu_metrics_t* m) {
     m->y = (int)current_height - TASKBAR_HEIGHT - menu_h;
 }
 
+static void get_desktop_menu_metrics(desktop_menu_metrics_t* m) {
+    if (!m) return;
+    int menu_w = 124;
+    int item_h = 16;
+    int item_count = 3;
+    int menu_h = item_h * item_count + 8;
+    int menu_x = desktop_menu_x;
+    int menu_y = desktop_menu_y;
+
+    if (menu_x + menu_w > (int)current_width) menu_x = (int)current_width - menu_w;
+    if (menu_y + menu_h > (int)current_height - TASKBAR_HEIGHT) menu_y = (int)current_height - TASKBAR_HEIGHT - menu_h;
+    if (menu_x < 0) menu_x = 0;
+    if (menu_y < 0) menu_y = 0;
+
+    m->x = menu_x;
+    m->y = menu_y;
+    m->w = menu_w;
+    m->h = menu_h;
+    m->item_h = item_h;
+}
+
+static void raise_runtime_error(const char* title, const char* message) {
+    if (!title || !title[0] || !message || !message[0]) return;
+    strncpy(error_popup_title, title, sizeof(error_popup_title) - 1);
+    error_popup_title[sizeof(error_popup_title) - 1] = 0;
+    strncpy(error_popup_message, message, sizeof(error_popup_message) - 1);
+    error_popup_message[sizeof(error_popup_message) - 1] = 0;
+    error_popup_open = 1;
+    serial_write_string("Runtime error: ");
+    serial_write_string(error_popup_title);
+    serial_write_string(" - ");
+    serial_write_string(error_popup_message);
+    serial_write_string("\n");
+}
+
 static void launch_application_exe(const char* exe_name, int fallback_x, int fallback_y) {
     int win_type = WIN_NONE;
     int launch_x = fallback_x;
     int launch_y = fallback_y;
+    const app_descriptor_t* descriptor = apps_find_by_exe(exe_name);
+    if (!descriptor) {
+        return;
+    }
     if (!apps_resolve_launch(exe_name, &win_type, &launch_x, &launch_y)) {
         return;
     }
@@ -555,6 +824,8 @@ static void launch_application_exe(const char* exe_name, int fallback_x, int fal
     if (win_type == WIN_NOTEPAD && storage_initialized) {
         notepad_load_from_storage();
     }
+
+    app_lifecycle_mark_launched(descriptor);
 }
 
 static void launch_settings_tab(int tab_idx) {
@@ -566,6 +837,8 @@ static void launch_settings_tab(int tab_idx) {
 
 static void settings_md_reset(void) {
     settings_md_line_count = 0;
+    settings_md_plan_start = -1;
+    settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
 }
 
 static void settings_md_add_line(const char* src, uint8_t color, uint8_t indent) {
@@ -604,6 +877,9 @@ static void settings_md_parse(const char* markdown) {
             } else if (strncmp(line_buf, "### ", 4) == 0) {
                 settings_md_add_line(line_buf + 4, XP_BLUE, 0);
             } else if (strncmp(line_buf, "## ", 3) == 0) {
+                if (strncmp(line_buf + 3, "Planned", 7) == 0 && settings_md_plan_start < 0) {
+                    settings_md_plan_start = settings_md_line_count;
+                }
                 settings_md_add_line(line_buf + 3, XP_BLUE, 0);
             } else if (strncmp(line_buf, "# ", 2) == 0) {
                 settings_md_add_line(line_buf + 2, XP_LBLUE, 0);
@@ -666,7 +942,7 @@ static void notepad_clear(void) {
 }
 
 static void notepad_load_from_storage(void) {
-    file_t* file = fs_open_file(NOTEPAD_FILE_PATH);
+    file_t* file = gos_fs_open_file(NOTEPAD_FILE_PATH);
     notepad_clear();
     if (!file || file->size == 0) return;
 
@@ -691,8 +967,8 @@ static void notepad_load_from_storage(void) {
 }
 
 static void notepad_save_to_storage(void) {
-    file_t* file = fs_open_file(NOTEPAD_FILE_PATH);
-    if (!file) file = fs_create_file(NOTEPAD_FILE_PATH);
+    file_t* file = gos_fs_open_file(NOTEPAD_FILE_PATH);
+    if (!file) file = gos_fs_create_file(NOTEPAD_FILE_PATH);
     if (!file) return;
 
     memset(notepad_io_buffer, 0, sizeof(notepad_io_buffer));
@@ -906,6 +1182,8 @@ void close_window(int idx) {
         if (windows[idx].type == WIN_NOTEPAD && notepad_dirty && storage_initialized) {
             notepad_save_to_storage();
         }
+        // Update simple app lifecycle state when a top-level app window closes.
+        app_lifecycle_mark_closed_by_type(windows[idx].type);
         windows[idx].active = 0;
         window_count--;
         for (int i = MAX_WINDOWS - 1; i >= 0; i--) {
@@ -938,15 +1216,16 @@ void draw_window(window_t* win) {
     fill_chamfer_rect(x, y, w, h, XP_LGRAY);
     draw_chamfer_rect(x, y, w, h, XP_WHITE);
     draw_chamfer_rect(x + 1, y + 1, w - 2, h - 2, XP_DGRAY);
-    fill_chamfer_rect(x + 2, y + 20, w - 4, h - 22, XP_WHITE);
-    fill_chamfer_rect(x + 2, y + 2, w - 4, 16, is_active_window ? XP_LBLUE : XP_WHITE);
+    // Larger titlebar/chrome for easier targeting.
+    fill_chamfer_rect(x + 2, y + 26, w - 4, h - 28, XP_WHITE);
+    fill_chamfer_rect(x + 2, y + 2, w - 4, 22, is_active_window ? XP_LBLUE : XP_WHITE);
     fill_rect(x + 3, y + 3, w - 6, 2, is_active_window ? XP_WHITE : XP_LGRAY);
-    draw_string(x + 8, y + 6, win->title, XP_BLACK);
+    draw_string(x + 8, y + 8, win->title, XP_BLACK);
     
-    // Close button
-    fill_chamfer_rect(x + w - 18, y + 3, 13, 12, XP_WHITE);
-    draw_chamfer_rect(x + w - 18, y + 3, 13, 12, XP_DGRAY);
-    draw_compact_string(x + w - 14, y + 5, "X", XP_BLACK);
+    // Close button (slightly larger for easier clicking)
+    fill_chamfer_rect(x + w - 26, y + 4, 20, 16, XP_WHITE);
+    draw_chamfer_rect(x + w - 26, y + 4, 20, 16, XP_DGRAY);
+    draw_compact_string(x + w - 19, y + 8, "X", XP_BLACK);
     // Bottom-right resize grip.
     for (int g = 0; g < 4; g++) {
         int gx = x + w - 3 - (g * 3);
@@ -955,14 +1234,14 @@ void draw_window(window_t* win) {
     }
     
     if (win->type == WIN_NOTEPAD) {
-        fill_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_DGRAY);
-        fill_chamfer_rect(x + 6, y + 24, w - 12, 10, XP_LGRAY);
-        fill_rect(x + 7, y + 25, w - 14, 1, XP_LBLUE);
-        draw_compact_string(x + 8, y + 24, notepad_ui_toolbar_hint(), XP_DGRAY);
-        fill_chamfer_rect(x + 5, y + h - 14, w - 10, 8, XP_LGRAY);
-        int text_top = y + 36;
-        int text_bottom = y + h - 18;
+        fill_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_WHITE);
+        draw_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_DGRAY);
+        fill_chamfer_rect(x + 6, y + 28, w - 12, 10, XP_LGRAY);
+        fill_rect(x + 7, y + 29, w - 14, 1, XP_LBLUE);
+        draw_compact_string(x + 8, y + 28, notepad_ui_toolbar_hint(), XP_DGRAY);
+        fill_chamfer_rect(x + 5, y + h - 16, w - 10, 10, XP_LGRAY);
+        int text_top = y + 40;
+        int text_bottom = y + h - 20;
         int visible_lines = (text_bottom - text_top) / 5;
         if (visible_lines < 1) visible_lines = 1;
         if (notepad_view_top < 0) notepad_view_top = 0;
@@ -970,9 +1249,9 @@ void draw_window(window_t* win) {
             notepad_view_top = NOTEPAD_MAX_LINES - visible_lines;
             if (notepad_view_top < 0) notepad_view_top = 0;
         }
-        fill_chamfer_rect(x + 8, y + 36, w - 16, h - 56, XP_WHITE);
-        draw_chamfer_rect(x + 8, y + 36, w - 16, h - 56, XP_LGRAY);
-        int max_chars = (w - 22) / 6;
+        fill_chamfer_rect(x + 8, y + 40, w - 16, h - 60, XP_WHITE);
+        draw_chamfer_rect(x + 8, y + 40, w - 16, h - 60, XP_LGRAY);
+        int max_chars = (w - 24) / 6;
         if (max_chars < 1) max_chars = 1;
         if (max_chars > NOTEPAD_MAX_COLS) max_chars = NOTEPAD_MAX_COLS;
         for (int row = 0; row < visible_lines; row++) {
@@ -982,7 +1261,7 @@ void draw_window(window_t* win) {
                 draw_compact_string_clipped(x + 11, text_top + row * 5, max_chars, notepad_lines[i], XP_BLACK);
             }
         }
-        draw_compact_string(x + 8, y + h - 13, notepad_dirty ? notepad_ui_status_modified() : notepad_ui_status_saved(), XP_DGRAY);
+        draw_compact_string(x + 8, y + h - 15, notepad_dirty ? notepad_ui_status_modified() : notepad_ui_status_saved(), XP_DGRAY);
         if (win == &windows[active_window]) {
             int cx = x + 11 + notepad_cursor_x * 6;
             int cy = text_top + (notepad_cursor_y - notepad_view_top) * 5;
@@ -991,38 +1270,38 @@ void draw_window(window_t* win) {
             }
         }
     } else if (win->type == WIN_SETTINGS) {
-        fill_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_WHITE);
-        draw_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_DGRAY);
+        fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
+        draw_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_DGRAY);
         int nav_x = x + 6;
-        int nav_y = y + 24;
-        int nav_w = 108;
-        int nav_h = h - 30;
+        int nav_y = y + 30;
+        int nav_w = 124;
+        int nav_h = h - 36;
         fill_chamfer_rect(nav_x, nav_y, nav_w, nav_h, XP_WHITE);
         draw_chamfer_rect(nav_x, nav_y, nav_w, nav_h, XP_DGRAY);
-        fill_chamfer_rect(nav_x + 1, nav_y + 1, nav_w - 2, 12, XP_LGRAY);
-        draw_compact_string(nav_x + 6, nav_y + 3, settings_ui_panel_title(), XP_DGRAY);
+        fill_chamfer_rect(nav_x + 1, nav_y + 1, nav_w - 2, 14, XP_LGRAY);
+        draw_compact_string(nav_x + 6, nav_y + 4, settings_ui_panel_title(), XP_DGRAY);
 
-        int content_x = nav_x + nav_w + 6;
-        int content_y = y + 24;
-        int content_w = w - (content_x - x) - 6;
-        int content_h = h - 30;
-        int body_y = content_y + 12;
+        int content_x = nav_x + nav_w + 8;
+        int content_y = y + 30;
+        int content_w = w - (content_x - x) - 8;
+        int content_h = h - 36;
+        int body_y = content_y + 16;
         fill_chamfer_rect(content_x, content_y, content_w, content_h, XP_WHITE);
         draw_chamfer_rect(content_x, content_y, content_w, content_h, XP_DGRAY);
-        fill_chamfer_rect(content_x + 1, content_y + 1, content_w - 2, 10, XP_WHITE);
+        fill_chamfer_rect(content_x + 1, content_y + 1, content_w - 2, 12, XP_WHITE);
         fill_rect(content_x + 1, content_y + 1, content_w - 2, 1, XP_LBLUE);
-        draw_compact_string_clipped(content_x + 6, content_y + 2, (content_w - 12) / 6, "Modern Control Center", XP_DGRAY);
+        draw_compact_string_clipped(content_x + 6, content_y + 3, (content_w - 12) / 6, "Modern Control Center", XP_DGRAY);
         int content_chars = (content_w - 12) / 6;
         if (content_chars < 1) content_chars = 1;
 
         for (int i = 0; i < SETTINGS_TAB_COUNT; i++) {
-            int ty = nav_y + 20 + i * 16;
-            fill_chamfer_rect(nav_x + 3, ty - 1, nav_w - 6, 13, (settings_tab == i) ? XP_LBLUE : XP_WHITE);
-            draw_chamfer_rect(nav_x + 3, ty - 1, nav_w - 6, 13, XP_DGRAY);
+            int ty = nav_y + 22 + i * 20;
+            fill_chamfer_rect(nav_x + 3, ty - 1, nav_w - 6, 16, (settings_tab == i) ? XP_LBLUE : XP_WHITE);
+            draw_chamfer_rect(nav_x + 3, ty - 1, nav_w - 6, 16, XP_DGRAY);
             if (settings_tab == i) {
-                draw_chamfer_rect(nav_x + 4, ty, nav_w - 8, 11, XP_WHITE);
+                draw_chamfer_rect(nav_x + 4, ty, nav_w - 8, 14, XP_WHITE);
             }
-            draw_compact_string_clipped(nav_x + 8, ty + 2, (nav_w - 14) / 6, settings_ui_tab_name(i), XP_BLACK);
+            draw_compact_string_clipped(nav_x + 8, ty + 3, (nav_w - 14) / 6, settings_ui_tab_name(i), XP_BLACK);
         }
 
         if (settings_tab == SETTINGS_TAB_SYSTEM) {
@@ -1079,7 +1358,8 @@ void draw_window(window_t* win) {
             draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "- NOTEPAD.EXE", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "- SETTINGS.EXE", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, "- EXPLORER.EXE", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 72, content_chars, "App root: C:/GamerOS/Apps", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, "- ABOUT.EXE", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 84, content_chars, "App root: C:/GamerOS/Apps", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_ACCOUNTS) {
             draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Accounts", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Current user: Admin", XP_BLACK);
@@ -1110,63 +1390,114 @@ void draw_window(window_t* win) {
             draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Privacy & security", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Auth model: Enabled", XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Isolation table: Active", XP_BLACK);
-        } else if (settings_tab == SETTINGS_TAB_ABOUT) {
-            char gfx_line[64];
-            uint8_t bpp = graphics_get_bpp();
-            sprintf(gfx_line, "Graphics: %ux%ux%u %s",
-                    (unsigned int)current_width,
-                    (unsigned int)current_height,
-                    (unsigned int)bpp,
-                    graphics_is_truecolor() ? "RGBA" : "Indexed");
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "About GamerOS", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Version: 00m1", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Build: 1.400", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "Kernel: x86_64", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, gfx_line, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, "System32: C:/GamerOS/System32", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 82, content_chars, "Apps: *.EXE (NOTEPAD/SETTINGS/EXPLORER)", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 94, content_chars, "Author: Chosentechies", XP_BLACK);
         } else if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
             settings_md_ensure_loaded();
             int total = settings_md_line_count;
             int row_h = 10;
-            int visible = (content_h - 30) / row_h;
+            int visible = (content_h - 50) / row_h;
             if (visible < 1) visible = 1;
+            int start_idx = 0;
+            int end_idx = total;
+            if (settings_md_plan_start >= 0) {
+                if (settings_update_view == SETTINGS_UPDATE_VIEW_CHANGELOG) {
+                    end_idx = settings_md_plan_start;
+                } else if (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) {
+                    start_idx = settings_md_plan_start;
+                }
+            }
+            if (end_idx < start_idx) end_idx = start_idx;
+            int view_count = end_idx - start_idx;
             int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
             if (top < 0) top = 0;
-            if (top > total - visible) top = total - visible;
+            if (top > view_count - visible) top = view_count - visible;
             if (top < 0) top = 0;
             settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
+
+            // Sub-buttons for Build changelog vs Roadmap
+            int sub_x = content_x + 6;
+            int sub_y = content_y + 4;
+            int sub_gap = 8;
+            int sub_w = (content_w - 12 - sub_gap) / 2;
+            int sub_h = 16;
+            if (sub_w < 60) sub_w = 60;
+            // Build (current build changelog)
+            fill_chamfer_rect(sub_x, sub_y, sub_w, sub_h,
+                              (settings_update_view == SETTINGS_UPDATE_VIEW_CHANGELOG) ? XP_LBLUE : XP_WHITE);
+            draw_chamfer_rect(sub_x, sub_y, sub_w, sub_h, XP_DGRAY);
+            draw_compact_string_clipped(sub_x + 4, sub_y + 4, (sub_w - 8) / 6, "Build 1.400 changelog", XP_BLACK);
+            // Roadmap
+            int sub2_x = sub_x + sub_w + sub_gap;
+            fill_chamfer_rect(sub2_x, sub_y, sub_w, sub_h,
+                              (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) ? XP_LBLUE : XP_WHITE);
+            draw_chamfer_rect(sub2_x, sub_y, sub_w, sub_h, XP_DGRAY);
+            draw_compact_string_clipped(sub2_x + 4, sub_y + 4, (sub_w - 8) / 6, "Roadmap", XP_BLACK);
+
             for (int r = 0; r < visible; r++) {
-                int idx = top + r;
-                if (idx >= total) break;
+                int idx = start_idx + top + r;
+                if (idx >= end_idx) break;
                 markdown_line_t* md = &settings_md_lines[idx];
-                draw_compact_string_clipped(content_x + 6 + md->indent, body_y + 6 + r * row_h, content_chars, md->text, md->color);
+                int line_x = content_x + 6 + md->indent;
+                int line_y = body_y + 22 + r * row_h;
+
+                // Simple markdown-aware layout:
+                // - top-level headings ("#"/"##") are rendered with the larger
+                //   regular font when indent == 0 and heading colors are used;
+                // - all other text uses the compact font with clipping.
+                if (md->indent == 0 && (md->color == XP_BLUE || md->color == XP_LBLUE)) {
+                    draw_string(line_x, line_y, md->text, md->color);
+                } else {
+                    draw_compact_string_clipped(line_x, line_y, content_chars, md->text, md->color);
+                }
             }
             draw_compact_string_clipped(content_x + 6, content_y + content_h - 10, content_chars, "Markdown viewer: mouse wheel scroll", XP_DGRAY);
         }
-    } else if (win->type == WIN_EXPLORER) {
-        fill_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_LGRAY);
-        draw_chamfer_rect(x + 4, y + 22, w - 8, h - 26, XP_DGRAY);
+    } else if (win->type == WIN_ABOUT) {
+        fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
+        draw_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_DGRAY);
+        fill_chamfer_rect(x + 6, y + 30, w - 12, 14, XP_LGRAY);
+        draw_compact_string(x + 10, y + 33, "About GamerOS", XP_BLACK);
 
-        fill_chamfer_rect(x + 6, y + 24, w - 12, 12, XP_LBLUE);
-        draw_compact_string(x + 10, y + 26, explorer_this_pc_view ? explorer_ui_title() : explorer_path, XP_WHITE);
+        int content_x = x + 10;
+        int content_y = y + 48;
+        int content_w = w - 20;
+        int content_chars = content_w / 6;
+        if (content_chars < 1) content_chars = 1;
+        char gfx_line[64];
+        uint8_t bpp = graphics_get_bpp();
+        sprintf(gfx_line, "Graphics: %ux%ux%u %s",
+                (unsigned int)current_width,
+                (unsigned int)current_height,
+                (unsigned int)bpp,
+                graphics_is_truecolor() ? "RGBA" : "Indexed");
+        draw_compact_string_clipped(content_x, content_y + 0, content_chars, "Version: 00m1", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.400", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 24, content_chars, "Kernel: x86_64", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 36, content_chars, gfx_line, XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 48, content_chars, "System32: C:/GamerOS/System32", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 60, content_chars, "Apps: *.EXE (NOTEPAD/SETTINGS/EXPLORER/ABOUT)", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 72, content_chars, "Author: Chosentechies", XP_BLACK);
+    } else if (win->type == WIN_EXPLORER) {
+        fill_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_LGRAY);
+        draw_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_DGRAY);
+
+        fill_chamfer_rect(x + 6, y + 28, w - 12, 14, XP_LBLUE);
+        draw_compact_string(x + 10, y + 30, explorer_this_pc_view ? explorer_ui_title() : explorer_path, XP_WHITE);
         if (!explorer_this_pc_view) {
-            fill_chamfer_rect(x + w - 48, y + 25, 40, 10, XP_LGRAY);
-            draw_chamfer_rect(x + w - 48, y + 25, 40, 10, XP_DGRAY);
-            draw_compact_string(x + w - 43, y + 26, "[Up]", XP_BLACK);
+            fill_chamfer_rect(x + w - 52, y + 29, 44, 12, XP_LGRAY);
+            draw_chamfer_rect(x + w - 52, y + 29, 44, 12, XP_DGRAY);
+            draw_compact_string(x + w - 46, y + 31, "[Up]", XP_BLACK);
         }
-        fill_chamfer_rect(x + 8, y + 40, 82, h - 50, XP_WHITE);
-        draw_chamfer_rect(x + 8, y + 40, 82, h - 50, XP_DGRAY);
-        draw_compact_string(x + 12, y + 44, "Quick Access", XP_BLACK);
-        draw_compact_string(x + 12, y + 56, "Desktop", XP_BLACK);
-        draw_compact_string(x + 12, y + 68, "Documents", XP_BLACK);
-        draw_compact_string(x + 12, y + 80, "Downloads", XP_BLACK);
-        draw_compact_string(x + 12, y + 92, "This PC", XP_BLACK);
-        fill_chamfer_rect(x + 94, y + 40, w - 100, h - 50, XP_WHITE);
-        draw_chamfer_rect(x + 94, y + 40, w - 100, h - 50, XP_DGRAY);
+        fill_chamfer_rect(x + 8, y + 44, 82, h - 54, XP_WHITE);
+        draw_chamfer_rect(x + 8, y + 44, 82, h - 54, XP_DGRAY);
+        draw_compact_string(x + 12, y + 48, "Quick Access", XP_BLACK);
+        draw_compact_string(x + 12, y + 62, "Desktop", XP_BLACK);
+        draw_compact_string(x + 12, y + 74, "Documents", XP_BLACK);
+        draw_compact_string(x + 12, y + 86, "Downloads", XP_BLACK);
+        draw_compact_string(x + 12, y + 98, "This PC", XP_BLACK);
+        fill_chamfer_rect(x + 94, y + 44, w - 100, h - 54, XP_WHITE);
+        draw_chamfer_rect(x + 94, y + 44, w - 100, h - 54, XP_DGRAY);
         int list_x = x + 100;
-        int list_y = y + 44;
+        int list_y = y + 48;
         int list_w = w - 110;
         int max_chars = list_w / 6;
         if (max_chars < 1) max_chars = 1;
@@ -1274,24 +1605,29 @@ static void draw_start_menu(void) {
     int menu_y = sm.y;
     int item_h = sm.item_h;
 
-    // Modern light panel style.
+    // Modern light panel style (wider, cleaner spacing, larger action rows).
     fill_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_WHITE);
     draw_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_LGRAY);
     draw_chamfer_rect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, XP_DGRAY);
 
+    int rail_w = 42;
+    int panel_x = menu_x + rail_w + 8;
+    int panel_w = menu_w - rail_w - 14;
+    int items_top = menu_y + 46;
+
     // Left profile rail + avatar chip.
-    fill_chamfer_rect(menu_x + 4, menu_y + 4, 38, menu_h - 8, XP_LGRAY);
-    fill_rect(menu_x + 5, menu_y + 5, 36, 2, XP_WHITE);
-    fill_chamfer_rect(menu_x + 12, menu_y + 10, 22, 12, XP_LBLUE);
-    draw_compact_string(menu_x + 17, menu_y + 12, "A", XP_BLACK);
+    fill_chamfer_rect(menu_x + 4, menu_y + 4, rail_w, menu_h - 8, XP_LGRAY);
+    fill_rect(menu_x + 5, menu_y + 5, rail_w - 2, 2, XP_WHITE);
+    fill_chamfer_rect(menu_x + 13, menu_y + 10, 24, 14, XP_LBLUE);
+    draw_compact_string(menu_x + 21, menu_y + 14, "A", XP_BLACK);
 
     // Header + search strip.
-    fill_chamfer_rect(menu_x + 46, menu_y + 4, menu_w - 50, 18, XP_WHITE);
-    fill_rect(menu_x + 47, menu_y + 5, menu_w - 52, 2, XP_LBLUE);
-    draw_string(menu_x + 52, menu_y + 9, "GamerOS", XP_BLACK);
-    fill_chamfer_rect(menu_x + 50, menu_y + 26, menu_w - 56, 12, XP_LGRAY);
-    draw_chamfer_rect(menu_x + 50, menu_y + 26, menu_w - 56, 12, XP_DGRAY);
-    draw_compact_string(menu_x + 54, menu_y + 28, "Search apps", XP_BLACK);
+    fill_chamfer_rect(panel_x, menu_y + 4, panel_w, 18, XP_WHITE);
+    fill_rect(panel_x + 1, menu_y + 5, panel_w - 2, 2, XP_LBLUE);
+    draw_string(panel_x + 6, menu_y + 9, "GamerOS", XP_BLACK);
+    fill_chamfer_rect(panel_x, menu_y + 26, panel_w, 14, XP_LGRAY);
+    draw_chamfer_rect(panel_x, menu_y + 26, panel_w, 14, XP_DGRAY);
+    draw_compact_string(panel_x + 6, menu_y + 30, "Search apps", XP_BLACK);
 
     // Menu items
     const char* items[] = {
@@ -1302,17 +1638,61 @@ static void draw_start_menu(void) {
         "About GamerOS"
     };
     int item_count = 5;
+    int text_chars = (panel_w - 24) / 6;
+    if (text_chars < 1) text_chars = 1;
     for (int i = 0; i < item_count; i++) {
-        int iy = menu_y + 42 + i * item_h;
-        fill_chamfer_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, (i == 0) ? XP_LBLUE : XP_LGRAY);
-        draw_chamfer_rect(menu_x + 50, iy, menu_w - 56, item_h - 2, XP_DGRAY);
-        fill_chamfer_rect(menu_x + 54, iy + 4, 6, 6, XP_WHITE);
-        draw_string(menu_x + 64, iy + 6, items[i], XP_BLACK);
+        int iy = items_top + i * item_h;
+        fill_chamfer_rect(panel_x, iy, panel_w, item_h - 2, (i == 1) ? XP_LBLUE : XP_LGRAY);
+        draw_chamfer_rect(panel_x, iy, panel_w, item_h - 2, XP_DGRAY);
+        fill_chamfer_rect(panel_x + 5, iy + 5, 6, 6, XP_WHITE);
+        draw_compact_string_clipped(panel_x + 15, iy + 6, text_chars, items[i], XP_BLACK);
     }
 
-    fill_chamfer_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_LBLUE);
-    draw_chamfer_rect(menu_x + 48, menu_y + menu_h - 24, menu_w - 52, 16, XP_DGRAY);
-    draw_string(menu_x + 54, menu_y + menu_h - 20, "Shut Down", XP_BLACK);
+    fill_chamfer_rect(panel_x, menu_y + menu_h - 24, panel_w, 16, XP_LBLUE);
+    draw_chamfer_rect(panel_x, menu_y + menu_h - 24, panel_w, 16, XP_DGRAY);
+    draw_compact_string(panel_x + 8, menu_y + menu_h - 20, "Shut Down", XP_BLACK);
+}
+
+static void draw_desktop_context_menu(void) {
+    desktop_menu_metrics_t dm = {0};
+    get_desktop_menu_metrics(&dm);
+    const char* items[] = {
+        "About GamerOS",
+        "Settings",
+        "Refresh Desktop"
+    };
+    int item_count = 3;
+
+    fill_chamfer_rect(dm.x, dm.y, dm.w, dm.h, XP_WHITE);
+    draw_chamfer_rect(dm.x, dm.y, dm.w, dm.h, XP_DGRAY);
+    for (int i = 0; i < item_count; i++) {
+        int iy = dm.y + 4 + i * dm.item_h;
+        fill_chamfer_rect(dm.x + 4, iy, dm.w - 8, dm.item_h - 2, XP_LGRAY);
+        draw_chamfer_rect(dm.x + 4, iy, dm.w - 8, dm.item_h - 2, XP_DGRAY);
+        draw_compact_string(dm.x + 10, iy + 4, items[i], XP_BLACK);
+    }
+}
+
+static void draw_error_popup(void) {
+    if (!error_popup_open) return;
+    int w = 264;
+    int h = 94;
+    int x = ((int)current_width - w) / 2;
+    int y = (((int)current_height - TASKBAR_HEIGHT) - h) / 2;
+    if (x < 4) x = 4;
+    if (y < 4) y = 4;
+
+    fill_chamfer_rect(x, y, w, h, XP_WHITE);
+    draw_chamfer_rect(x, y, w, h, XP_DGRAY);
+    fill_chamfer_rect(x + 2, y + 2, w - 4, 16, XP_LBLUE);
+    draw_compact_string(x + 8, y + 6, error_popup_title, XP_BLACK);
+
+    draw_compact_string_clipped(x + 8, y + 26, (w - 16) / 6, error_popup_message, XP_BLACK);
+    draw_compact_string_clipped(x + 8, y + 38, (w - 16) / 6, "Check serial log for details.", XP_DGRAY);
+
+    fill_chamfer_rect(x + w - 58, y + h - 22, 46, 14, XP_LGRAY);
+    draw_chamfer_rect(x + w - 58, y + h - 22, 46, 14, XP_DGRAY);
+    draw_compact_string(x + w - 44, y + h - 18, "OK", XP_BLACK);
 }
 
 void draw_desktop(void) {
@@ -1363,6 +1743,10 @@ void draw_desktop(void) {
     if (start_menu_open) {
         draw_start_menu();
     }
+    if (desktop_menu_open) {
+        draw_desktop_context_menu();
+    }
+    draw_error_popup();
     
     // Taskbar items
     int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
@@ -1450,30 +1834,57 @@ static int find_top_window_at(int32_t mx, int32_t my) {
 
 static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
     int content_x = win->x + 4;
-    int content_y = win->y + 22;
+    int content_y = win->y + 28;
     int content_w = win->w - 8;
-    int content_h = win->h - 26;
+    int content_h = win->h - 32;
     if (mx < content_x || mx >= content_x + content_w || my < content_y || my >= content_y + content_h) {
         return 0;
     }
 
     int nav_x = win->x + 6;
-    int nav_y = win->y + 24;
-    int nav_w = 108;
-    int nav_start_y = nav_y + 20;
+    int nav_y = win->y + 30;
+    int nav_w = 124;
+    int nav_row_h = 20;
+    int nav_start_y = nav_y + 22;
     if (mx >= nav_x + 3 && mx < nav_x + nav_w - 3 &&
-        my >= nav_start_y && my < nav_start_y + SETTINGS_TAB_COUNT * 16) {
-        int tab_idx = (my - nav_start_y) / 16;
+        my >= nav_start_y && my < nav_start_y + SETTINGS_TAB_COUNT * nav_row_h) {
+        int tab_idx = (my - nav_start_y) / nav_row_h;
         if (tab_idx >= 0 && tab_idx < SETTINGS_TAB_COUNT) {
             settings_tab = tab_idx;
             return 1;
         }
     }
 
+    // Sub-buttons inside GamerOS Update tab.
+    if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
+        int sub_x = nav_x + nav_w + 8 + 6;
+        int sub_y = win->y + 30 + 4;
+        int content_w = win->w - ((sub_x - 6) - win->x) - 8;
+        int sub_gap = 8;
+        int sub_w = (content_w - 12 - sub_gap) / 2;
+        int sub_h = 16;
+        if (sub_w < 60) sub_w = 60;
+        // Build changelog button
+        if (mx >= sub_x && mx < sub_x + sub_w &&
+            my >= sub_y && my < sub_y + sub_h) {
+            settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
+            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = 0;
+            return 1;
+        }
+        // Roadmap button
+        int sub2_x = sub_x + sub_w + sub_gap;
+        if (mx >= sub2_x && mx < sub2_x + sub_w &&
+            my >= sub_y && my < sub_y + sub_h) {
+            settings_update_view = SETTINGS_UPDATE_VIEW_ROADMAP;
+            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = 0;
+            return 1;
+        }
+    }
+
     if (settings_tab == SETTINGS_TAB_SYSTEM) {
         int content_x = nav_x + nav_w + 6;
-        int content_y = win->y + 24;
-        int body_y = content_y + 12;
+        int content_y = win->y + 28;
+        int body_y = content_y + 16;
         int rel_x = mx - (content_x + 6);
         int rel_y = my - (body_y + 22);
         if (rel_x >= 0 && rel_x < 150) {
@@ -1574,11 +1985,11 @@ static int handle_notepad_wheel(window_t* win, int8_t wheel_delta) {
 static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t wheel_delta) {
     if (!win || wheel_delta == 0) return 0;
     int nav_x = win->x + 6;
-    int nav_w = 108;
-    int content_x = nav_x + nav_w + 6;
-    int content_y = win->y + 24;
-    int content_w = win->w - (content_x - win->x) - 6;
-    int content_h = win->h - 30;
+    int nav_w = 124;
+    int content_x = nav_x + nav_w + 8;
+    int content_y = win->y + 30;
+    int content_w = win->w - (content_x - win->x) - 8;
+    int content_h = win->h - 36;
     if (mx < content_x || mx >= content_x + content_w || my < content_y || my >= content_y + content_h) {
         return 0;
     }
@@ -1586,11 +1997,22 @@ static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t w
     if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
         settings_md_ensure_loaded();
         int total = settings_md_line_count;
-        int visible = (content_h - 30) / 10;
+        int start_idx = 0;
+        int end_idx = total;
+        if (settings_md_plan_start >= 0) {
+            if (settings_update_view == SETTINGS_UPDATE_VIEW_CHANGELOG) {
+                end_idx = settings_md_plan_start;
+            } else if (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) {
+                start_idx = settings_md_plan_start;
+            }
+        }
+        if (end_idx < start_idx) end_idx = start_idx;
+        int view_count = end_idx - start_idx;
+        int visible = (content_h - 50) / 10;
         if (visible < 1) visible = 1;
         int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] - (int)wheel_delta;
         if (top < 0) top = 0;
-        if (top > total - visible) top = total - visible;
+        if (top > view_count - visible) top = view_count - visible;
         if (top < 0) top = 0;
         if (top != settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE]) {
             settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
@@ -1603,14 +2025,75 @@ static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t w
 // Process mouse input
 void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) {
 #define RETURN_MOUSE() do { last_buttons = buttons; return; } while (0)
+    if (mx < 0) mx = 0;
+    if (my < 0) my = 0;
+    if (mx >= (int32_t)current_width) mx = (int32_t)current_width - 1;
+    if (my >= (int32_t)current_height) my = (int32_t)current_height - 1;
+    if (mx < 0 || my < 0) RETURN_MOUSE();
+
+    buttons &= (uint8_t)(MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT);
+    if ((buttons & (MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT)) == (MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT)) {
+        // Ignore ambiguous dual-button packets to avoid unsafe state transitions in VMs.
+        if (!warned_mouse_packet) {
+            raise_runtime_error("Input Error", "Ambiguous mouse packet detected (L+R together).");
+            warned_mouse_packet = 1;
+        }
+        RETURN_MOUSE();
+    }
+
     uint8_t pressed = buttons & ~last_buttons;
+
+    if (pressed & MOUSE_BTN_RIGHT) {
+        int clicked_idx = find_top_window_at(mx, my);
+        int desktop_h = (int)current_height - TASKBAR_HEIGHT;
+        if (clicked_idx < 0 && mx >= 0 && mx < (int)current_width && my >= 0 && my < desktop_h) {
+            desktop_menu_open = 1;
+            desktop_menu_x = mx;
+            desktop_menu_y = my;
+            start_menu_open = 0;
+            RETURN_MOUSE();
+        }
+        desktop_menu_open = 0;
+    }
     
-    if (pressed & MOUSE_BTN_LEFT) {
+    if ((pressed & MOUSE_BTN_LEFT) && !(buttons & MOUSE_BTN_RIGHT)) {
+        if (error_popup_open) {
+            int ew = 264, eh = 94;
+            int ex = ((int)current_width - ew) / 2;
+            int ey = (((int)current_height - TASKBAR_HEIGHT) - eh) / 2;
+            if (ex < 4) ex = 4;
+            if (ey < 4) ey = 4;
+            int ok_x = ex + ew - 58;
+            int ok_y = ey + eh - 22;
+            if (mx >= ok_x && mx < ok_x + 46 && my >= ok_y && my < ok_y + 14) {
+                error_popup_open = 0;
+                RETURN_MOUSE();
+            }
+            RETURN_MOUSE();
+        }
+
+        if (desktop_menu_open) {
+            desktop_menu_metrics_t dm = {0};
+            get_desktop_menu_metrics(&dm);
+            if (mx >= dm.x && mx < dm.x + dm.w && my >= dm.y && my < dm.y + dm.h) {
+                int rel_y = my - (dm.y + 4);
+                int idx = rel_y / dm.item_h;
+                if (idx == 0) {
+                    launch_application_exe("ABOUT.EXE", -1, -1);
+                } else if (idx == 1) {
+                    launch_application_exe("SETTINGS.EXE", -1, -1);
+                }
+            }
+            desktop_menu_open = 0;
+            RETURN_MOUSE();
+        }
+
         // Start button
         int start_y = (int)current_height - TASKBAR_HEIGHT + ((TASKBAR_HEIGHT - START_BTN_H) / 2);
         if (mx >= START_BTN_X && mx < START_BTN_X + START_BTN_W &&
             my >= start_y && my < start_y + START_BTN_H) {
             start_menu_open = !start_menu_open;
+            desktop_menu_open = 0;
             RETURN_MOUSE();
         }
 
@@ -1623,20 +2106,27 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             int menu_h = sm.h;
             int menu_y = sm.y;
             int menu_item_h = sm.item_h;
+            int rail_w = 42;
+            int panel_x = menu_x + rail_w + 8;
+            int panel_w = menu_w - rail_w - 14;
+            int items_top = menu_y + 46;
             if (mx >= menu_x && mx < menu_x + menu_w && my >= menu_y && my < menu_y + menu_h) {
-                int rel_y = my - (menu_y + 28);
-                if (rel_y >= 0 && rel_y < menu_item_h) {
-                    launch_application_exe("NOTEPAD.EXE", -1, -1);
-                } else if (rel_y >= menu_item_h && rel_y < (menu_item_h * 2)) {
-                    launch_application_exe("SETTINGS.EXE", -1, -1);
-                } else if (rel_y >= (menu_item_h * 2) && rel_y < (menu_item_h * 3)) {
-                    launch_application_exe("EXPLORER.EXE", -1, -1);
-                } else if (rel_y >= (menu_item_h * 3) && rel_y < (menu_item_h * 4)) {
-                    launch_settings_tab(SETTINGS_TAB_GAMEROS_UPDATE);
-                } else if (rel_y >= (menu_item_h * 4) && rel_y < (menu_item_h * 5)) {
-                    launch_settings_tab(SETTINGS_TAB_ABOUT);
+                if (mx >= panel_x && mx < panel_x + panel_w &&
+                    my >= items_top && my < items_top + menu_item_h * 5) {
+                    int idx = (my - items_top) / menu_item_h;
+                    if (idx == 0) {
+                        launch_application_exe("NOTEPAD.EXE", -1, -1);
+                    } else if (idx == 1) {
+                        launch_application_exe("SETTINGS.EXE", -1, -1);
+                    } else if (idx == 2) {
+                        launch_application_exe("EXPLORER.EXE", -1, -1);
+                    } else if (idx == 3) {
+                        launch_settings_tab(SETTINGS_TAB_GAMEROS_UPDATE);
+                    } else if (idx == 4) {
+                        launch_application_exe("ABOUT.EXE", -1, -1);
+                    }
                 } else if (my >= menu_y + menu_h - 24 && my < menu_y + menu_h - 8 &&
-                           mx >= menu_x + 44 && mx < menu_x + menu_w - 4) {
+                           mx >= panel_x && mx < panel_x + panel_w) {
                     shutdown_os();
                 }
                 start_menu_open = 0;
@@ -1647,12 +2137,14 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
 
         int clicked_idx = find_top_window_at(mx, my);
         if (clicked_idx >= 0) {
+            if (error_popup_open) RETURN_MOUSE();
+            desktop_menu_open = 0;
             int tx = windows[clicked_idx].x;
             int ty = windows[clicked_idx].y;
             int tw = windows[clicked_idx].w;
             int th = windows[clicked_idx].h;
 
-            if (mx >= tx + tw - 16 && mx < tx + tw && my >= ty + 2 && my < ty + 16) {
+            if (mx >= tx + tw - 26 && mx < tx + tw - 6 && my >= ty + 4 && my < ty + 20) {
                 close_window(clicked_idx);
                 RETURN_MOUSE();
             }
@@ -1668,7 +2160,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
                 RETURN_MOUSE();
             }
 
-            if (mx >= tx && mx < tx + tw - 16 && my >= ty && my < ty + 18) {
+            if (mx >= tx && mx < tx + tw - 26 && my >= ty && my < ty + 24) {
                 windows[clicked_idx].dragging = 1;
                 windows[clicked_idx].drag_x = mx - windows[clicked_idx].x;
                 windows[clicked_idx].drag_y = my - windows[clicked_idx].y;
@@ -1731,8 +2223,8 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
                 if (windows[i].x < 0) windows[i].x = 0;
                 if (windows[i].y < 0) windows[i].y = 0;
                 if (windows[i].x > (int)current_width - windows[i].w) windows[i].x = current_width - windows[i].w;
-                if (windows[i].y > (int)current_height - TASKBAR_HEIGHT - 16) {
-                    windows[i].y = (int)current_height - TASKBAR_HEIGHT - 16;
+                if (windows[i].y > (int)current_height - TASKBAR_HEIGHT - 20) {
+                    windows[i].y = (int)current_height - TASKBAR_HEIGHT - 20;
                 }
             } else if (windows[i].active && windows[i].resizing) {
                 int min_w = WINDOW_MIN_W_DEFAULT;
@@ -1989,8 +2481,21 @@ void kernel_main(multiboot_info_t* mb_info) {
         mouse_poll();
         keyboard_poll();
         
-        int32_t mx = mouse_get_x();
-        int32_t my = mouse_get_y();
+        int32_t raw_mx = mouse_get_x();
+        int32_t raw_my = mouse_get_y();
+        int32_t mx = raw_mx;
+        int32_t my = raw_my;
+        if (!warned_mouse_bounds &&
+            (raw_mx < 0 || raw_my < 0 ||
+             raw_mx >= (int32_t)current_width ||
+             raw_my >= (int32_t)current_height)) {
+            raise_runtime_error("Input Bounds Error", "Mouse coordinates were outside screen bounds.");
+            warned_mouse_bounds = 1;
+        }
+        if (mx < 0) mx = 0;
+        if (my < 0) my = 0;
+        if (mx >= (int32_t)current_width) mx = (int32_t)current_width - 1;
+        if (my >= (int32_t)current_height) my = (int32_t)current_height - 1;
         uint8_t buttons = mouse_get_buttons();
         // Normalize wheel direction so wheel-up scrolls content up in UI lists/editors.
         int8_t wheel_delta = (int8_t)(-mouse_get_wheel_delta());

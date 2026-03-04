@@ -13,6 +13,15 @@ This changelog tracks work for the next release cycle.
   - `draw_pixel_rgb(...)`
   - `clear_screen_rgb(...)`
 - Added explicit video mode enum target `MODE_VESA_1920x1080`.
+ - Introduced a simple app lifecycle tracker so built-in desktop apps behave like first-class GamerOS apps with explicit running/stopped state.
+ - Added a GamerOS virtual path system (`GOS:/User`, `GOS:/System`, `GOS:/Apps`) that maps to concrete filesystem locations.
+ - Wired Notepad to use `GOS:/User/Notepad/NOTEPAD.TXT` so its data lives in a per-app user folder instead of a hardcoded C: path.
+ - Created dedicated per-app and user storage folders (Notepad, Settings, Explorer, Saves) to keep app data organized.
+ - Added basic app manifest files (`*.gosapp`) for built-in apps (Notepad, Settings, Explorer) describing ID, display name, EXE path, entry point, category, and permissions.
+ - Initialized save-slot style files under the user `Saves` folder to prepare for future game/launcher integration.
+ - Added standalone `ABOUT.EXE` system app with app metadata/manifest so About is launchable outside Settings.
+ - Added desktop right-click context menu with quick actions (`About GamerOS`, `Settings`, `Refresh Desktop`).
+ - Added in-OS runtime error popup dialog (modal with `OK`) so detectable failures show directly inside GamerOS.
 
 ## Changed
 - Build metadata updated from `1.300` to `1.400`.
@@ -28,7 +37,8 @@ This changelog tracks work for the next release cycle.
 - Graphics backend now safely activates true-color mode whenever a valid bootloader framebuffer is provided.
 - Graphics pipeline compatibility pass completed so legacy UI color IDs and cursor composition behave correctly on both indexed VGA and true-color framebuffer paths.
 - Boot header now explicitly requests `1920x1080x32` graphics mode again for Full HD true-color startup when supported.
-- Settings `Gaming`/`About` now display live graphics backend mode, bpp, and resolution (including RGBA indicator).
+- Settings `Gaming` now displays live graphics backend mode, bpp, and resolution (including RGBA indicator).
+- About details moved out of Settings into the dedicated `About GamerOS` app window.
 - Start menu layout refreshed for clarity with cleaner cards, search strip, and stronger action hierarchy.
 - Loading screen background reworked to a smoother gradient-style presentation.
 - Loading indicator switched from linear bar to a circular progress loader.
@@ -37,6 +47,16 @@ This changelog tracks work for the next release cycle.
   - Start menu restyled with profile chip, light surfaces, and neutral shutdown action
   - taskbar, Start button, task buttons, and clock moved to light modern treatment
   - desktop icon labels and watermark tuned for better readability on bright backgrounds
+- Settings `GamerOS Update` changelog viewer now renders markdown headings with a larger font for clearer section hierarchy.
+ - Increased window title bar height and close button size so app headers are easier to read and interact with.
+ - Raised taskbar height and widened Start/task buttons for better click targets and a less cramped shell layout.
+ - Tuned Settings and File Explorer window layouts (nav rails, content panes, and toolbars) to align with the taller headers and provide more balanced spacing.
+ - Refined Settings layout again with larger left-nav rows, a wider navigation rail, and more content spacing so controls are easier to scan and click.
+ - Enlarged `GamerOS Update` sub-buttons and widened their hit targets so `Build 1.400 changelog` and `Roadmap` labels fit cleanly.
+ - Kept `## Planned` in markdown source but mapped it to the `Roadmap` sub-view so the main build changelog view only shows release/add/changed/fixed/notes.
+ - Start menu `About GamerOS` action now launches the standalone About app instead of jumping to a Settings tab.
+ - Start menu redesigned with wider modern layout, cleaner spacing, and improved label fit so entries like `File Explorer`, `GamerOS Update`, and `About GamerOS` are fully readable.
+ - Start menu hit-testing updated to match new row geometry, improving click reliability on all menu entries.
 
 ## Fixed
 - Fixed wallpaper/taskbar transition mismatch caused by the two blue desktop glow strips.
@@ -49,6 +69,47 @@ This changelog tracks work for the next release cycle.
 - Fixed early paging initialization robustness by allocating P4/P3/P2 tables as page-aligned kernel BSS symbols instead of fixed physical addresses.
 - Fixed ultra-dark desktop/UI rendering in true-color mode by applying shell palette mappings during non-VGA palette initialization.
 - Fixed near-black desktop visibility when wallpaper asset is too dark by adding adaptive bright modern wallpaper fallback rendering.
+- Fixed Settings information architecture by removing duplicated About content and keeping About in its own dedicated app surface.
+- Fixed VM instability path where desktop right-click/context-menu input packets could trigger unsafe mouse-state transitions and halt the guest.
+- Fixed VM crash path by clamping raw polled mouse coordinates before cursor composition/rendering, preventing out-of-range right-click packets from corrupting draw paths.
+- Fixed silent-debugability issue by surfacing unstable mouse packet/bounds anomalies in an in-OS popup and serial log.
 
 ## Notes
 - Release date is not finalized yet.
+
+## Planned
+ - New app container model so desktop apps behave like first-class system windows (with minimize/maximize/close, focus handling, and z-order).
+ - Extend the app lifecycle from the current running/stopped tracker into a richer controller that can also suspend, resume, and terminate or throttle background apps.
+ - Standardized app chrome guidelines so built-in tools (Settings, File Manager, Media Player) visually align with the shell.
+ - Shell-visible app registry that tracks installed system apps, metadata, icons, and launch targets, and can be browsed from the UI.
+ - Extended `.gosapp` manifest format with versioning, dependency, and fine-grained permission fields.
+ - Basic permissions model for apps (filesystem, network, settings, hardware) to prepare for future sandboxing.
+ - Unified input dispatch layer that routes keyboard/mouse events to the active app with proper focus rules.
+ - Initial window manager hooks to support multiple top-level app windows with proper stacking and activation.
+ - App-aware taskbar integration so running apps appear with icons, titles, and hover previews.
+ - Simple inter-app protocol for launching apps with arguments (e.g., open file from File Manager into Media Player).
+ - High-level UI controls library (buttons, labels, checkboxes, sliders) for building consistent in-box apps.
+ - Layout helpers for common app patterns (sidebar/content, toolbar/content, dialog with actions).
+ - New `App Shell` sample app demonstrating the recommended window structure and toolbar patterns.
+ - Dedicated File Manager app prototype with modern column layout and breadcrumb navigation.
+ - Basic storage abstraction layer that hides raw disk details behind a friendly volume and path model.
+ - High-level storage API for apps to read/write user documents without touching low-level disk code.
+ - Standardized `AppData`-style per-app data root (e.g., `GOS:/User/AppData/<AppId>`) shared by all apps, not just the built-in ones.
+ - Initial settings storage backend for persisting toggles, theme choice, and last-used graphics mode.
+ - Simple key/value persistence helper for apps to store preferences and restore them on next launch.
+ - First version of a save-game style data slot API for games and game launchers.
+ - Read-only system volume layout for core OS assets, with a separate writable user area.
+ - Bootstrap for a future installer experience that can place apps into the correct volume and register them with the shell.
+ - Storage-aware About/Gaming pages that display detected volumes, free space, and backend information.
+ - Internal diagnostics overlay app that can inspect current apps, windows, and storage mounts.
+ - Error dialog framework so apps can show consistent, shell-native error and warning messages.
+ - Simple notification/toast API for apps to surface background events (e.g., file copy finished).
+ - Background service concept for future features like update checks and indexing without blocking the shell.
+ - Skeleton for an in-box text editor app that uses the new app framework and storage APIs.
+ - Planned media player UI spec (play/pause, seek, volume) wired up to the new app container model.
+ - Initial hooks for a plugin system that will later allow optional features and tools to be shipped as separate app bundles.
+ - Desktop context menu customization (pin actions, sort icons, wallpaper/profile actions).
+ - Desktop icon arrangement tools (snap-to-grid toggle, align, auto-arrange, manual save/load layouts).
+ - About app diagnostics extensions (build hash, boot mode, memory/storage snapshot, export report).
+ - App install/uninstall flow in Settings with manifest validation and rollback on failure.
+ - Update channel selection in GamerOS Update (`stable`, `preview`, `dev`) with per-channel roadmap sections.

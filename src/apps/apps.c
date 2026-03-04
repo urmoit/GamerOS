@@ -25,6 +25,14 @@ static const app_descriptor_t g_apps[] = {
         APP_WINDOW_EXPLORER,
         28,
         18
+    },
+    {
+        "ABOUT.EXE",
+        "C:/GamerOS/System32/ABOUT.EXE",
+        "About GamerOS",
+        APP_WINDOW_ABOUT,
+        34,
+        20
     }
 };
 
