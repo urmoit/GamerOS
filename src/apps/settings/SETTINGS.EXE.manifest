@@ -1,5 +1,0 @@
-Name=Settings
-Executable=SETTINGS.EXE
-SystemPath=C:/GamerOS/System32/SETTINGS.EXE
-Subsystem=GamerOS
-Entry=WIN_SETTINGS

@@ -1,5 +1,0 @@
-Name=About GamerOS
-Executable=ABOUT.EXE
-SystemPath=C:/GamerOS/System32/ABOUT.EXE
-Subsystem=GamerOS
-Entry=WIN_ABOUT
