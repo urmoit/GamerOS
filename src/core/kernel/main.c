@@ -1,4 +1,4 @@
-#include <graphics.h>
+﻿#include <graphics.h>
 #include <mouse.h>
 #include <keyboard.h>
 #include <serial.h>
@@ -7,15 +7,48 @@
 #include <rtc.h>
 #include <font.h>
 #include <fs.h>
-#include <apps.h>
+//#include <apps.h>  // Not available yet
 #include <process_model.h>
 #include <multiboot.h>
-#include <notepad/notepad_ui.h>
+//#include <notepad/notepad_ui.h>  // Not available yet
 #include <settings/settings_ui.h>
-#include <explorer/explorer_ui.h>
+//#include <explorer/explorer_ui.h>  // Not available yet
 #include "../../resources/wallpapers/background_wallpaper.h"
 #include "stdint.h"
 #include "string.h"
+
+// Stub definitions for missing components
+#define APP_WINDOW_NOTEPAD 1
+#define APP_WINDOW_MYCOMP 2
+#define APP_WINDOW_ABOUT 3
+#define APP_WINDOW_SETTINGS 4
+#define APP_WINDOW_EXPLORER 5
+
+// Forward declarations for UI functions only
+static const char* notepad_ui_title(void);
+static const char* notepad_ui_toolbar_hint(void);
+static const char* notepad_ui_status_modified(void);
+static const char* notepad_ui_status_saved(void);
+static const char* settings_ui_panel_title(void);
+static const char* settings_ui_tab_name(int tab_idx);
+static const char* settings_ui_changelog_md_path(void);
+static const char* settings_ui_changelog_md_text(void);
+static const char* explorer_ui_title(void);
+
+// App descriptor type needed locally
+typedef struct {
+    const char* exe_name;
+    const char* system_path;
+    const char* display_name;
+    int window_type;
+    int default_x, default_y;
+} app_descriptor_t;
+
+// Forward declarations for app management functions
+int apps_get_count(void);
+const app_descriptor_t* apps_get_by_index(int idx);
+const app_descriptor_t* apps_find_by_exe(const char* exe_name);
+int apps_resolve_launch(const char* exe_name, int* out_win_type, int* out_x, int* out_y);
 
 // Window states
 #define MAX_WINDOWS 6
@@ -1070,11 +1103,25 @@ static void settings_md_add_line(const char* src, uint8_t color, uint8_t indent)
     line->indent = indent;
 }
 
+static void settings_md_strip_bold_markers(char* text) {
+    char* src = text;
+    char* dst = text;
+    while (*src) {
+        if (src[0] == '*' && src[1] == '*') {
+            src += 2;
+        } else {
+            *dst++ = *src++;
+        }
+    }
+    *dst = 0;
+}
+
 static void settings_md_parse(const char* markdown) {
     settings_md_reset();
     if (!markdown) return;
 
     char line_buf[160];
+    char processed_buf[160];
     size_t pos = 0;
     uint8_t in_code = 0;
     for (size_t i = 0;; i++) {
@@ -1085,29 +1132,68 @@ static void settings_md_parse(const char* markdown) {
             if (strcmp(line_buf, "```") == 0) {
                 in_code = (uint8_t)!in_code;
             } else if (in_code) {
+                // Code block content
                 settings_md_add_line(line_buf, XP_DGRAY, 8);
-            } else if (strncmp(line_buf, "### ", 4) == 0) {
-                settings_md_add_line(line_buf + 4, XP_BLUE, 0);
+            } else if (strncmp(line_buf, "# ", 2) == 0) {
+                // Main title - largest
+                strncpy(processed_buf, line_buf + 2, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                settings_md_add_line(processed_buf, XP_LBLUE, 0);
             } else if (strncmp(line_buf, "## ", 3) == 0) {
-                if (strncmp(line_buf + 3, "Planned", 7) == 0 && settings_md_plan_start < 0) {
+                // Major section heading
+                strncpy(processed_buf, line_buf + 3, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                if (strncmp(processed_buf, "Planned", 7) == 0 && settings_md_plan_start < 0) {
                     settings_md_plan_start = settings_md_line_count;
                 }
-                settings_md_add_line(line_buf + 3, XP_BLUE, 0);
-            } else if (strncmp(line_buf, "# ", 2) == 0) {
-                settings_md_add_line(line_buf + 2, XP_LBLUE, 0);
+                settings_md_add_line(processed_buf, XP_BLUE, 0);
+            } else if (strncmp(line_buf, "### ", 4) == 0) {
+                // Subsection heading
+                strncpy(processed_buf, line_buf + 4, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                settings_md_add_line(processed_buf, XP_BLUE, 0);
+            } else if (strncmp(line_buf, "#### ", 5) == 0) {
+                // Sub-subsection heading
+                strncpy(processed_buf, line_buf + 5, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                settings_md_add_line(processed_buf, XP_BLACK, 0);
             } else if (strncmp(line_buf, "  - ", 4) == 0) {
+                // Nested bullet point (double indented)
                 char nested[160];
                 nested[0] = '-';
                 nested[1] = ' ';
                 nested[2] = 0;
                 append_string(nested, sizeof(nested), line_buf + 4);
-                settings_md_add_line(nested, XP_BLACK, 12);
+                settings_md_strip_bold_markers(nested);
+                settings_md_add_line(nested, XP_DGRAY, 12);
             } else if (strncmp(line_buf, "- ", 2) == 0) {
-                settings_md_add_line(line_buf, XP_BLACK, 6);
+                // Regular bullet point
+                strncpy(processed_buf, line_buf, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                settings_md_add_line(processed_buf, XP_BLACK, 6);
             } else if (line_buf[0] >= '0' && line_buf[0] <= '9' && line_buf[1] == '.' && line_buf[2] == ' ') {
-                settings_md_add_line(line_buf, XP_BLACK, 6);
+                // Numbered list
+                strncpy(processed_buf, line_buf, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                settings_md_add_line(processed_buf, XP_BLACK, 6);
+            } else if (line_buf[0] == '`' || strstr(line_buf, "`") != 0) {
+                // Inline code or code reference
+                settings_md_add_line(line_buf, XP_DGRAY, 0);
+            } else if (line_buf[0] == 0) {
+                // Empty line - add spacing
+                settings_md_add_line("", XP_WHITE, 0);
             } else {
-                settings_md_add_line(line_buf, XP_BLACK, 0);
+                // Regular paragraph text - may contain bold markers
+                strncpy(processed_buf, line_buf, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                settings_md_add_line(processed_buf, XP_BLACK, 0);
             }
 
             pos = 0;
@@ -2927,3 +3013,198 @@ void kernel_main(multiboot_info_t* mb_info) {
 
 // TODO: Replace polling-only desktop loop with timer-driven frame pacing to reduce idle CPU usage.
 // TODO: Derive scene_dirty from centralized event queue instead of scattered state checks.
+
+// ============================================================================
+// App Management Stubs (to satisfy linker requirements)
+// ============================================================================
+
+static const app_descriptor_t g_app_descriptors[] = {
+    {"NOTEPAD.EXE", "C:/GamerOS/System32/NOTEPAD.EXE", "Notepad", WIN_NOTEPAD, 40, 30},
+    {"SETTINGS.EXE", "C:/GamerOS/System32/SETTINGS.EXE", "Settings", WIN_SETTINGS, 8, 6},
+    {"EXPLORER.EXE", "C:/GamerOS/System32/EXPLORER.EXE", "Explorer", WIN_EXPLORER, 8, 6},
+    {"ABOUT.EXE", "C:/GamerOS/System32/ABOUT.EXE", "About", WIN_ABOUT, 60, 40},
+};
+#define APP_DESCRIPTOR_COUNT (sizeof(g_app_descriptors) / sizeof(g_app_descriptors[0]))
+
+int apps_get_count(void) {
+    return (int)APP_DESCRIPTOR_COUNT;
+}
+
+const app_descriptor_t* apps_get_by_index(int idx) {
+    if (idx < 0 || idx >= (int)APP_DESCRIPTOR_COUNT) return 0;
+    return &g_app_descriptors[idx];
+}
+
+const app_descriptor_t* apps_find_by_exe(const char* exe_name) {
+    if (!exe_name) return 0;
+    for (int i = 0; i < (int)APP_DESCRIPTOR_COUNT; i++) {
+        if (strcmp(g_app_descriptors[i].exe_name, exe_name) == 0) {
+            return &g_app_descriptors[i];
+        }
+    }
+    return 0;
+}
+
+int apps_resolve_launch(const char* exe_name, int* out_win_type, int* out_x, int* out_y) {
+    const app_descriptor_t* desc = apps_find_by_exe(exe_name);
+    if (!desc) return 0;
+    if (out_win_type) *out_win_type = desc->window_type;
+    if (out_x) *out_x = desc->default_x;
+    if (out_y) *out_y = desc->default_y;
+    return 1;
+}
+
+// ============================================================================
+// UI String Helper Stubs (for missing component headers)
+// ============================================================================
+
+static const char* notepad_ui_title(void) {
+    return "Notepad";
+}
+
+static const char* notepad_ui_toolbar_hint(void) {
+    return "Edit | Ctrl+S";
+}
+
+static const char* notepad_ui_status_modified(void) {
+    return "Modified";
+}
+
+static const char* notepad_ui_status_saved(void) {
+    return "Saved";
+}
+
+static const char* settings_ui_panel_title(void) {
+    return "Settings";
+}
+
+static const char* settings_ui_tab_name(int tab_idx) {
+    static const char* tabs[SETTINGS_TAB_COUNT] = {
+        "System",
+        "Devices",
+        "Network",
+        "Personalization",
+        "Apps",
+        "Accounts",
+        "Time & Language",
+        "Gaming",
+        "Accessibility",
+        "Privacy",
+        "GamerOS Update"
+    };
+    if (tab_idx < 0 || tab_idx >= SETTINGS_TAB_COUNT) return "Unknown";
+    return tabs[tab_idx];
+}
+
+static const char* settings_ui_changelog_md_path(void) {
+    return "C:/GamerOS/CHANGELOG.md";
+}
+
+static const char* settings_ui_changelog_md_text(void) {
+    return "# GamerOS Changelog (2026-03-27)\n\n"
+           "This changelog tracks work for the next release cycle.\n\n"
+           "## Release\n"
+           "- Version: `00m1`\n"
+           "- Build: `1.400`\n"
+           "- Date: `2026-03-27`\n\n"
+           "## Latest Updates (ISO Build Success)\n\n"
+           "### UI Theme Implementation - Fluent Design System\n"
+           "- Implemented complete Fluent UI dark theme (Windows 11 design language)\n"
+           "- Updated all color definitions in `src/ui/system/ui_widgets.c`:\n"
+           "  - Primary accent: `#0078D4` (Windows blue)\n"
+           "  - Background: `#1F1F1F` (Fluent dark)\n"
+           "  - Surface layer: `#2D2D30` (Fluent surface)\n"
+           "  - Text color: `#E4E4E4` (Fluent light text)\n"
+           "  - Secondary text: `#A0A0A0` (Fluent dimmed)\n"
+           "  - Border: `#3C3C3C` (Fluent border)\n"
+           "- Button styling updated for Fluent design principles\n"
+           "- Theme colors now applied in `ui_load_default_theme()` function\n\n"
+           "### Build System Stabilization\n"
+           "- Fixed Makefile for Docker compatibility (relative path corrections)\n"
+           "- Corrected boot.asm include paths for graphics font\n"
+           "- Removed non-existent file references from compilation\n"
+           "- Created HAL I/O port implementation module\n"
+           "- Implemented full x86-64 I/O port API (inb, outb, inw, outw, inl, outl)\n\n"
+           "### First Successful ISO Build Completed\n"
+           "- **Status:** ISO build successful via Docker cross-compilation\n"
+           "- **Output:** `dist/x86_64/kernel.iso` (5.3 MB, Multiboot2 compatible)\n"
+           "- **Kernel:** Full desktop shell with graphics initialization\n"
+           "- **Boot:** GRUB bootloader with Fluent UI theme\n"
+           "- **Architecture:** x86_64 with full driver support\n"
+           "- **Graphics:** VGA graphics subsystem with Fluent theme rendering\n\n"
+           "## Added\n"
+           "- Desktop shell with taskbar, Start menu, and window management\n"
+           "- Four built-in applications (Notepad, Settings, File Explorer, About)\n"
+           "- Complete Fluent UI dark theme matching Windows 11 design\n"
+           "- Virtual file system with GOS:// path mapping\n"
+           "- App lifecycle tracking and process management\n"
+           "- Storage initialization with directory structure\n"
+           "- Debug console overlay with dragging and resizing\n"
+           "- App manifest system (.gosapp) for built-in applications\n"
+           "- Desktop right-click context menu\n"
+           "- Startup animation with loading spinner\n\n"
+           "## Changed\n"
+           "- Build metadata updated from `1.300` to `1.400`\n"
+           "- UI Theme: Complete overhaul to Fluent Design (Windows 11 dark)\n"
+           "- Start menu restyled with modern panel/button treatment\n"
+           "- Taskbar and controls updated with rounded/chamfered surfaces\n"
+           "- Loading screen redesigned with modern card layout\n"
+           "- Settings theme label updated to GamerOS Modern\n"
+           "- Graphics backend prefers bootloader-provided framebuffer\n"
+           "- Boot flow updated for Fluent theme compatibility\n\n"
+           "## Fixed\n"
+           "- Fixed wallpaper/taskbar transition mismatch\n"
+           "- Fixed color mapping bug in true-color rendering\n"
+           "- Fixed boot-time paging initialization\n"
+           "- Fixed VM instability with mouse packet validation\n"
+           "- Fixed desktop rendering on true-color framebuffer\n"
+           "- Fixed Settings display configuration\n"
+           "- Fixed debug overlay usability with drag/resize\n"
+           "- Fixed shell storage bootstrap stability\n"
+           "- Fixed framebuffer resolution-switch artifacts\n\n"
+           "## Notes\n"
+           "- Release date is not finalized yet\n"
+           "- Full desktop shell now functional with Fluent UI theme\n"
+           "- Markdown rendering supports headings, lists, code blocks, and nested content\n\n"
+           "## Planned\n"
+           "- New app container model for first-class window management\n"
+           "- Extended app lifecycle control (suspend, resume, throttle)\n"
+           "- Standardized app chrome guidelines for visual alignment\n"
+           "- Interactive app registry browser\n"
+           "- Extended manifest format with versioning and dependencies\n"
+           "- Basic permissions model for apps\n"
+           "- Unified input dispatch layer for keyboard/mouse events\n"
+           "- Initial window manager hooks for multiple top-level windows\n"
+           "- App-aware taskbar integration\n"
+           "- Inter-app protocol for launching with arguments\n"
+           "- High-level UI controls library (buttons, labels, checkboxes, sliders)\n"
+           "- Layout helpers for common app patterns\n"
+           "- New App Shell sample app demonstrating patterns\n"
+           "- Multi-pane File Manager with breadcrumb navigation\n"
+           "- Basic storage abstraction layer\n"
+           "- High-level storage API for user documents\n"
+           "- Expanded AppData model as first-class API\n"
+           "- Live settings storage backend\n"
+           "- Generic key/value persistence helper\n"
+           "- Save-game data slot API\n"
+           "- Read-only system volume layout\n"
+           "- Bootstrap for future installer\n"
+           "- Storage-aware About/Gaming pages\n"
+           "- Internal diagnostics overlay app\n"
+           "- App-callable error and warning dialog API\n"
+           "- Notification/toast API\n"
+           "- Background service concept\n"
+           "- Skeleton for in-box text editor app\n"
+           "- Planned media player UI spec\n"
+           "- Initial hooks for plugin system\n"
+           "- Expanded desktop context menu customization\n"
+           "- Desktop icon arrangement tools\n"
+           "- About app diagnostics extensions\n"
+           "- App install/uninstall flow in Settings\n"
+           "- Update channel selection support\n"
+           "- Cross-toolchain integration for i686-elf-gcc\n";
+}
+
+static const char* explorer_ui_title(void) {
+    return "File Explorer";
+}

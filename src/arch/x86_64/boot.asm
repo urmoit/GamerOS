@@ -20,7 +20,7 @@ header_end:
 section .text
 bits 32
 
-%include "src/impl/graphics/font.inc"
+%include "../src/graphics/font.inc"
 
 VGA_GRAPHICS_BUFFER equ 0xA0000
 

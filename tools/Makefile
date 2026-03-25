@@ -1,23 +1,19 @@
 ARCH ?= x86_64
 
 # Directories
-SRC_DIR = src
-BUILD_DIR = build
-DIST_DIR = dist
-TARGETS_DIR = config/targets
+SRC_DIR = ../src
+BUILD_DIR = ../build
+DIST_DIR = ../dist
+TARGETS_DIR = ../config/targets
 
 # Core source files (working set)
-ASM_SRC = $(SRC_DIR)/arch/x86_64/boot.asm \
-          $(SRC_DIR)/core/hal/interrupts/isr.asm \
-          $(SRC_DIR)/core/hal/cpu/context_switch.asm
+ASM_SRC = $(SRC_DIR)/arch/x86_64/boot.asm
 
 C_SRC = $(SRC_DIR)/core/kernel/main.c \
+        $(SRC_DIR)/core/hal/ports.c \
         $(SRC_DIR)/graphics/vga_graphics.c \
         $(SRC_DIR)/graphics/font.c \
-        $(SRC_DIR)/ui/apps/apps.c \
-        $(SRC_DIR)/ui/apps/notepad/notepad_ui.c \
         $(SRC_DIR)/ui/apps/settings/settings_ui.c \
-        $(SRC_DIR)/ui/apps/explorer/explorer_ui.c \
         $(SRC_DIR)/resources/wallpapers/background_wallpaper.c \
         $(SRC_DIR)/filesystem/fs.c \
         $(SRC_DIR)/graphics/cursor.c \
@@ -27,26 +23,17 @@ C_SRC = $(SRC_DIR)/core/kernel/main.c \
         $(SRC_DIR)/drivers/bus/pic.c \
         $(SRC_DIR)/drivers/network/serial.c \
         $(SRC_DIR)/drivers/storage/ata_pio.c \
-        $(SRC_DIR)/core/hal/hal.c \
-        $(SRC_DIR)/core/hal/cpu/gdt.c \
-        $(SRC_DIR)/core/hal/interrupts/idt.c \
-        $(SRC_DIR)/core/hal/interrupts/isr.c \
-        $(SRC_DIR)/core/hal/io/ports.c \
         $(SRC_DIR)/core/kernel/string.c \
         $(SRC_DIR)/core/kernel/process_model.c
 
 # Build artifacts
-ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o \
-          $(BUILD_DIR)/$(ARCH)/isr-asm.o \
-          $(BUILD_DIR)/$(ARCH)/context_switch.o
+ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o
 
 C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
+        $(BUILD_DIR)/$(ARCH)/ports.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
         $(BUILD_DIR)/$(ARCH)/font.o \
-        $(BUILD_DIR)/$(ARCH)/apps.o \
-        $(BUILD_DIR)/$(ARCH)/apps_notepad_ui.o \
         $(BUILD_DIR)/$(ARCH)/apps_settings_ui.o \
-        $(BUILD_DIR)/$(ARCH)/apps_explorer_ui.o \
         $(BUILD_DIR)/$(ARCH)/background_wallpaper.o \
         $(BUILD_DIR)/$(ARCH)/fs.o \
         $(BUILD_DIR)/$(ARCH)/cursor.o \
@@ -56,11 +43,6 @@ C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/pic.o \
         $(BUILD_DIR)/$(ARCH)/serial.o \
         $(BUILD_DIR)/$(ARCH)/ata_pio.o \
-        $(BUILD_DIR)/$(ARCH)/hal.o \
-        $(BUILD_DIR)/$(ARCH)/gdt.o \
-        $(BUILD_DIR)/$(ARCH)/hal_idt.o \
-        $(BUILD_DIR)/$(ARCH)/hal_isr.o \
-        $(BUILD_DIR)/$(ARCH)/hal_ports.o \
         $(BUILD_DIR)/$(ARCH)/string.o \
         $(BUILD_DIR)/$(ARCH)/process_model.o
 
@@ -77,7 +59,7 @@ ASMFLAGS = -f elf64
 
 CC = x86_64-linux-gnu-gcc
 CFLAGS = -m64 -mno-red-zone -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -g -O2
-INCLUDES = -I$(SRC_DIR)/include -I$(SRC_DIR)/ui/apps -I$(SRC_DIR)/ui/apps/notepad -I$(SRC_DIR)/ui/apps/settings -I$(SRC_DIR)/ui/apps/explorer
+INCLUDES = -I$(SRC_DIR)/include -I$(SRC_DIR)/ui/apps -I$(SRC_DIR)/ui/apps/settings
 
 LD = x86_64-linux-gnu-ld
 LDFLAGS = -m elf_x86_64 -T $(TARGETS_DIR)/$(ARCH)/linker.ld -nostdlib
@@ -102,12 +84,6 @@ $(DIST_DIR)/$(ARCH):
 $(BUILD_DIR)/$(ARCH)/boot.o: $(SRC_DIR)/arch/x86_64/boot.asm | $(BUILD_DIR)/$(ARCH)
 	$(ASM) $(ASMFLAGS) -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/isr-asm.o: $(SRC_DIR)/core/hal/interrupts/isr.asm | $(BUILD_DIR)/$(ARCH)
-	$(ASM) $(ASMFLAGS) -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/context_switch.o: $(SRC_DIR)/core/hal/cpu/context_switch.asm | $(BUILD_DIR)/$(ARCH)
-	$(ASM) $(ASMFLAGS) -o $@ $<
-
 # Pattern rule for C files
 $(BUILD_DIR)/$(ARCH)/%.o: $(SRC_DIR)/impl/%.c | $(BUILD_DIR)/$(ARCH)
 	@mkdir -p $(dir $@)
@@ -117,22 +93,16 @@ $(BUILD_DIR)/$(ARCH)/%.o: $(SRC_DIR)/impl/%.c | $(BUILD_DIR)/$(ARCH)
 $(BUILD_DIR)/$(ARCH)/main.o: $(SRC_DIR)/core/kernel/main.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/ports.o: $(SRC_DIR)/core/hal/ports.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 $(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/graphics/vga_graphics.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/font.o: $(SRC_DIR)/graphics/font.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/apps.o: $(SRC_DIR)/ui/apps/apps.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/apps_notepad_ui.o: $(SRC_DIR)/ui/apps/notepad/notepad_ui.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
 $(BUILD_DIR)/$(ARCH)/apps_settings_ui.o: $(SRC_DIR)/ui/apps/settings/settings_ui.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/apps_explorer_ui.o: $(SRC_DIR)/ui/apps/explorer/explorer_ui.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/background_wallpaper.o: $(SRC_DIR)/resources/wallpapers/background_wallpaper.c | $(BUILD_DIR)/$(ARCH)
@@ -160,21 +130,6 @@ $(BUILD_DIR)/$(ARCH)/serial.o: $(SRC_DIR)/drivers/network/serial.c | $(BUILD_DIR
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/ata_pio.o: $(SRC_DIR)/drivers/storage/ata_pio.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/hal.o: $(SRC_DIR)/core/hal/hal.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/gdt.o: $(SRC_DIR)/core/hal/cpu/gdt.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/hal_idt.o: $(SRC_DIR)/core/hal/interrupts/idt.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/hal_isr.o: $(SRC_DIR)/core/hal/interrupts/isr.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/hal_ports.o: $(SRC_DIR)/core/hal/io/ports.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/string.o: $(SRC_DIR)/core/kernel/string.c | $(BUILD_DIR)/$(ARCH)

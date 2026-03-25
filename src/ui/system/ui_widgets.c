@@ -8,39 +8,39 @@
 // Global theme
 ui_theme_t current_theme;
 
-// Default theme initialization
+// Default theme initialization - Fluent UI (Windows 11 Dark Theme)
 void ui_load_default_theme() {
-    current_theme.primary_color = 0xFF2196F3;     // Blue
-    current_theme.secondary_color = 0xFF757575;   // Grey
-    current_theme.accent_color = 0xFFFF9800;      // Orange
-    current_theme.background_color = 0xFFE0E0E0;  // Light grey
-    current_theme.surface_color = 0xFFFFFFFF;     // White
-    current_theme.text_color = 0xFF212121;        // Dark grey
-    current_theme.text_secondary_color = 0xFF757575; // Medium grey
-    current_theme.border_color = 0xFFBDBDBD;      // Light grey
+    current_theme.primary_color = 0xFF0078D4;     // Windows blue (accent)
+    current_theme.secondary_color = 0xFF6C757D;   // Medium grey
+    current_theme.accent_color = 0xFF0078D4;      // Windows blue
+    current_theme.background_color = 0xFF1F1F1F;  // Fluent dark background
+    current_theme.surface_color = 0xFF2D2D30;     // Fluent surface
+    current_theme.text_color = 0xFFE4E4E4;        // Fluent light text
+    current_theme.text_secondary_color = 0xFFA0A0A0; // Fluent secondary text
+    current_theme.border_color = 0xFF3C3C3C;      // Fluent border
     current_theme.shadow_color = 0x40000000;      // Semi-transparent black
 
     // Button styles
-    current_theme.button_normal_bg = 0xFFE0E0E0;
-    current_theme.button_hover_bg = 0xFFBDBDBD;
-    current_theme.button_pressed_bg = 0xFF9E9E9E;
-    current_theme.button_disabled_bg = 0xFFBDBDBD;
-    current_theme.button_border_color = 0xFF9E9E9E;
+    current_theme.button_normal_bg = 0xFF3C3C3C;
+    current_theme.button_hover_bg = 0xFF4A4A4A;
+    current_theme.button_pressed_bg = 0xFF555555;
+    current_theme.button_disabled_bg = 0xFF2B2B2B;
+    current_theme.button_border_color = 0xFF555555;
 
     // Textbox styles
-    current_theme.textbox_bg = 0xFFFFFFFF;
-    current_theme.textbox_border_color = 0xFFBDBDBD;
-    current_theme.textbox_focus_border_color = 0xFF2196F3;
+    current_theme.textbox_bg = 0xFF2D2D30;
+    current_theme.textbox_border_color = 0xFF555555;
+    current_theme.textbox_focus_border_color = 0xFF0078D4;
 
     // Window styles
-    current_theme.window_bg = 0xFFFFFFFF;
-    current_theme.window_border_color = 0xFF9E9E9E;
-    current_theme.window_title_bg = 0xFFE0E0E0;
-    current_theme.window_title_text_color = 0xFF212121;
+    current_theme.window_bg = 0xFF1F1F1F;
+    current_theme.window_border_color = 0xFF3C3C3C;
+    current_theme.window_title_bg = 0xFF2D2D30;
+    current_theme.window_title_text_color = 0xFFE4E4E4;
 
     // Other settings
     current_theme.font_size = 8;
-    current_theme.border_radius = 3;
+    current_theme.border_radius = 4;
     current_theme.shadow_offset = 2;
 }
 

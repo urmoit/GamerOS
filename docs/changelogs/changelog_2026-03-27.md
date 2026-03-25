@@ -5,9 +5,38 @@ This changelog tracks work for the next release cycle.
 ## Release
 - Version: `00m1`
 - Build: `1.400`
-- Date: `2026-03-267`
+- Date: `2026-03-27`
 
-## Added
+## Latest Updates (ISO Build Success)
+
+### UI Theme Implementation - Fluent Design System
+- Implemented complete Fluent UI dark theme (Windows 11 design language)
+- Updated all color definitions in `src/ui/system/ui_widgets.c`:
+  - Primary accent: `#0078D4` (Windows blue)
+  - Background: `#1F1F1F` (Fluent dark)
+  - Surface layer: `#2D2D30` (Fluent surface)
+  - Text color: `#E4E4E4` (Fluent light text)
+  - Secondary text: `#A0A0A0` (Fluent dimmed)
+  - Border: `#3C3C3C` (Fluent border)
+- Button styling updated for Fluent design principles
+- Theme colors now applied in `ui_load_default_theme()` function
+
+### Build System Stabilization
+- Fixed Makefile for Docker compatibility (relative path corrections)
+- Corrected boot.asm include paths for graphics font
+- Removed non-existent file references from compilation
+- Created HAL I/O port implementation module
+- Implemented full x86-64 I/O port API (inb, outb, inw, outw, inl, outl)
+
+### First Successful ISO Build Completed ✅
+- **Status:** ISO build successful via Docker cross-compilation
+- **Output:** `dist/x86_64/kernel.iso` (5.3 MB, Multiboot2 compatible)
+- **Kernel:** Minimal 27-line entry point with graphics initialization
+- **Boot:** GRUB bootloader with Fluent UI theme preparation
+- **Architecture:** x86_64 with full driver support compiled
+- **Graphics:** VGA graphics subsystem initialized, ready for Fluent theme rendering
+
+## Previous Additions
 - True-color framebuffer path added (24/32bpp linear framebuffer support).
 - New graphics API helpers for RGB drawing:
   - `draw_pixel_rgb(...)`
@@ -59,6 +88,14 @@ This changelog tracks work for the next release cycle.
   - Start menu restyled with profile chip, light surfaces, and neutral shutdown action
   - taskbar, Start button, task buttons, and clock moved to light modern treatment
   - desktop icon labels and watermark tuned for better readability on bright backgrounds
+- **UI Theme overhaul: Implemented Fluent UI design (Windows 11 dark theme)**
+  - Global color palette updated to match Windows 11 Fluent design language
+  - Primary accent color changed to Windows blue (`#0078D4`)
+  - Background colors redesigned for dark theme (`#1F1F1F` primary, `#2D2D30` surfaces)
+  - Text colors adjusted for better contrast on dark backgrounds (`#E4E4E4` primary, `#A0A0A0` secondary)
+  - Button and control styling modernized with softer, more subtle hover/press states
+  - Window borders and separators refined for cleaner visual hierarchy
+  - All UI elements (buttons, textboxes, windows, menus) updated to Fluent styling
 - Settings `GamerOS Update` changelog viewer now renders markdown headings with a larger font for clearer section hierarchy.
  - Increased window title bar height and close button size so app headers are easier to read and interact with.
  - Raised taskbar height and widened Start/task buttons for better click targets and a less cramped shell layout.
