@@ -1,8 +1,8 @@
 #include "desktop_manager.h"
-#include "../../../intf/graphics.h"
-#include "../../../intf/ui.h"
-#include "../../../intf/ports.h"
-#include "../../../intf/mouse.h"
+#include <graphics.h>
+#include <ui.h>
+#include <ports.h>
+#include <mouse.h>
 
 // Desktop state
 static desktop_config_t desktop_config;

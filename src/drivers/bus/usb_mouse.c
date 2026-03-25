@@ -1,8 +1,8 @@
-#include "../../intf/mouse.h"
-#include "../../intf/ports.h"
-#include "../../intf/pic.h"
-#include "../../intf/graphics.h"
-#include "../../intf/usb.h"
+#include <mouse.h>
+#include <ports.h>
+#include <pic.h>
+#include <graphics.h>
+#include <usb.h>
 
 // USB HID Mouse support
 // Works with USB 1.1 (UHCI/OHCI), USB 2.0 (EHCI), and USB 3.0 (XHCI)

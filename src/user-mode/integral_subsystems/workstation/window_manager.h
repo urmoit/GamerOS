@@ -1,8 +1,8 @@
 #ifndef WINDOW_MANAGER_H
 #define WINDOW_MANAGER_H
 
-#include "../../../intf/stdint.h"
-#include "../../../intf/window.h"
+#include <stdint.h>
+#include <window.h>
 
 // Window manager functions
 void window_manager_init(void);

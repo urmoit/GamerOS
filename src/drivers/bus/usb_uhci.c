@@ -1,7 +1,7 @@
-#include "../../intf/pci.h"
-#include "../../intf/ports.h"
-#include "../../intf/graphics.h"
-#include "../../intf/usb.h"
+#include <pci.h>
+#include <ports.h>
+#include <graphics.h>
+#include <usb.h>
 
 void uhci_init(uint8_t bus, uint8_t device, uint8_t func) {
     // 1. Get Base Address (BAR4 usually for UHCI)

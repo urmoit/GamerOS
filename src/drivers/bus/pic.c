@@ -1,5 +1,5 @@
-#include "../../intf/pic.h"
-#include "../../intf/ports.h"
+#include <pic.h>
+#include <ports.h>
 
 #define PIC1_COMMAND    0x20
 #define PIC1_DATA       0x21

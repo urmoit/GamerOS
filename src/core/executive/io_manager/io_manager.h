@@ -1,7 +1,7 @@
 #ifndef IO_MANAGER_H
 #define IO_MANAGER_H
 
-#include "../../intf/stdint.h"
+#include <stdint.h>
 #include "../object_manager/object_manager.h"  // For object_handle_t
 
 // I/O request types

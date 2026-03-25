@@ -1,7 +1,7 @@
-#include "../../intf/ui_widgets.h"
-#include "../../intf/mm.h"
-#include "../../intf/string.h"
-#include "../../intf/graphics.h"
+#include <ui_widgets.h>
+#include <mm.h>
+#include <string.h>
+#include <graphics.h>
 
 // Note: strlen and strcpy are now in string.h/string.c
 

@@ -4,26 +4,26 @@ ARCH ?= x86_64
 SRC_DIR = src
 BUILD_DIR = build
 DIST_DIR = dist
-TARGETS_DIR = targets
+TARGETS_DIR = config/targets
 
 # Core source files (working set)
-ASM_SRC = $(SRC_DIR)/impl/x86_64/boot.asm \
-          $(SRC_DIR)/impl/kernel_mode/hal/interrupts/isr.asm \
-          $(SRC_DIR)/impl/kernel_mode/hal/cpu/context_switch.asm
+ASM_SRC = $(SRC_DIR)/arch/x86_64/boot.asm \
+          $(SRC_DIR)/core/hal/interrupts/isr.asm \
+          $(SRC_DIR)/core/hal/cpu/context_switch.asm
 
-C_SRC = $(SRC_DIR)/impl/kernel/main.c \
-        $(SRC_DIR)/impl/graphics/vga_graphics.c \
-        $(SRC_DIR)/impl/graphics/cursor.c \
-        $(SRC_DIR)/impl/drivers/keyboard.c \
-        $(SRC_DIR)/impl/drivers/mouse.c \
-        $(SRC_DIR)/impl/drivers/pic.c \
-        $(SRC_DIR)/impl/drivers/serial.c \
-        $(SRC_DIR)/impl/kernel_mode/hal/hal.c \
-        $(SRC_DIR)/impl/kernel_mode/hal/cpu/gdt.c \
-        $(SRC_DIR)/impl/kernel_mode/hal/interrupts/idt.c \
-        $(SRC_DIR)/impl/kernel_mode/hal/interrupts/isr.c \
-        $(SRC_DIR)/impl/kernel_mode/hal/io/ports.c \
-        $(SRC_DIR)/impl/kernel/string.c
+C_SRC = $(SRC_DIR)/core/kernel/main.c \
+        $(SRC_DIR)/graphics/vga_graphics.c \
+        $(SRC_DIR)/graphics/cursor.c \
+        $(SRC_DIR)/drivers/input/keyboard.c \
+        $(SRC_DIR)/drivers/input/mouse.c \
+        $(SRC_DIR)/drivers/bus/pic.c \
+        $(SRC_DIR)/drivers/network/serial.c \
+        $(SRC_DIR)/core/hal/hal.c \
+        $(SRC_DIR)/core/hal/cpu/gdt.c \
+        $(SRC_DIR)/core/hal/interrupts/idt.c \
+        $(SRC_DIR)/core/hal/interrupts/isr.c \
+        $(SRC_DIR)/core/hal/io/ports.c \
+        $(SRC_DIR)/core/kernel/string.c
 
 # Build artifacts
 ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o \
@@ -57,7 +57,9 @@ ASMFLAGS = -f elf64
 
 CC = x86_64-linux-gnu-gcc
 CFLAGS = -m64 -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -g -O2
-INCLUDES = -I$(SRC_DIR)/intf
+
+# Include paths
+INCLUDES = -I$(SRC_DIR)/include -I$(SRC_DIR)/ui/apps -I$(SRC_DIR)/ui/apps/notepad -I$(SRC_DIR)/ui/apps/settings -I$(SRC_DIR)/ui/apps/explorer
 
 LD = x86_64-linux-gnu-ld
 LDFLAGS = -m elf_x86_64 -T $(TARGETS_DIR)/$(ARCH)/linker.ld -nostdlib
@@ -79,13 +81,13 @@ $(DIST_DIR)/$(ARCH):
 	mkdir -p $(DIST_DIR)/$(ARCH)
 
 # Assembly files
-$(BUILD_DIR)/$(ARCH)/boot.o: $(SRC_DIR)/impl/x86_64/boot.asm | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/boot.o: $(SRC_DIR)/arch/x86_64/boot.asm | $(BUILD_DIR)/$(ARCH)
 	$(ASM) $(ASMFLAGS) -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/isr-asm.o: $(SRC_DIR)/impl/kernel_mode/hal/interrupts/isr.asm | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/isr-asm.o: $(SRC_DIR)/core/hal/interrupts/isr.asm | $(BUILD_DIR)/$(ARCH)
 	$(ASM) $(ASMFLAGS) -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/context_switch.o: $(SRC_DIR)/impl/kernel_mode/hal/cpu/context_switch.asm | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/context_switch.o: $(SRC_DIR)/core/hal/cpu/context_switch.asm | $(BUILD_DIR)/$(ARCH)
 	$(ASM) $(ASMFLAGS) -o $@ $<
 
 # Pattern rule for C files
@@ -94,43 +96,43 @@ $(BUILD_DIR)/$(ARCH)/%.o: $(SRC_DIR)/impl/%.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 # Specific C file rules
-$(BUILD_DIR)/$(ARCH)/main.o: $(SRC_DIR)/impl/kernel/main.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/main.o: $(SRC_DIR)/core/kernel/main.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/impl/graphics/vga_graphics.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/graphics/vga_graphics.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/cursor.o: $(SRC_DIR)/impl/graphics/cursor.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/cursor.o: $(SRC_DIR)/graphics/cursor.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/keyboard.o: $(SRC_DIR)/impl/drivers/keyboard.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/keyboard.o: $(SRC_DIR)/drivers/input/keyboard.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/mouse.o: $(SRC_DIR)/impl/drivers/mouse.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/mouse.o: $(SRC_DIR)/drivers/input/mouse.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/pic.o: $(SRC_DIR)/impl/drivers/pic.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/pic.o: $(SRC_DIR)/drivers/bus/pic.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/serial.o: $(SRC_DIR)/impl/drivers/serial.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/serial.o: $(SRC_DIR)/drivers/network/serial.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/hal.o: $(SRC_DIR)/impl/kernel_mode/hal/hal.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/hal.o: $(SRC_DIR)/core/hal/hal.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/gdt.o: $(SRC_DIR)/impl/kernel_mode/hal/cpu/gdt.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/gdt.o: $(SRC_DIR)/core/hal/cpu/gdt.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/hal_idt.o: $(SRC_DIR)/impl/kernel_mode/hal/interrupts/idt.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/hal_idt.o: $(SRC_DIR)/core/hal/interrupts/idt.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/hal_isr.o: $(SRC_DIR)/impl/kernel_mode/hal/interrupts/isr.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/hal_isr.o: $(SRC_DIR)/core/hal/interrupts/isr.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/hal_ports.o: $(SRC_DIR)/impl/kernel_mode/hal/io/ports.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/hal_ports.o: $(SRC_DIR)/core/hal/io/ports.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/string.o: $(SRC_DIR)/impl/kernel/string.c | $(BUILD_DIR)/$(ARCH)
+$(BUILD_DIR)/$(ARCH)/string.o: $(SRC_DIR)/core/kernel/string.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 # Link kernel

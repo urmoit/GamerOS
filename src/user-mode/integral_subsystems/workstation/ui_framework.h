@@ -1,7 +1,7 @@
 #ifndef UI_FRAMEWORK_H
 #define UI_FRAMEWORK_H
 
-#include "../../../intf/stdint.h"
+#include <stdint.h>
 
 // UI Framework functions
 void ui_framework_init(void);

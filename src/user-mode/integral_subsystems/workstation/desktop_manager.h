@@ -1,7 +1,7 @@
 #ifndef DESKTOP_MANAGER_H
 #define DESKTOP_MANAGER_H
 
-#include "../../../intf/stdint.h"
+#include <stdint.h>
 
 // Desktop configuration
 typedef struct {

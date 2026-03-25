@@ -1,6 +1,6 @@
-#include "../../intf/pci.h"
-#include "../../intf/ports.h"
-#include "../../intf/graphics.h"
+#include <pci.h>
+#include <ports.h>
+#include <graphics.h>
 
 void ehci_init(uint8_t bus, uint8_t device, uint8_t func) {
     uint32_t bar0 = pci_read_config(bus, device, func, 0x10);

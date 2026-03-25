@@ -1,7 +1,7 @@
 #include "ui_framework.h"
-#include "../../../intf/keyboard.h"
-#include "../../../intf/mouse.h"
-#include "../../../intf/graphics.h"
+#include <keyboard.h>
+#include <mouse.h>
+#include <graphics.h>
 #include "desktop_manager.h"
 
 // Forward declarations for UI functions

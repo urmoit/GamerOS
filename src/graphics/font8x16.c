@@ -1,8 +1,8 @@
 // 8x16 Bitmap Font - High Quality for GamerOS
 // Each character is 8 columns x 16 rows = 16 bytes per character
 
-#include "../../intf/stdint.h"
-#include "../../intf/graphics.h"
+#include <stdint.h>
+#include <graphics.h>
 
 // Extended ASCII 8x16 font (characters 32-127)
 const uint8_t font_8x16[96][16] = {

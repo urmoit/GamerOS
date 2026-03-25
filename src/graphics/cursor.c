@@ -1,4 +1,4 @@
-#include "../../intf/graphics.h"
+#include <graphics.h>
 
 #define CURSOR_SIZE 12
 

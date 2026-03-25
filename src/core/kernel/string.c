@@ -1,4 +1,4 @@
-#include "../../intf/string.h"
+#include <string.h>
 
 void* memcpy(void* dest, const void* src, size_t count) {
     if (!dest || !src || count == 0) return dest; // NULL and zero checks

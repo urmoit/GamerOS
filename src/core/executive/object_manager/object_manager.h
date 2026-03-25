@@ -1,7 +1,7 @@
 #ifndef OBJECT_MANAGER_H
 #define OBJECT_MANAGER_H
 
-#include "../../intf/stdint.h"
+#include <stdint.h>
 
 // Object types
 typedef enum {

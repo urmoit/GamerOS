@@ -1,8 +1,8 @@
-#include "../../intf/graphics.h"
-#include "../../intf/ports.h"
-#include "../../intf/font.h"
-#include "../../intf/string.h"
-#include "../../intf/multiboot.h"
+#include <graphics.h>
+#include <ports.h>
+#include <font.h>
+#include <string.h>
+#include <multiboot.h>
 
 // Current mode settings
 uint32_t current_width = 640;

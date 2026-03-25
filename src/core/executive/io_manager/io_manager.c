@@ -1,6 +1,6 @@
 #include "io_manager.h"
-#include "../../intf/memory.h"
-#include "../../intf/string.h"
+#include <memory.h>
+#include <string.h>
 
 #define MAX_DRIVERS 32
 #define MAX_IO_REQUESTS 256

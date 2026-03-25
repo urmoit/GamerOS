@@ -1,5 +1,5 @@
-#include "../../intf/ata_pio.h"
-#include "../../intf/ports.h"
+#include <ata_pio.h>
+#include <ports.h>
 
 #define ATA_IO_BASE      0x1F0
 #define ATA_REG_DATA     (ATA_IO_BASE + 0)

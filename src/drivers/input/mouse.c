@@ -1,7 +1,7 @@
-#include "../../intf/mouse.h"
-#include "../../intf/ports.h"
-#include "../../intf/graphics.h"
-#include "../../intf/pic.h"
+#include <mouse.h>
+#include <ports.h>
+#include <graphics.h>
+#include <pic.h>
 
 #define MOUSE_DATA_PORT    0x60
 #define MOUSE_STATUS_PORT  0x64

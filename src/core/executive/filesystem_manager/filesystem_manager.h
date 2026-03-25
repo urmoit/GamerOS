@@ -1,7 +1,7 @@
 #ifndef FILESYSTEM_MANAGER_H
 #define FILESYSTEM_MANAGER_H
 
-#include "../../intf/stdint.h"
+#include <stdint.h>
 #include "../object_manager/object_manager.h"
 
 #define MAX_FILES 16

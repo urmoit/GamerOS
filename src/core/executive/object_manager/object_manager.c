@@ -1,7 +1,7 @@
 #include "object_manager.h"
 #include "object_types.h"
-#include "../../intf/mm.h"      // For kmalloc/kfree
-#include "../../intf/string.h"  // For memset
+#include <mm.h>      // For kmalloc/kfree
+#include <string.h>  // For memset
 
 #ifndef NULL
 #define NULL ((void*)0)

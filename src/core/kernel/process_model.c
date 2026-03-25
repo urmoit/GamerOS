@@ -1,8 +1,8 @@
-#include "../../intf/process_model.h"
-#include "../../intf/fs.h"
-#include "../../intf/string.h"
-#include "../../intf/apps.h"
-#include "../../intf/serial.h"
+#include <process_model.h>
+#include <fs.h>
+#include <string.h>
+#include <apps.h>
+#include <serial.h>
 
 static task_t g_tasks[MAX_TASKS];
 static int g_next_pid = 1;

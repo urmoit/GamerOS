@@ -1,5 +1,5 @@
-#include "../../intf/usb.h"
-#include "../../intf/graphics.h"
+#include <usb.h>
+#include <graphics.h>
 
 static usb_device_t* devices = 0;
 

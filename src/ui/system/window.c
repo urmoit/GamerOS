@@ -1,6 +1,6 @@
-#include "../../intf/window.h"
-#include "../../intf/graphics.h"
-#include "../../intf/ui.h"
+#include <window.h>
+#include <graphics.h>
+#include <ui.h>
 
 window_t* windows[MAX_WINDOWS];
 int window_count = 0;

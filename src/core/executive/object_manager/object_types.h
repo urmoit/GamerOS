@@ -1,7 +1,7 @@
 #ifndef OBJECT_TYPES_H
 #define OBJECT_TYPES_H
 
-#include "../../intf/stdint.h"
+#include <stdint.h>
 
 // Base object structure
 typedef struct object {

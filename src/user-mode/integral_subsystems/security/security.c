@@ -1,5 +1,5 @@
 #include "../../interfaces/subsystem_interfaces.h"
-#include "../../../intf/string.h"
+#include <string.h>
 
 #define SECURITY_MAX_USERS 4
 #define SECURITY_ACCESS_READ   0x01

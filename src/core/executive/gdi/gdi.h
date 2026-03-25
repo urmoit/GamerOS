@@ -1,8 +1,8 @@
 #ifndef GDI_H
 #define GDI_H
 
-#include "../../intf/stdint.h"
-#include "../../intf/graphics.h"  // Include existing graphics interfaces
+#include <stdint.h>
+#include <graphics.h>  // Include existing graphics interfaces
 #include "../object_manager/object_manager.h"
 
 // GDI Context

@@ -1,6 +1,6 @@
-#include "../../intf/keyboard.h"
-#include "../../intf/ports.h"
-#include "../../intf/pic.h"
+#include <keyboard.h>
+#include <ports.h>
+#include <pic.h>
 
 #define KBD_DATA_PORT   0x60
 #define KBD_STATUS_PORT 0x64

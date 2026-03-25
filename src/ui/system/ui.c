@@ -1,8 +1,8 @@
-#include "../../intf/ui.h"
-#include "../../intf/graphics.h"
-#include "../../intf/window.h"
-#include "../../intf/rtc.h"
-#include "../../intf/mouse.h"
+#include <ui.h>
+#include <graphics.h>
+#include <window.h>
+#include <rtc.h>
+#include <mouse.h>
 
 #define MAX_TABS 5
 

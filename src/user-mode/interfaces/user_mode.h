@@ -1,7 +1,7 @@
 #ifndef USER_MODE_H
 #define USER_MODE_H
 
-#include "../../intf/stdint.h"
+#include <stdint.h>
 
 // User Mode initialization
 void user_mode_init(void);

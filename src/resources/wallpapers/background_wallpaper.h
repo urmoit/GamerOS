@@ -1,7 +1,7 @@
 #ifndef BACKGROUND_WALLPAPER_H
 #define BACKGROUND_WALLPAPER_H
 
-#include "../../intf/stdint.h"
+#include <stdint.h>
 
 extern const uint32_t background_wallpaper_width;
 extern const uint32_t background_wallpaper_height;

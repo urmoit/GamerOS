@@ -1,7 +1,7 @@
 #ifndef SUBSYSTEM_INTERFACES_H
 #define SUBSYSTEM_INTERFACES_H
 
-#include "../../intf/stdint.h"
+#include <stdint.h>
 
 // Workstation Subsystem Interface
 typedef struct {

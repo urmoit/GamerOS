@@ -1,6 +1,6 @@
-#include "../../intf/vmware.h"
-#include "../../intf/ports.h"
-#include "../../intf/graphics.h"
+#include <vmware.h>
+#include <ports.h>
+#include <graphics.h>
 
 // Global state
 static int vmware_initialized = 0;

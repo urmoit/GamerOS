@@ -1,7 +1,7 @@
 #ifndef WIDGET_SYSTEM_H
 #define WIDGET_SYSTEM_H
 
-#include "../../../intf/ui_widgets.h"
+#include <ui_widgets.h>
 
 // Widget System functions
 void widget_system_init(void);

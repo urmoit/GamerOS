@@ -1,6 +1,6 @@
 #include "filesystem_manager.h"
-#include "../../intf/string.h"
-#include "../../intf/memory.h"
+#include <string.h>
+#include <memory.h>
 
 #ifndef NULL
 #define NULL ((void*)0)

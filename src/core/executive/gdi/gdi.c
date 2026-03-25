@@ -1,6 +1,6 @@
 #include "gdi.h"
-#include "../../intf/mm.h"
-#include "../../intf/string.h"
+#include <mm.h>
+#include <string.h>
 
 static int gdi_ready = 0;
 static int gdi_last_error = GDI_ERR_NONE;

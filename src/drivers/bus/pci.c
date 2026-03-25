@@ -1,6 +1,6 @@
-#include "../../intf/pci.h"
-#include "../../intf/ports.h"
-#include "../../intf/graphics.h"
+#include <pci.h>
+#include <ports.h>
+#include <graphics.h>
 
 #define PCI_CONFIG_ADDRESS 0xCF8
 #define PCI_CONFIG_DATA    0xCFC

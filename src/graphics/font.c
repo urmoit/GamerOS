@@ -1,4 +1,4 @@
-#include "../../intf/font.h"
+#include <font.h>
 
 // 8x8 bitmap font data for ASCII characters 32-127
 // Each character is 8 bytes (8 rows of 8 bits)

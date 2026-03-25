@@ -1,7 +1,7 @@
-#include "../../intf/fs.h"
-#include "../../intf/ata_pio.h"
-#include "../../intf/stdint.h"
-#include "../../intf/string.h"
+#include <fs.h>
+#include <ata_pio.h>
+#include <stdint.h>
+#include <string.h>
 
 #define DISK_SECTOR_SIZE ATA_SECTOR_SIZE
 #define MAX_DISK_SECTORS 4096

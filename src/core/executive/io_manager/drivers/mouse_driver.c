@@ -1,6 +1,6 @@
 #include "../io_manager.h"
-#include "../../../intf/ports.h"
-#include "../../../intf/pic.h"
+#include <ports.h>
+#include <pic.h>
 
 #define MOUSE_PORT     0x60
 #define MOUSE_STATUS   0x64
