@@ -6,6 +6,9 @@ static const app_descriptor_t g_apps[] = {
         "NOTEPAD.EXE",
         "C:/GamerOS/System32/NOTEPAD.EXE",
         "Notepad",
+        "C:/GamerOS/Apps/Manifests/Notepad.gosapp",
+        "C:/GamerOS/Apps/Notepad",
+        "C:/Users/Admin/AppData/Notepad",
         APP_WINDOW_NOTEPAD,
         42,
         22
@@ -14,6 +17,9 @@ static const app_descriptor_t g_apps[] = {
         "SETTINGS.EXE",
         "C:/GamerOS/System32/SETTINGS.EXE",
         "Settings",
+        "C:/GamerOS/Apps/Manifests/Settings.gosapp",
+        "C:/GamerOS/Apps/Settings",
+        "C:/Users/Admin/AppData/Settings",
         APP_WINDOW_SETTINGS,
         24,
         14
@@ -22,6 +28,9 @@ static const app_descriptor_t g_apps[] = {
         "EXPLORER.EXE",
         "C:/GamerOS/System32/EXPLORER.EXE",
         "File Explorer",
+        "C:/GamerOS/Apps/Manifests/Explorer.gosapp",
+        "C:/GamerOS/Apps/Explorer",
+        "C:/Users/Admin/AppData/Explorer",
         APP_WINDOW_EXPLORER,
         28,
         18
@@ -30,6 +39,9 @@ static const app_descriptor_t g_apps[] = {
         "ABOUT.EXE",
         "C:/GamerOS/System32/ABOUT.EXE",
         "About GamerOS",
+        "C:/GamerOS/Apps/Manifests/About.gosapp",
+        "C:/GamerOS/Apps/About",
+        "C:/Users/Admin/AppData/About",
         APP_WINDOW_ABOUT,
         34,
         20

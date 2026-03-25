@@ -61,6 +61,9 @@ int graphics_use_multiboot_framebuffer(const struct multiboot_info* mb_info);
 int graphics_is_truecolor(void);
 uint32_t graphics_get_pixel_rgb(int x, int y);
 uint8_t graphics_get_bpp(void);
+int graphics_set_resolution(uint32_t width, uint32_t height);
+uint32_t graphics_get_native_width(void);
+uint32_t graphics_get_native_height(void);
 void draw_pixel_rgb(int x, int y, uint32_t rgb);
 void clear_screen_rgb(uint32_t rgb);
 

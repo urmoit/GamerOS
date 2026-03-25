@@ -26,12 +26,14 @@ C_SRC = $(SRC_DIR)/impl/kernel/main.c \
         $(SRC_DIR)/impl/drivers/rtc.c \
         $(SRC_DIR)/impl/drivers/pic.c \
         $(SRC_DIR)/impl/drivers/serial.c \
+        $(SRC_DIR)/impl/drivers/ata_pio.c \
         $(SRC_DIR)/impl/kernel_mode/hal/hal.c \
         $(SRC_DIR)/impl/kernel_mode/hal/cpu/gdt.c \
         $(SRC_DIR)/impl/kernel_mode/hal/interrupts/idt.c \
         $(SRC_DIR)/impl/kernel_mode/hal/interrupts/isr.c \
         $(SRC_DIR)/impl/kernel_mode/hal/io/ports.c \
-        $(SRC_DIR)/impl/kernel/string.c
+        $(SRC_DIR)/impl/kernel/string.c \
+        $(SRC_DIR)/impl/kernel/process_model.c
 
 # Build artifacts
 ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o \
@@ -53,12 +55,14 @@ C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/rtc.o \
         $(BUILD_DIR)/$(ARCH)/pic.o \
         $(BUILD_DIR)/$(ARCH)/serial.o \
+        $(BUILD_DIR)/$(ARCH)/ata_pio.o \
         $(BUILD_DIR)/$(ARCH)/hal.o \
         $(BUILD_DIR)/$(ARCH)/gdt.o \
         $(BUILD_DIR)/$(ARCH)/hal_idt.o \
         $(BUILD_DIR)/$(ARCH)/hal_isr.o \
         $(BUILD_DIR)/$(ARCH)/hal_ports.o \
-        $(BUILD_DIR)/$(ARCH)/string.o
+        $(BUILD_DIR)/$(ARCH)/string.o \
+        $(BUILD_DIR)/$(ARCH)/process_model.o
 
 OBJS = $(ASM_OBJ) $(C_OBJ)
 
@@ -155,6 +159,9 @@ $(BUILD_DIR)/$(ARCH)/pic.o: $(SRC_DIR)/impl/drivers/pic.c | $(BUILD_DIR)/$(ARCH)
 $(BUILD_DIR)/$(ARCH)/serial.o: $(SRC_DIR)/impl/drivers/serial.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/ata_pio.o: $(SRC_DIR)/impl/drivers/ata_pio.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 $(BUILD_DIR)/$(ARCH)/hal.o: $(SRC_DIR)/impl/kernel_mode/hal/hal.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
@@ -173,6 +180,9 @@ $(BUILD_DIR)/$(ARCH)/hal_ports.o: $(SRC_DIR)/impl/kernel_mode/hal/io/ports.c | $
 $(BUILD_DIR)/$(ARCH)/string.o: $(SRC_DIR)/impl/kernel/string.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/process_model.o: $(SRC_DIR)/impl/kernel/process_model.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 # Link kernel
 $(KERNEL_ELF): $(OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^
@@ -184,11 +194,12 @@ $(KERNEL_BIN): $(KERNEL_ELF) | $(DIST_DIR)/$(ARCH)
 # Create ISO
 $(ISO): $(KERNEL_BIN) | $(DIST_DIR)/$(ARCH)
 	mkdir -p $(BUILD_DIR)/$(ARCH)/iso/boot/grub
-	cp $(KERNEL_ELF) $(BUILD_DIR)/$(ARCH)/iso/boot/kernel.elf
-	cp $(TARGETS_DIR)/$(ARCH)/grub.cfg $(BUILD_DIR)/$(ARCH)/iso/boot/grub/grub.cfg
+	cp -f $(KERNEL_ELF) $(BUILD_DIR)/$(ARCH)/iso/boot/kernel.elf
+	cp -f $(TARGETS_DIR)/$(ARCH)/grub.cfg $(BUILD_DIR)/$(ARCH)/iso/boot/grub/grub.cfg
 	mkdir -p /tmp/gameros_iso && cp -r $(BUILD_DIR)/$(ARCH)/iso/* /tmp/gameros_iso/
+	rm -f /tmp/kernel.iso
 	grub-mkrescue -o /tmp/kernel.iso /tmp/gameros_iso
-	cp /tmp/kernel.iso $@
+	cp -f /tmp/kernel.iso $@
 	rm -rf /tmp/gameros_iso /tmp/kernel.iso
 
 # Build only ISO (assumes kernel is already built)

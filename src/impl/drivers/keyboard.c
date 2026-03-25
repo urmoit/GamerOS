@@ -132,7 +132,8 @@ void keyboard_handler(void) {
 
 // Keyboard polling fallback
 void keyboard_poll(void) {
-    while (inb(KBD_STATUS_PORT) & 0x01) {
+    int safety = 64;
+    while (safety-- > 0 && (inb(KBD_STATUS_PORT) & 0x01)) {
         keyboard_handler();
     }
 }

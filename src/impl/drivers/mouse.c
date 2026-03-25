@@ -179,7 +179,8 @@ void mouse_handler(void) {
 
 // Poll mouse (for systems without interrupts)
 void mouse_poll(void) {
-    while (inb(MOUSE_STATUS_PORT) & 0x01) {
+    int safety = 64;
+    while (safety-- > 0 && (inb(MOUSE_STATUS_PORT) & 0x01)) {
         mouse_handler();
     }
 }

@@ -8,6 +8,7 @@
 #include "../../intf/font.h"
 #include "../../intf/fs.h"
 #include "../../intf/apps.h"
+#include "../../intf/process_model.h"
 #include "../../intf/multiboot.h"
 #include "../../apps/notepad/notepad_ui.h"
 #include "../../apps/settings/settings_ui.h"
@@ -88,20 +89,22 @@ static uint8_t warned_mouse_bounds = 0;
 static uint8_t setting_show_seconds = 0;
 static uint8_t setting_desktop_glow = 1;
 static uint8_t setting_compact_mode = 1;
+static int setting_display_profile = 0;
 static int settings_tab = 0;
 
 #define SETTINGS_TAB_SYSTEM 0
-#define SETTINGS_TAB_BLUETOOTH_DEVICES 1
-#define SETTINGS_TAB_NETWORK_INTERNET 2
-#define SETTINGS_TAB_PERSONALIZATION 3
-#define SETTINGS_TAB_APPS 4
-#define SETTINGS_TAB_ACCOUNTS 5
-#define SETTINGS_TAB_TIME_LANGUAGE 6
-#define SETTINGS_TAB_GAMING 7
-#define SETTINGS_TAB_ACCESSIBILITY 8
-#define SETTINGS_TAB_PRIVACY_SECURITY 9
-#define SETTINGS_TAB_GAMEROS_UPDATE 10
-#define SETTINGS_TAB_COUNT 11
+#define SETTINGS_TAB_DISPLAY 1
+#define SETTINGS_TAB_BLUETOOTH_DEVICES 2
+#define SETTINGS_TAB_NETWORK_INTERNET 3
+#define SETTINGS_TAB_PERSONALIZATION 4
+#define SETTINGS_TAB_APPS 5
+#define SETTINGS_TAB_ACCOUNTS 6
+#define SETTINGS_TAB_TIME_LANGUAGE 7
+#define SETTINGS_TAB_GAMING 8
+#define SETTINGS_TAB_ACCESSIBILITY 9
+#define SETTINGS_TAB_PRIVACY_SECURITY 10
+#define SETTINGS_TAB_GAMEROS_UPDATE 11
+#define SETTINGS_TAB_COUNT 12
 static int settings_scroll_top[SETTINGS_TAB_COUNT] = {0};
 typedef struct {
     char text[120];
@@ -137,6 +140,12 @@ static uint8_t notepad_io_buffer[MAX_FILE_SIZE + 1];
 static int32_t cursor_drawn_x = 0;
 static int32_t cursor_drawn_y = 0;
 static uint8_t cursor_drawn_valid = 0;
+
+#define DEBUG_LOG_LINES 12
+#define DEBUG_LOG_CHARS 52
+static char debug_log_lines[DEBUG_LOG_LINES][DEBUG_LOG_CHARS];
+static int debug_log_count = 0;
+static uint8_t debug_overlay_enabled = 1;
 
 // Simple app lifecycle tracking so the shell has a notion of which
 // first-class apps are running or stopped.
@@ -292,6 +301,12 @@ typedef struct {
 
 static void append_string(char* dest, size_t dest_cap, const char* src);
 static void initialize_storage_layout(void);
+static file_t* fs_open_or_create_file(const char* path);
+static void write_text_file(const char* path, const char* txt);
+static void apply_display_profile(void);
+static void debug_log_message(const char* message);
+static void draw_debug_overlay(void);
+static void debug_present_boot_status(void);
 static void get_window_min_size(const window_t* win, int* out_w, int* out_h);
 static void draw_desktop_watermark(void);
 static void draw_desktop_wallpaper(int desktop_h);
@@ -355,9 +370,73 @@ static void explorer_build_this_pc_entries(void) {
 
 static void ensure_storage_initialized(void) {
     if (storage_initialized) return;
+    debug_log_message("Boot: storage init begin");
+    debug_present_boot_status();
     initialize_storage_layout();
     storage_initialized = 1;
     settings_md_loaded = 0;
+    debug_log_message("Boot: storage init complete");
+    debug_present_boot_status();
+}
+
+typedef struct {
+    const char* label;
+    uint32_t width;
+    uint32_t height;
+    uint8_t truecolor_only;
+} display_profile_t;
+
+static const display_profile_t g_display_profiles[] = {
+    {"640 x 480 (Safe)", 640, 480, 0},
+    {"800 x 600", 800, 600, 1},
+    {"1280 x 720", 1280, 720, 1},
+    {"Native", 0, 0, 1}
+};
+
+static int display_profile_count(void) {
+    return (int)(sizeof(g_display_profiles) / sizeof(g_display_profiles[0]));
+}
+
+static int display_profile_available(int idx) {
+    if (idx < 0 || idx >= display_profile_count()) return 0;
+    if (!g_display_profiles[idx].truecolor_only) return 1;
+    return graphics_is_truecolor() ? 1 : 0;
+}
+
+static void apply_display_profile(void) {
+    if (setting_display_profile < 0 || setting_display_profile >= display_profile_count()) {
+        setting_display_profile = 0;
+    }
+    if (!display_profile_available(setting_display_profile)) {
+        setting_display_profile = 0;
+    }
+
+    const display_profile_t* profile = &g_display_profiles[setting_display_profile];
+    uint32_t target_w = profile->width;
+    uint32_t target_h = profile->height;
+    if (target_w == 0 || target_h == 0) {
+        target_w = graphics_get_native_width();
+        target_h = graphics_get_native_height();
+    }
+
+    if (!graphics_set_resolution(target_w, target_h)) {
+        raise_runtime_error("Display Error", "Resolution change failed.");
+        return;
+    }
+
+    for (int i = 0; i < MAX_WINDOWS; i++) {
+        if (!windows[i].active) continue;
+        if (windows[i].w > (int)current_width - 8) windows[i].w = (int)current_width - 8;
+        if (windows[i].h > (int)current_height - TASKBAR_HEIGHT - 8) windows[i].h = (int)current_height - TASKBAR_HEIGHT - 8;
+        if (windows[i].w < WINDOW_MIN_W_DEFAULT) windows[i].w = WINDOW_MIN_W_DEFAULT;
+        if (windows[i].h < WINDOW_MIN_H_DEFAULT) windows[i].h = WINDOW_MIN_H_DEFAULT;
+        if (windows[i].x > (int)current_width - windows[i].w) windows[i].x = (int)current_width - windows[i].w;
+        if (windows[i].y > (int)current_height - TASKBAR_HEIGHT - windows[i].h) {
+            windows[i].y = (int)current_height - TASKBAR_HEIGHT - windows[i].h;
+        }
+        if (windows[i].x < 0) windows[i].x = 0;
+        if (windows[i].y < 0) windows[i].y = 0;
+    }
 }
 
 static const char* path_basename(const char* path) {
@@ -375,6 +454,27 @@ static const char* path_basename(const char* path) {
         return (*p == '/') ? p + 1 : p;
     }
     return last;
+}
+
+static int path_has_extension(const char* path, const char* ext) {
+    if (!path || !ext) return 0;
+    size_t path_len = strlen(path);
+    size_t ext_len = strlen(ext);
+    if (path_len < ext_len) return 0;
+    return strcmp(path + (path_len - ext_len), ext) == 0;
+}
+
+static file_t* fs_open_or_create_file(const char* path) {
+    file_t* file = fs_open_file(path);
+    if (file) return file;
+    return fs_create_file(path);
+}
+
+static void write_text_file(const char* path, const char* txt) {
+    if (!path || !txt) return;
+    file_t* file = fs_open_or_create_file(path);
+    if (!file) return;
+    fs_write_file(file, (const uint8_t*)txt, (uint32_t)strlen(txt));
 }
 
 static void explorer_go_parent(void) {
@@ -396,7 +496,12 @@ static void explorer_go_parent(void) {
 }
 
 static void initialize_storage_layout(void) {
+    debug_log_message("Boot: fs_init");
+    debug_present_boot_status();
     fs_init();
+    debug_log_message("Boot: process model init");
+    debug_present_boot_status();
+    process_model_init();
     int drive_count = fs_storage_get_device_count();
     if (drive_count < 1) drive_count = 1;
     if (drive_count > 8) drive_count = 8;
@@ -409,139 +514,83 @@ static void initialize_storage_layout(void) {
         fs_create_directory(drive_root);
     }
 
+    debug_log_message("Boot: create directories");
+    debug_present_boot_status();
+
     fs_create_directory("C:/GamerOS");
     fs_create_directory("C:/GamerOS/System32");
     fs_create_directory("C:/GamerOS/Apps");
+    fs_create_directory("C:/GamerOS/Apps/About");
+    fs_create_directory("C:/GamerOS/Apps/Explorer");
+    fs_create_directory("C:/GamerOS/Apps/Notepad");
     fs_create_directory("C:/GamerOS/Apps/Settings");
     fs_create_directory("C:/GamerOS/Apps/BuiltIn");
     fs_create_directory("C:/GamerOS/Apps/Manifests");
     fs_create_directory("C:/GamerOS/Registry");
     fs_create_directory("C:/Users");
     fs_create_directory("C:/Users/Admin");
+    fs_create_directory("C:/Users/Admin/AppData");
+    fs_create_directory("C:/Users/Admin/AppData/About");
+    fs_create_directory("C:/Users/Admin/AppData/Explorer");
+    fs_create_directory("C:/Users/Admin/AppData/Notepad");
+    fs_create_directory("C:/Users/Admin/AppData/Settings");
     fs_create_directory("C:/Users/Admin/Notepad");
     fs_create_directory("C:/Users/Admin/Settings");
     fs_create_directory("C:/Users/Admin/Explorer");
     fs_create_directory("C:/Users/Admin/Saves");
+    fs_create_directory("C:/Users/Admin/Documents");
+    fs_create_directory("C:/Users/Admin/Downloads");
     fs_create_directory("C:/GamerOS/Logs");
 
-    file_t* f = gos_fs_create_file("GOS:/System/GAMEROS.INI");
-    if (f) {
-        const char* txt = "shell=GamerOS\nbuild=1.300\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = gos_fs_create_file("GOS:/User/README.TXT");
-    if (f) {
-        const char* txt = "Welcome to GamerOS user profile.\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = gos_fs_create_file(NOTEPAD_FILE_PATH);
-    if (f) {
-        const char* txt = "GamerOS Notepad\n\nType here...\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
+    debug_log_message("Boot: seed system files");
+    debug_present_boot_status();
+    write_text_file("C:/GamerOS/System32/GAMEROS.INI",
+        "shell=GamerOS\nbuild=1.400\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
+    write_text_file("C:/Users/Admin/README.TXT", "Welcome to GamerOS user profile.\n");
+    write_text_file(NOTEPAD_FILE_PATH, "GamerOS Notepad\n\nType here...\n");
 
-    f = fs_create_file("C:/GamerOS/System32/NOTEPAD.EXE");
-    if (f) {
-        const char* txt = "MZ\nName=Notepad\nSubsystem=GamerOS\nEntry=WIN_NOTEPAD\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file("C:/GamerOS/System32/SETTINGS.EXE");
-    if (f) {
-        const char* txt = "MZ\nName=Settings\nSubsystem=GamerOS\nEntry=WIN_SETTINGS\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file("C:/GamerOS/System32/EXPLORER.EXE");
-    if (f) {
-        const char* txt = "MZ\nName=Explorer\nSubsystem=GamerOS\nEntry=WIN_EXPLORER\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file("C:/GamerOS/System32/ABOUT.EXE");
-    if (f) {
-        const char* txt = "MZ\nName=About\nSubsystem=GamerOS\nEntry=WIN_ABOUT\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file("C:/GamerOS/Apps/BuiltIn/APPS.LST");
-    if (f) {
-        const char* txt = "NOTEPAD.EXE\nSETTINGS.EXE\nEXPLORER.EXE\nABOUT.EXE\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file(settings_ui_changelog_md_path());
-    if (f) {
-        const char* txt = settings_ui_changelog_md_text();
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file("C:/GamerOS/System32/KERNEL.SYS");
-    if (f) {
-        const char* txt = "Kernel image placeholder\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file("C:/GamerOS/System32/SHELL32.DLL");
-    if (f) {
-        const char* txt = "Shell library placeholder\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
+    write_text_file("C:/GamerOS/System32/NOTEPAD.EXE", "GOSAPP\nName=Notepad\nEntry=WIN_NOTEPAD\n");
+    write_text_file("C:/GamerOS/System32/SETTINGS.EXE", "GOSAPP\nName=Settings\nEntry=WIN_SETTINGS\n");
+    write_text_file("C:/GamerOS/System32/EXPLORER.EXE", "GOSAPP\nName=Explorer\nEntry=WIN_EXPLORER\n");
+    write_text_file("C:/GamerOS/System32/ABOUT.EXE", "GOSAPP\nName=About GamerOS\nEntry=WIN_ABOUT\n");
+    write_text_file("C:/GamerOS/System32/KERNEL.SYS", "Kernel image placeholder\n");
+    write_text_file("C:/GamerOS/System32/SHELL32.DLL", "Shell library placeholder\n");
 
-    // App manifest-style metadata for built-in apps so they behave more like
-    // real, first-class applications.
-    f = fs_create_file("C:/GamerOS/Apps/Manifests/Notepad.gosapp");
-    if (f) {
-        const char* txt =
-            "Id=NOTEPAD\n"
-            "DisplayName=Notepad\n"
-            "Exe=C:/GamerOS/System32/NOTEPAD.EXE\n"
-            "Entry=WIN_NOTEPAD\n"
-            "Category=Utility\n"
-            "Permissions=filesystem:user-data\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
+    write_text_file("C:/GamerOS/Apps/BuiltIn/APPS.LST",
+        "NOTEPAD.EXE\nSETTINGS.EXE\nEXPLORER.EXE\nABOUT.EXE\n");
+    write_text_file("C:/GamerOS/Registry/INSTALLED_APPS.REG",
+        "NOTEPAD=Installed\nSETTINGS=Installed\nEXPLORER=Installed\nABOUT=Installed\n");
+    write_text_file("C:/GamerOS/Registry/STORAGE.REG",
+        "SystemRoot=C:/GamerOS\nSystem32=C:/GamerOS/System32\nAppsRoot=C:/GamerOS/Apps\nUserRoot=C:/Users/Admin\n");
 
-    f = fs_create_file("C:/GamerOS/Apps/Manifests/Settings.gosapp");
-    if (f) {
-        const char* txt =
-            "Id=SETTINGS\n"
-            "DisplayName=Settings\n"
-            "Exe=C:/GamerOS/System32/SETTINGS.EXE\n"
-            "Entry=WIN_SETTINGS\n"
-            "Category=System\n"
-            "Permissions=filesystem:system-info\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
+    write_text_file("C:/GamerOS/Apps/Manifests/Notepad.gosapp",
+        "Id=NOTEPAD\nDisplayName=Notepad\nExe=C:/GamerOS/System32/NOTEPAD.EXE\nEntry=WIN_NOTEPAD\n"
+        "InstallRoot=C:/GamerOS/Apps/Notepad\nUserDataRoot=C:/Users/Admin/AppData/Notepad\nCategory=Utility\nPermissions=filesystem:user-data\n");
+    write_text_file("C:/GamerOS/Apps/Manifests/Settings.gosapp",
+        "Id=SETTINGS\nDisplayName=Settings\nExe=C:/GamerOS/System32/SETTINGS.EXE\nEntry=WIN_SETTINGS\n"
+        "InstallRoot=C:/GamerOS/Apps/Settings\nUserDataRoot=C:/Users/Admin/AppData/Settings\nCategory=System\nPermissions=filesystem:system-info\n");
+    write_text_file("C:/GamerOS/Apps/Manifests/Explorer.gosapp",
+        "Id=EXPLORER\nDisplayName=File Explorer\nExe=C:/GamerOS/System32/EXPLORER.EXE\nEntry=WIN_EXPLORER\n"
+        "InstallRoot=C:/GamerOS/Apps/Explorer\nUserDataRoot=C:/Users/Admin/AppData/Explorer\nCategory=System\nPermissions=filesystem:all-volumes\n");
+    write_text_file("C:/GamerOS/Apps/Manifests/About.gosapp",
+        "Id=ABOUT\nDisplayName=About GamerOS\nExe=C:/GamerOS/System32/ABOUT.EXE\nEntry=WIN_ABOUT\n"
+        "InstallRoot=C:/GamerOS/Apps/About\nUserDataRoot=C:/Users/Admin/AppData/About\nCategory=System\nPermissions=filesystem:system-info\n");
 
-    f = fs_create_file("C:/GamerOS/Apps/Manifests/Explorer.gosapp");
-    if (f) {
-        const char* txt =
-            "Id=EXPLORER\n"
-            "DisplayName=File Explorer\n"
-            "Exe=C:/GamerOS/System32/EXPLORER.EXE\n"
-            "Entry=WIN_EXPLORER\n"
-            "Category=System\n"
-            "Permissions=filesystem:all-volumes\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-
-    f = fs_create_file("C:/GamerOS/Apps/Manifests/About.gosapp");
-    if (f) {
-        const char* txt =
-            "Id=ABOUT\n"
-            "DisplayName=About GamerOS\n"
-            "Exe=C:/GamerOS/System32/ABOUT.EXE\n"
-            "Entry=WIN_ABOUT\n"
-            "Category=System\n"
-            "Permissions=filesystem:system-info\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-
-    // Simple save-slot style data for future games or launchers.
-    f = fs_create_file("C:/Users/Admin/Saves/SAVE1.GOS");
-    if (f) {
-        const char* txt = "Empty save slot 1\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
-    f = fs_create_file("C:/Users/Admin/Saves/SAVE2.GOS");
-    if (f) {
-        const char* txt = "Empty save slot 2\n";
-        fs_write_file(f, (const uint8_t*)txt, (uint32_t)strlen(txt));
-    }
+    write_text_file("C:/GamerOS/Apps/Notepad/README.TXT", "Notepad install root.\n");
+    write_text_file("C:/GamerOS/Apps/Settings/README.TXT", "Settings install root.\n");
+    write_text_file("C:/GamerOS/Apps/Explorer/README.TXT", "Explorer install root.\n");
+    write_text_file("C:/GamerOS/Apps/About/README.TXT", "About install root.\n");
+    write_text_file("C:/Users/Admin/AppData/Notepad/PREFS.INI", "font=System\nwordwrap=0\n");
+    write_text_file("C:/Users/Admin/AppData/Settings/PREFS.INI", "theme=GamerOS Modern\nshow_seconds=0\n");
+    write_text_file("C:/Users/Admin/AppData/Explorer/PREFS.INI", "start_path=C:/\nview=details\n");
+    write_text_file("C:/Users/Admin/AppData/About/PREFS.INI", "show_diagnostics=1\n");
+    write_text_file("C:/Users/Admin/Documents/WELCOME.TXT", "Documents folder ready.\n");
+    write_text_file("C:/Users/Admin/Downloads/README.TXT", "Downloads folder ready.\n");
+    write_text_file("C:/Users/Admin/Saves/SAVE1.GOS", "Empty save slot 1\n");
+    write_text_file("C:/Users/Admin/Saves/SAVE2.GOS", "Empty save slot 2\n");
+    write_text_file(settings_ui_changelog_md_path(), settings_ui_changelog_md_text());
+    debug_log_message("Boot: storage layout ready");
+    debug_present_boot_status();
     explorer_build_this_pc_entries();
     explorer_open_this_pc();
 }
@@ -804,9 +853,68 @@ static void raise_runtime_error(const char* title, const char* message) {
     serial_write_string(" - ");
     serial_write_string(error_popup_message);
     serial_write_string("\n");
+
+    {
+        char line[DEBUG_LOG_CHARS];
+        strncpy(line, title, sizeof(line) - 1);
+        line[sizeof(line) - 1] = 0;
+        append_string(line, sizeof(line), ": ");
+        append_string(line, sizeof(line), message);
+        debug_log_message(line);
+    }
+}
+
+static void debug_log_message(const char* message) {
+    if (!message || !message[0]) return;
+
+    int slot = debug_log_count;
+    if (slot >= DEBUG_LOG_LINES) {
+        for (int i = 1; i < DEBUG_LOG_LINES; i++) {
+            memcpy(debug_log_lines[i - 1], debug_log_lines[i], DEBUG_LOG_CHARS);
+        }
+        slot = DEBUG_LOG_LINES - 1;
+    } else {
+        debug_log_count++;
+    }
+
+    strncpy(debug_log_lines[slot], message, DEBUG_LOG_CHARS - 1);
+    debug_log_lines[slot][DEBUG_LOG_CHARS - 1] = 0;
+    serial_write_string("Debug: ");
+    serial_write_string(debug_log_lines[slot]);
+    serial_write_string("\n");
+}
+
+static void draw_debug_overlay(void) {
+    if (!debug_overlay_enabled || debug_log_count <= 0) return;
+
+    int box_x = 4;
+    int box_y = 4;
+    int box_w = 8 + (DEBUG_LOG_CHARS * 6);
+    int box_h = 16 + (debug_log_count * 8);
+    if (box_w > (int)current_width - 8) box_w = (int)current_width - 8;
+    if (box_h > (int)current_height - TASKBAR_HEIGHT - 8) box_h = (int)current_height - TASKBAR_HEIGHT - 8;
+
+    fill_chamfer_rect(box_x, box_y, box_w, box_h, XP_WHITE);
+    draw_chamfer_rect(box_x, box_y, box_w, box_h, XP_DGRAY);
+    fill_chamfer_rect(box_x + 1, box_y + 1, box_w - 2, 10, XP_LBLUE);
+    draw_compact_string(box_x + 4, box_y + 3, "Debug", XP_BLACK);
+
+    for (int i = 0; i < debug_log_count; i++) {
+        draw_compact_string_clipped(box_x + 4, box_y + 14 + i * 8, (box_w - 8) / 6, debug_log_lines[i], XP_BLACK);
+    }
+}
+
+static void debug_present_boot_status(void) {
+    clear_screen(0);
+    draw_debug_overlay();
+    swap_buffers();
 }
 
 static void launch_application_exe(const char* exe_name, int fallback_x, int fallback_y) {
+    if (!storage_initialized) {
+        ensure_storage_initialized();
+    }
+
     int win_type = WIN_NONE;
     int launch_x = fallback_x;
     int launch_y = fallback_y;
@@ -819,6 +927,13 @@ static void launch_application_exe(const char* exe_name, int fallback_x, int fal
     }
     if (fallback_x >= 0) launch_x = fallback_x;
     if (fallback_y >= 0) launch_y = fallback_y;
+
+    int pid = process_spawn_from_exe(descriptor->system_path, win_type);
+    if (pid < 0) {
+        raise_runtime_error("Loader Error", "Failed to load executable task image.");
+        return;
+    }
+    (void)process_mark_running(pid);
 
     open_window(win_type, launch_x, launch_y);
     if (win_type == WIN_NOTEPAD && storage_initialized) {
@@ -985,18 +1100,6 @@ static void notepad_save_to_storage(void) {
     }
     fs_write_file(file, notepad_io_buffer, pos);
     notepad_dirty = 0;
-}
-
-static const char* storage_type_name(storage_device_type_t type) {
-    switch (type) {
-        case STORAGE_HDD: return "HDD";
-        case STORAGE_SSD: return "SSD";
-        case STORAGE_NVME: return "NVMe";
-        case STORAGE_USB: return "USB";
-        case STORAGE_CDROM: return "CDROM";
-        case STORAGE_RAMDISK: return "RAM";
-        default: return "Unknown";
-    }
 }
 
 static void startup_animation(void) {
@@ -1184,6 +1287,7 @@ void close_window(int idx) {
         }
         // Update simple app lifecycle state when a top-level app window closes.
         app_lifecycle_mark_closed_by_type(windows[idx].type);
+        (void)process_terminate_by_window_type(windows[idx].type);
         windows[idx].active = 0;
         window_count--;
         for (int i = MAX_WINDOWS - 1; i >= 0; i--) {
@@ -1333,6 +1437,33 @@ void draw_window(window_t* win) {
             append_string(storage_line, sizeof(storage_line), c);
             draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, storage_line, XP_BLACK);
             draw_compact_string_clipped(content_x + 6, body_y + 78, content_chars, "HDD SSD NVMe USB CDROM RAM", XP_BLACK);
+        } else if (settings_tab == SETTINGS_TAB_DISPLAY) {
+            char current_line[40];
+            char native_line[40];
+            char backend_line[48];
+            sprintf(current_line, "Current: %ux%u", (unsigned int)current_width, (unsigned int)current_height);
+            sprintf(native_line, "Native: %ux%u", (unsigned int)graphics_get_native_width(), (unsigned int)graphics_get_native_height());
+            sprintf(backend_line, "Backend: %s", graphics_is_truecolor() ? "Framebuffer" : "VGA Safe");
+            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Display", XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, current_line, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, native_line, XP_BLACK);
+            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, backend_line, XP_BLACK);
+            for (int i = 0; i < display_profile_count(); i++) {
+                int row_y = body_y + 62 + i * 14;
+                uint8_t bg = (setting_display_profile == i) ? XP_LBLUE : XP_WHITE;
+                fill_chamfer_rect(content_x + 6, row_y - 2, content_w - 16, 12, bg);
+                draw_chamfer_rect(content_x + 6, row_y - 2, content_w - 16, 12, XP_DGRAY);
+                if (display_profile_available(i)) {
+                    draw_compact_string_clipped(content_x + 10, row_y + 1, content_chars - 1, g_display_profiles[i].label, XP_BLACK);
+                } else {
+                    char unavailable[48];
+                    strncpy(unavailable, g_display_profiles[i].label, sizeof(unavailable) - 1);
+                    unavailable[sizeof(unavailable) - 1] = 0;
+                    append_string(unavailable, sizeof(unavailable), " (needs framebuffer)");
+                    draw_compact_string_clipped(content_x + 10, row_y + 1, content_chars - 1, unavailable, XP_DGRAY);
+                }
+            }
+            draw_compact_string_clipped(content_x + 6, body_y + 122, content_chars, "Click a profile to apply it instantly.", XP_DGRAY);
         } else if (settings_tab == SETTINGS_TAB_PERSONALIZATION) {
             char res_line[40];
             char scale_line[40];
@@ -1747,6 +1878,7 @@ void draw_desktop(void) {
         draw_desktop_context_menu();
     }
     draw_error_popup();
+    draw_debug_overlay();
     
     // Taskbar items
     int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
@@ -1902,6 +2034,27 @@ static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
             }
         }
     }
+    if (settings_tab == SETTINGS_TAB_DISPLAY) {
+        int content_x = nav_x + nav_w + 6;
+        int content_y = win->y + 28;
+        int body_y = content_y + 16;
+        int list_x = content_x + 6;
+        int list_w = win->w - (list_x - win->x) - 14;
+        if (mx >= list_x && mx < list_x + list_w) {
+            for (int i = 0; i < display_profile_count(); i++) {
+                int row_y = body_y + 62 + i * 14;
+                if (my >= row_y - 2 && my < row_y + 10) {
+                    if (!display_profile_available(i)) {
+                        raise_runtime_error("Display Error", "This profile needs framebuffer mode.");
+                        return 1;
+                    }
+                    setting_display_profile = i;
+                    apply_display_profile();
+                    return 1;
+                }
+            }
+        }
+    }
     return 0;
 }
 
@@ -1961,6 +2114,10 @@ static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
         strncpy(explorer_path, explorer_entries[row], sizeof(explorer_path) - 1);
         explorer_path[sizeof(explorer_path) - 1] = 0;
         explorer_refresh();
+    } else if (path_has_extension(explorer_entries[row], ".EXE")) {
+        launch_application_exe(explorer_entries[row], -1, -1);
+    } else if (path_has_extension(explorer_entries[row], ".gosapp")) {
+        raise_runtime_error("Manifest Info", path_basename(explorer_entries[row]));
     }
     return 1;
 }
@@ -2033,12 +2190,13 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
 
     buttons &= (uint8_t)(MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT);
     if ((buttons & (MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT)) == (MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT)) {
-        // Ignore ambiguous dual-button packets to avoid unsafe state transitions in VMs.
+        // Ignore ambiguous dual-button packets quietly to avoid unstable VM popup paths.
         if (!warned_mouse_packet) {
-            raise_runtime_error("Input Error", "Ambiguous mouse packet detected (L+R together).");
+            serial_write_string("Input warning: ambiguous mouse packet detected (L+R together)\n");
             warned_mouse_packet = 1;
         }
-        RETURN_MOUSE();
+        last_buttons = 0;
+        return;
     }
 
     uint8_t pressed = buttons & ~last_buttons;
@@ -2433,10 +2591,14 @@ static void cursor_compose_on_backbuffer(int32_t x, int32_t y) {
 void kernel_main(multiboot_info_t* mb_info) {
     serial_init();
     serial_write_string("GamerOS Starting...\n");
+    debug_log_message("Boot: kernel_main start");
     
     // Prefer safe-validated multiboot framebuffer path; fallback to stable VGA renderer.
     if (!graphics_use_multiboot_framebuffer(mb_info)) {
         set_video_mode(MODE_VESA_640x480);
+        debug_log_message("Boot: using VGA fallback");
+    } else {
+        debug_log_message("Boot: using framebuffer");
     }
     {
         char gfx_boot_line[72];
@@ -2446,12 +2608,15 @@ void kernel_main(multiboot_info_t* mb_info) {
                 (unsigned int)graphics_get_bpp(),
                 graphics_is_truecolor() ? "RGBA" : "Indexed");
         serial_write_string(gfx_boot_line);
+        debug_log_message(gfx_boot_line);
     }
     
     // Initialize subsystems
     keyboard_init();
+    debug_log_message("Boot: keyboard init ok");
     mouse_init();
-    // Keep startup path minimal; initialize storage lazily on first app use.
+    debug_log_message("Boot: mouse init ok");
+    // Seed desktop state before storage comes online.
     explorer_drive_count = 1;
     explorer_drive_paths[0][0] = 'C';
     explorer_drive_paths[0][1] = ':';
@@ -2460,7 +2625,13 @@ void kernel_main(multiboot_info_t* mb_info) {
     strncpy(explorer_drive_labels[0], "C: Local Disk", sizeof(explorer_drive_labels[0]) - 1);
     explorer_drive_labels[0][sizeof(explorer_drive_labels[0]) - 1] = 0;
     init_windows();
+    debug_log_message("Boot: windows init ok");
     startup_animation();
+    debug_log_message("Boot: startup animation done");
+    debug_present_boot_status();
+    debug_log_message("Boot: storage deferred");
+    debug_log_message("Boot: entering main loop");
+    debug_present_boot_status();
 
     // VMware stability mode: use polling-only input in the main loop.
     // IRQ-driven mouse/keyboard paths can still trigger fault storms while dragging.
@@ -2468,7 +2639,25 @@ void kernel_main(multiboot_info_t* mb_info) {
     
     // Main loop
     int32_t last_mx = -1, last_my = -1;
-    uint8_t scene_dirty = 1;
+    uint8_t scene_dirty = 0;
+
+    // Paint one desktop frame before the first input poll so a noisy PS/2
+    // controller cannot trap the VM on a black handoff screen.
+    {
+        int32_t boot_mx = mouse_get_x();
+        int32_t boot_my = mouse_get_y();
+        if (boot_mx < 0) boot_mx = 0;
+        if (boot_my < 0) boot_my = 0;
+        if (boot_mx >= (int32_t)current_width) boot_mx = (int32_t)current_width - 1;
+        if (boot_my >= (int32_t)current_height) boot_my = (int32_t)current_height - 1;
+        clear_screen(0);
+        draw_desktop();
+        cursor_compose_on_backbuffer(boot_mx, boot_my);
+        swap_buffers();
+        last_mx = boot_mx;
+        last_my = boot_my;
+        debug_log_message("Boot: desktop frame ready");
+    }
     
     while (1) {
         if (shutdown_requested) {

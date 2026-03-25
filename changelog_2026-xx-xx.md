@@ -22,6 +22,15 @@ This changelog tracks work for the next release cycle.
  - Added standalone `ABOUT.EXE` system app with app metadata/manifest so About is launchable outside Settings.
  - Added desktop right-click context menu with quick actions (`About GamerOS`, `Settings`, `Refresh Desktop`).
  - Added in-OS runtime error popup dialog (modal with `OK`) so detectable failures show directly inside GamerOS.
+ - Added real ATA PIO disk driver (`0x1F0` primary IDE path) for sector-level read/write operations.
+ - Added persistent filesystem metadata layout (superblock + file table + directory table) stored on disk sectors.
+ - Added `GOSAPP` executable loader format (`GOSAPP`, `Name=...`, `Entry=...`) and task table for spawned app processes.
+ - Expanded the virtual storage layout with real app install roots, `AppData` folders, registry snapshots, Documents/Downloads roots, and persisted preference files for built-in apps.
+ - Added shell-visible installed app registry and storage registry files under `C:/GamerOS/Registry`.
+ - Added a dedicated `Display` Settings tab with clickable resolution profiles and backend-aware availability checks.
+ - Added runtime display resolution helpers so the shell can switch render size without rebooting when framebuffer mode is active.
+ - Added an always-visible top-left debug overlay that mirrors recent boot/runtime fault messages on-screen.
+ - Added staged boot progress tracing so startup now reports graphics, input, storage, and shell handoff milestones.
 
 ## Changed
 - Build metadata updated from `1.300` to `1.400`.
@@ -57,6 +66,14 @@ This changelog tracks work for the next release cycle.
  - Start menu `About GamerOS` action now launches the standalone About app instead of jumping to a Settings tab.
  - Start menu redesigned with wider modern layout, cleaner spacing, and improved label fit so entries like `File Explorer`, `GamerOS Update`, and `About GamerOS` are fully readable.
  - Start menu hit-testing updated to match new row geometry, improving click reliability on all menu entries.
+ - Built-in app executables now use the new loader format (`GOSAPP`) instead of ad-hoc `MZ` text placeholders.
+ - App launch path now creates/marks runtime tasks via loader validation before opening the target window.
+ - File Explorer now browses real filesystem entries from GamerOS system/user folders and can launch `.EXE` files directly from the file list.
+ - Built-in app metadata now includes manifest path, install root, and per-app user data root so apps are represented as real installed applications in the storage tree.
+ - Settings navigation now includes a dedicated `Display` page instead of keeping display information buried under other tabs.
+ - Docker build packaging was hardened so repeated ISO builds overwrite staged files cleanly instead of failing on existing outputs.
+ - Boot handoff now paints one shell frame before entering steady-state input polling so VMware no longer sits on a black post-loader screen when PS/2 state is noisy.
+ - Input polling was moved onto bounded safety loops instead of unbounded controller drains.
 
 ## Fixed
 - Fixed wallpaper/taskbar transition mismatch caused by the two blue desktop glow strips.
@@ -73,6 +90,14 @@ This changelog tracks work for the next release cycle.
 - Fixed VM instability path where desktop right-click/context-menu input packets could trigger unsafe mouse-state transitions and halt the guest.
 - Fixed VM crash path by clamping raw polled mouse coordinates before cursor composition/rendering, preventing out-of-range right-click packets from corrupting draw paths.
 - Fixed silent-debugability issue by surfacing unstable mouse packet/bounds anomalies in an in-OS popup and serial log.
+- Fixed storage bootstrap paths still writing stale `1.300` build metadata into the GamerOS system config.
+- Fixed repository noise by ignoring generated `build`/`dist` outputs and common binary/log artifacts via `.gitignore`.
+- Fixed repeated Docker ISO builds failing during staging because `cp` refused to overwrite existing `kernel.elf` and ISO outputs.
+- Fixed Settings missing a real display configuration surface by exposing resolution switching directly in the UI.
+- Fixed post-loading-screen black screen on VMware by presenting the desktop before first PS/2 polling and capping poll-loop drain counts.
+- Fixed a kernel-stack-heavy app loader path by moving the executable read buffer out of the launch-time stack frame.
+- Fixed boot/storage investigation visibility by surfacing storage/bootstrap milestones in the debug overlay instead of relying only on serial.
+- Fixed unstable VMware boot path further by disabling the unsafe ATA PIO probe and forcing the filesystem onto the RAM-backed storage fallback for now.
 
 ## Notes
 - Release date is not finalized yet.
@@ -81,7 +106,7 @@ This changelog tracks work for the next release cycle.
  - New app container model so desktop apps behave like first-class system windows (with minimize/maximize/close, focus handling, and z-order).
  - Extend the app lifecycle from the current running/stopped tracker into a richer controller that can also suspend, resume, and terminate or throttle background apps.
  - Standardized app chrome guidelines so built-in tools (Settings, File Manager, Media Player) visually align with the shell.
- - Shell-visible app registry that tracks installed system apps, metadata, icons, and launch targets, and can be browsed from the UI.
+ - Interactive app registry browser in Settings or Explorer that shows manifests, install roots, permissions, and runtime state.
  - Extended `.gosapp` manifest format with versioning, dependency, and fine-grained permission fields.
  - Basic permissions model for apps (filesystem, network, settings, hardware) to prepare for future sandboxing.
  - Unified input dispatch layer that routes keyboard/mouse events to the active app with proper focus rules.
@@ -91,25 +116,26 @@ This changelog tracks work for the next release cycle.
  - High-level UI controls library (buttons, labels, checkboxes, sliders) for building consistent in-box apps.
  - Layout helpers for common app patterns (sidebar/content, toolbar/content, dialog with actions).
  - New `App Shell` sample app demonstrating the recommended window structure and toolbar patterns.
- - Dedicated File Manager app prototype with modern column layout and breadcrumb navigation.
+ - Multi-pane File Manager upgrade with breadcrumb navigation, details columns, and file properties/actions.
  - Basic storage abstraction layer that hides raw disk details behind a friendly volume and path model.
  - High-level storage API for apps to read/write user documents without touching low-level disk code.
- - Standardized `AppData`-style per-app data root (e.g., `GOS:/User/AppData/<AppId>`) shared by all apps, not just the built-in ones.
- - Initial settings storage backend for persisting toggles, theme choice, and last-used graphics mode.
- - Simple key/value persistence helper for apps to store preferences and restore them on next launch.
+ - Expand the `AppData` model into a first-class API (`GOS:/User/AppData/<AppId>`) for all current and future apps.
+ - Live settings storage backend that actually loads persisted toggles, theme choice, and last-used graphics mode at startup.
+ - Generic key/value persistence helper that apps can call instead of writing raw preference files directly.
  - First version of a save-game style data slot API for games and game launchers.
  - Read-only system volume layout for core OS assets, with a separate writable user area.
  - Bootstrap for a future installer experience that can place apps into the correct volume and register them with the shell.
  - Storage-aware About/Gaming pages that display detected volumes, free space, and backend information.
  - Internal diagnostics overlay app that can inspect current apps, windows, and storage mounts.
- - Error dialog framework so apps can show consistent, shell-native error and warning messages.
+ - App-callable error and warning dialog API so apps can raise shell-native modal messages consistently.
  - Simple notification/toast API for apps to surface background events (e.g., file copy finished).
  - Background service concept for future features like update checks and indexing without blocking the shell.
  - Skeleton for an in-box text editor app that uses the new app framework and storage APIs.
  - Planned media player UI spec (play/pause, seek, volume) wired up to the new app container model.
  - Initial hooks for a plugin system that will later allow optional features and tools to be shipped as separate app bundles.
- - Desktop context menu customization (pin actions, sort icons, wallpaper/profile actions).
+ - Expanded desktop context menu customization (pin actions, sort icons, wallpaper/profile actions).
  - Desktop icon arrangement tools (snap-to-grid toggle, align, auto-arrange, manual save/load layouts).
  - About app diagnostics extensions (build hash, boot mode, memory/storage snapshot, export report).
  - App install/uninstall flow in Settings with manifest validation and rollback on failure.
  - Update channel selection in GamerOS Update (`stable`, `preview`, `dev`) with per-channel roadmap sections.
+ - Cross-toolchain integration (`i686-elf-gcc`) so C components can move back into the kernel cleanly.

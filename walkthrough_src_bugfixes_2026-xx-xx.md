@@ -417,3 +417,189 @@ Changes:
 
 Reason:
 - Requested a more modern Start menu and explicit About app access from Start menu, with the screenshot showing cramped/truncated entries.
+
+### 23. Expanded roadmap with storage, process model, and cross-toolchain goals
+
+Files:
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Added new `## Planned` roadmap item for real persistent disk I/O using ATA PIO instead of in-memory-only file handling.
+- Added new `## Planned` roadmap item for a proper process/task model and defined app loader format.
+- Added new `## Planned` roadmap item for integrating an `i686-elf-gcc` cross-toolchain to move C components back into the kernel cleanly.
+- Synced the same three roadmap entries in both top-level changelog markdown and the Settings app embedded changelog text.
+
+Reason:
+- Requested explicit roadmap additions covering persistent ATA PIO storage, process/task loader architecture, and cross-toolchain support, with changelog synchronization across docs and Settings.
+
+### 24. Implemented ATA PIO persistence and GOSAPP process loader model
+
+Files:
+- `src/intf/ata_pio.h`
+- `src/impl/drivers/ata_pio.c`
+- `src/impl/filesystem/fs.c`
+- `src/intf/process_model.h`
+- `src/impl/kernel/process_model.c`
+- `src/impl/kernel/main.c`
+- `Makefile`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `src/apps/settings/settings_ui.c`
+
+Changes:
+- Added a real ATA PIO disk driver for primary IDE I/O (`ata_pio_init`, single-sector read/write, cache flush).
+- Reworked filesystem persistence path to use sector I/O:
+  - disk-backed metadata (superblock, file table, directory table)
+  - reserved sector ranges per file for stable writes
+  - metadata sync on file/directory creation and write updates
+  - fallback RAM storage path retained when ATA device is unavailable.
+- Added a concrete process/task model with executable loader:
+  - task table with PID/state tracking (`READY`, `RUNNING`, `TERMINATED`)
+  - `GOSAPP` loader format parsing (`Name=`, `Entry=`)
+  - launch flow now validates/loads executable task image before window open
+  - window close path terminates the associated task by window type.
+- Converted built-in executable payloads (`NOTEPAD.EXE`, `SETTINGS.EXE`, `EXPLORER.EXE`, `ABOUT.EXE`) from ad-hoc `MZ` placeholder text to the new `GOSAPP` format.
+- Updated top-level changelog and in-Settings changelog text to move ATA/process-loader items from roadmap to implemented release notes.
+
+Build:
+- Ran `make build-x86_64`: failed because `x86_64-linux-gnu-gcc` is not installed in this host environment.
+- Ran `build-iso.bat`: failed because Docker daemon is not running (`dockerDesktopLinuxEngine` pipe missing).
+
+Reason:
+- Requested implementation of real persistent ATA PIO storage and a proper process/task model with loader format, then ISO build and synced release documentation.
+
+### 25. Expanded installed-app storage layout and synced Settings roadmap
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/apps.c`
+- `src/intf/apps.h`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `.gitignore`
+
+Changes:
+- Expanded the storage bootstrap so built-in apps now have clearer real filesystem presence:
+  - install roots under `C:/GamerOS/Apps/<AppName>`
+  - per-app `AppData` folders under `C:/Users/Admin/AppData/<AppName>`
+  - registry snapshots under `C:/GamerOS/Registry`
+  - seeded user folders such as `Documents` and `Downloads`
+- Extended `app_descriptor_t` with manifest path, install root, and user data root so the shell tracks apps as installed system objects instead of only EXE names.
+- Switched bootstrap file writes to open-or-create behavior so core metadata files can be refreshed instead of only being created once.
+- Updated Explorer interaction so clicking `.EXE` entries in the file list launches the real registered app from the filesystem tree.
+- Synced the embedded Settings changelog with the top-level `1.400` changelog additions and adjusted the `## Planned` roadmap so it focuses on features that still do not exist in the OS.
+- Added `.gitignore` entries for generated build output and common binary/log artifacts.
+
+Reason:
+- Requested fuller storage/app realism for build `1.400`, changelog sync inside Settings, and a roadmap that only advertises genuinely future work rather than features that already landed.
+
+### 26. Added display settings with runtime resolution switching and fixed Docker ISO staging
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `src/intf/graphics.h`
+- `src/impl/graphics/vga_graphics.c`
+- `Makefile`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Added a dedicated `Display` tab to Settings and inserted it into the Settings navigation list.
+- Added display profiles for:
+  - `640 x 480 (Safe)`
+  - `800 x 600`
+  - `1280 x 720`
+  - `Native`
+- Wired Settings clicks to runtime resolution changes through new graphics helpers:
+  - `graphics_set_resolution(...)`
+  - `graphics_get_native_width()`
+  - `graphics_get_native_height()`
+- Limited higher-resolution profiles to true-color framebuffer sessions so VGA users only see the safe supported mode.
+- Re-clamped open windows after a resolution change so UI surfaces stay on-screen after the desktop size changes.
+- Fixed ISO staging in `Makefile` by forcing file overwrites during copy steps and clearing old temporary ISO outputs before regeneration.
+- Re-ran the Docker build successfully after the packaging fix; build completion now reaches ISO generation instead of failing on existing staged files.
+
+Build:
+- Ran `build.bat` with Docker available.
+- Build now completes successfully and produces the ISO.
+- Remaining output still includes repeated NASM warnings from `src/impl/x86_64/boot.asm` about attempted initialization in `.bss`, but there were no build-stopping errors.
+
+Reason:
+- Requested a real display settings surface in Settings where users can change resolution, plus a clean build validation pass without the prior Docker packaging failure.
+
+### 27. Added on-screen boot debug overlay and narrowed VMware startup failures
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Added a persistent top-left debug overlay that keeps recent boot/runtime messages visible on-screen.
+- Added boot milestone tracing for:
+  - kernel entry
+  - graphics backend selection
+  - keyboard/mouse init
+  - window init
+  - startup animation completion
+  - storage init begin/complete
+  - main-loop handoff
+- Routed runtime popup errors into the same debug log so visible UI errors and boot diagnostics share one trace surface.
+
+Reason:
+- Requested visible on-screen error text because VMware was halting before serial-only diagnostics were practical to inspect.
+
+### 28. Hardened VMware shell handoff and disabled unsafe ATA probing
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/impl/drivers/mouse.c`
+- `src/impl/drivers/keyboard.c`
+- `src/impl/drivers/ata_pio.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Changed boot handoff so GamerOS paints one desktop frame before the first steady-state input polling cycle.
+- Added bounded safety limits to `mouse_poll()` and `keyboard_poll()` so VMware cannot get trapped in infinite PS/2 drain loops.
+- Disabled the current ATA PIO probe path and forced filesystem startup onto the RAM-backed fallback while VMware crash investigation continues.
+- Kept the debug overlay active across desktop rendering so black-screen and shell-handoff failures remain visible after the loading screen.
+
+Build:
+- Ran `build.bat` successfully after the boot/input hardening changes.
+- ISO generation completed.
+
+Reason:
+- Booting in VMware still stalled or halted after the loading screen, so the shell handoff and storage probe paths needed to be made safer before app-launch debugging could continue.
+
+### 29. Reduced app-launch loader risk and added loader tracing
+
+Files:
+- `src/impl/kernel/process_model.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-xx-xx.md`
+
+Changes:
+- Moved the executable loader read buffer out of the per-launch kernel stack frame into static storage.
+- Added serial loader tracing for:
+  - `Loader: spawn request`
+  - `Loader: open exe`
+  - `Loader: read exe`
+  - `Loader: validate header`
+  - `Loader: allocate task slot`
+  - `Loader: spawn success`
+- Left the process/task model intact while removing the strongest immediate stack-overflow candidate from the launch path.
+
+Build:
+- Ran `build.bat` successfully after the loader change.
+- Remaining build output still only includes the pre-existing NASM `.bss` warnings from `src/impl/x86_64/boot.asm`.
+
+Reason:
+- After boot was stabilized enough to reach storage initialization, opening an app still black-screened the VM; the next likely fault source was the stack-heavy loader path in `process_spawn_from_exe(...)`.

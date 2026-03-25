@@ -19,6 +19,8 @@ static uint32_t back_buffer_rgb[MAX_RENDER_PIXELS];
 static uint32_t framebuffer_pitch_bytes = 0;
 static uint8_t framebuffer_bpp = 0;
 static uint8_t framebuffer_truecolor = 0;
+static uint32_t native_width = 640;
+static uint32_t native_height = 480;
 
 static uint32_t palette_rgb[256];
 static uint8_t palette_ready = 0;
@@ -213,6 +215,8 @@ void vga_set_mode_13h(void) {
     framebuffer_pitch_bytes = current_width;
     framebuffer_bpp = 8;
     framebuffer_truecolor = 0;
+    native_width = current_width;
+    native_height = current_height;
 
     vga_prepare_mode12_planar_writes();
     vga_set_palette();
@@ -230,6 +234,8 @@ int vesa_set_mode(uint16_t mode) {
         framebuffer_pitch_bytes = current_width;
         framebuffer_bpp = 8;
         framebuffer_truecolor = 0;
+        native_width = current_width;
+        native_height = current_height;
         vga_prepare_mode12_planar_writes();
         vga_set_palette();
         return 1;
@@ -267,6 +273,8 @@ int graphics_use_multiboot_framebuffer(const struct multiboot_info* mb_info) {
     framebuffer_bpp = mb_info->framebuffer_bpp;
     framebuffer_truecolor = 1;
     graphics_mode = 2;
+    native_width = current_width;
+    native_height = current_height;
     return 1;
 }
 
@@ -284,6 +292,33 @@ uint8_t graphics_get_bpp(void) {
         return framebuffer_bpp;
     }
     return 16;
+}
+
+uint32_t graphics_get_native_width(void) {
+    return native_width;
+}
+
+uint32_t graphics_get_native_height(void) {
+    return native_height;
+}
+
+int graphics_set_resolution(uint32_t width, uint32_t height) {
+    if (width == 0 || height == 0) return 0;
+    if (width > MAX_RENDER_WIDTH || height > MAX_RENDER_HEIGHT) return 0;
+
+    if (!framebuffer_truecolor) {
+        if (width != 640 || height != 480) return 0;
+        current_width = 640;
+        current_height = 480;
+        native_width = 640;
+        native_height = 480;
+        return 1;
+    }
+
+    if (width > native_width || height > native_height) return 0;
+    current_width = width;
+    current_height = height;
+    return 1;
 }
 
 // Set video mode

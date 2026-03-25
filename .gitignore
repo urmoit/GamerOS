@@ -1,0 +1,13 @@
+build/
+dist/
+*.iso
+*.elf
+*.bin
+*.o
+*.obj
+*.log
+*.tmp
+*.bak
+qemu*.log
+syntax_errors.log
+build_log.txt

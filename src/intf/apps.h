@@ -14,6 +14,9 @@ typedef struct {
     const char* exe_name;
     const char* system_path;
     const char* display_name;
+    const char* manifest_path;
+    const char* install_root;
+    const char* user_data_root;
     int window_type;
     int launch_x;
     int launch_y;
