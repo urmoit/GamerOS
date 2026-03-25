@@ -8,7 +8,7 @@
 
 GamerOS is a hobby `x86_64` operating system written in C and Assembly. It includes a custom kernel, graphics stack, desktop shell, input drivers, filesystem work, and built-in apps such as Settings, Explorer, Notepad, and About.
 
-Build `1.400` is coming soon.
+Build `1.400` is releasing March 27, 2026.
 
 You can download the latest public ISO release from:
 
@@ -20,7 +20,7 @@ Current public release:
 
 Upcoming release:
 
-- `1.400` coming soon
+- `1.400` - March 27, 2026
 
 > [!WARNING]
 > **ACTIVE DEVELOPMENT**: This project is under heavy development. Features may change, break, or be incomplete. The name "GamerOS" is a placeholder and subject to change.

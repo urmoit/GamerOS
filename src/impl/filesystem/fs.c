@@ -218,38 +218,16 @@ void fs_init() {
         fs_create_directory("C:/Apps");
     }
 
-    // Storage profile now reflects ATA-backed primary disk when present.
-    strncpy(storage_devices[0].name, "Disk0-HDD", sizeof(storage_devices[0].name) - 1);
-    storage_devices[0].type = STORAGE_HDD;
-    storage_devices[0].capacity_mb = 102400;
-    storage_devices[0].online = g_fs_ata_enabled ? 1 : 0;
+    // Keep the shell on a single stable logical volume while storage init and
+    // app launching are still being hardened for VMware.
+    strncpy(storage_devices[0].name, g_fs_ata_enabled ? "System Disk" : "RAM System Disk",
+            sizeof(storage_devices[0].name) - 1);
+    storage_devices[0].name[sizeof(storage_devices[0].name) - 1] = 0;
+    storage_devices[0].type = g_fs_ata_enabled ? STORAGE_HDD : STORAGE_RAMDISK;
+    storage_devices[0].capacity_mb = g_fs_ata_enabled ? 102400 : 256;
+    storage_devices[0].online = 1;
 
-    strncpy(storage_devices[1].name, "Disk1-SSD", sizeof(storage_devices[1].name) - 1);
-    storage_devices[1].type = STORAGE_SSD;
-    storage_devices[1].capacity_mb = 512000;
-    storage_devices[1].online = 1;
-
-    strncpy(storage_devices[2].name, "Disk2-NVMe", sizeof(storage_devices[2].name) - 1);
-    storage_devices[2].type = STORAGE_NVME;
-    storage_devices[2].capacity_mb = 1024000;
-    storage_devices[2].online = 1;
-
-    strncpy(storage_devices[3].name, "Disk3-USB", sizeof(storage_devices[3].name) - 1);
-    storage_devices[3].type = STORAGE_USB;
-    storage_devices[3].capacity_mb = 32768;
-    storage_devices[3].online = 1;
-
-    strncpy(storage_devices[4].name, "Disk4-CDROM", sizeof(storage_devices[4].name) - 1);
-    storage_devices[4].type = STORAGE_CDROM;
-    storage_devices[4].capacity_mb = 700;
-    storage_devices[4].online = 1;
-
-    strncpy(storage_devices[5].name, "Disk5-RAM", sizeof(storage_devices[5].name) - 1);
-    storage_devices[5].type = STORAGE_RAMDISK;
-    storage_devices[5].capacity_mb = 256;
-    storage_devices[5].online = 1;
-
-    storage_device_count = g_fs_ata_enabled ? 6 : 5;
+    storage_device_count = 1;
 }
 
 file_t* fs_create_file(const char* name) {

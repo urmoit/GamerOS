@@ -7,7 +7,7 @@ This document tracks the latest changes for build `1.400`.
 ### 1. Initialized build 1.400 walkthrough
 
 Files:
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Created a new walkthrough file for the next update cycle.
@@ -21,8 +21,8 @@ Reason:
 
 Files:
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Replaced the two blue desktop glow bands above taskbar with a subtle neutral shadow strip.
@@ -36,8 +36,8 @@ Reason:
 
 Files:
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Updated startup subtitle copy to GamerOS-native wording.
@@ -52,8 +52,8 @@ Reason:
 
 Files:
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added shared chamfered/rounded-style drawing helpers for consistent modern geometry.
@@ -79,8 +79,8 @@ Files:
 - `src/impl/graphics/vga_graphics.c`
 - `src/impl/kernel/main.c`
 - `src/impl/x86_64/boot.asm`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added multiboot framebuffer activation path in graphics backend for 24/32bpp linear framebuffer rendering.
@@ -99,8 +99,8 @@ Reason:
 
 Files:
 - `src/impl/graphics/vga_graphics.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added strict multiboot framebuffer validation before enabling true-color path:
@@ -120,8 +120,8 @@ Files:
 - `src/intf/graphics.h`
 - `src/impl/graphics/vga_graphics.c`
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added graphics backend query helpers:
@@ -139,8 +139,8 @@ Reason:
 
 Files:
 - `src/impl/x86_64/boot.asm`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Moved early boot page-table physical addresses from low memory near kernel load region to high safe addresses:
@@ -156,8 +156,8 @@ Reason:
 
 Files:
 - `src/impl/x86_64/boot.asm`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Replaced fixed-address boot page table pointers with page-aligned symbols in kernel BSS:
@@ -177,8 +177,8 @@ Files:
 - `src/intf/graphics.h`
 - `src/impl/graphics/vga_graphics.c`
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Re-enabled multiboot video request fields for `1920x1080x32` (`VIDEO_MODE` flag).
@@ -197,8 +197,8 @@ Reason:
 
 Files:
 - `src/impl/graphics/vga_graphics.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added shared shell palette application during palette bootstrap (not only VGA DAC init path).
@@ -212,8 +212,8 @@ Reason:
 
 Files:
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Reworked Start menu styling for readability:
@@ -231,8 +231,8 @@ Reason:
 
 Files:
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Finished a full visual consistency pass across shell surfaces with a brighter modern look:
@@ -256,8 +256,8 @@ Files:
 - `src/impl/kernel/main.c`
 - `src/apps/apps.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Introduced a small runtime table that tracks each built-in app via its `app_descriptor_t` and maintains a simple lifecycle state (stopped/running/suspended).
@@ -276,13 +276,13 @@ Reason:
 Files:
 - `src/impl/kernel/main.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Updated the `GamerOS Update` tab in Settings to continue using the existing markdown parser but render section headings with the larger standard font instead of the compact text style.
 - Kept list and body content on the compact font for density while giving `#` / `##` headings a clearer visual hierarchy.
-- Confirmed that the in-Settings changelog text matches the main `changelog_2026-xx-xx.md` contents so both views stay in sync.
+- Confirmed that the in-Settings changelog text matches the main `changelog_2026-03-27.md` contents so both views stay in sync.
 
 Reason:
 - Requested that the Settings changelog view better respect markdown formatting and present the document with a clearer, more readable layout.
@@ -291,8 +291,8 @@ Reason:
 
 Files:
 - `src/impl/kernel/main.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Increased the window title bar height and close button size to make app headers easier to see and click, while expanding the draggable caption area.
@@ -309,8 +309,8 @@ Reason:
 Files:
 - `src/impl/kernel/main.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Increased Settings left-nav width and row height so tab buttons are easier to click and tab labels are less cramped.
@@ -331,8 +331,8 @@ Files:
 - `src/apps/apps.c`
 - `src/apps/about/ABOUT.EXE.manifest`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Removed `About` from Settings tabs and kept Settings focused on system controls/update views.
@@ -353,8 +353,8 @@ Reason:
 Files:
 - `src/impl/kernel/main.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added defensive mouse coordinate clamping in `process_mouse(...)` before UI hit-testing.
@@ -371,8 +371,8 @@ Reason:
 Files:
 - `src/impl/kernel/main.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added coordinate clamping immediately after `mouse_get_x()` / `mouse_get_y()` in the main loop.
@@ -387,8 +387,8 @@ Reason:
 Files:
 - `src/impl/kernel/main.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added a modal in-OS runtime error popup (`Error` window style with `OK`) rendered on top of desktop UI.
@@ -406,8 +406,8 @@ Reason:
 Files:
 - `src/impl/kernel/main.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Increased Start menu panel width/height and retained modern light card styling with cleaner spacing.
@@ -422,8 +422,8 @@ Reason:
 
 Files:
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added new `## Planned` roadmap item for real persistent disk I/O using ATA PIO instead of in-memory-only file handling.
@@ -444,8 +444,8 @@ Files:
 - `src/impl/kernel/process_model.c`
 - `src/impl/kernel/main.c`
 - `Makefile`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 - `src/apps/settings/settings_ui.c`
 
 Changes:
@@ -477,8 +477,8 @@ Files:
 - `src/apps/apps.c`
 - `src/intf/apps.h`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 - `.gitignore`
 
 Changes:
@@ -504,8 +504,8 @@ Files:
 - `src/intf/graphics.h`
 - `src/impl/graphics/vga_graphics.c`
 - `Makefile`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added a dedicated `Display` tab to Settings and inserted it into the Settings navigation list.
@@ -536,8 +536,8 @@ Reason:
 Files:
 - `src/impl/kernel/main.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Added a persistent top-left debug overlay that keeps recent boot/runtime messages visible on-screen.
@@ -562,8 +562,8 @@ Files:
 - `src/impl/drivers/keyboard.c`
 - `src/impl/drivers/ata_pio.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Changed boot handoff so GamerOS paints one desktop frame before the first steady-state input polling cycle.
@@ -583,8 +583,8 @@ Reason:
 Files:
 - `src/impl/kernel/process_model.c`
 - `src/apps/settings/settings_ui.c`
-- `changelog_2026-xx-xx.md`
-- `walkthrough_src_bugfixes_2026-xx-xx.md`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
 
 Changes:
 - Moved the executable loader read buffer out of the per-launch kernel stack frame into static storage.
@@ -603,3 +603,129 @@ Build:
 
 Reason:
 - After boot was stabilized enough to reach storage initialization, opening an app still black-screened the VM; the next likely fault source was the stack-heavy loader path in `process_spawn_from_exe(...)`.
+
+### 30. Made the debug overlay movable and resizable
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
+
+Changes:
+- Added persistent geometry/state for the debug overlay instead of hardcoding it to `(4,4)`.
+- Added left-drag handling on the overlay title strip so it can be repositioned during runtime.
+- Added bottom-right resize handling using the same shell grip style as top-level app windows.
+- Clamped overlay movement and resize bounds to the visible desktop area above the taskbar.
+
+Build:
+- No separate build note beyond the normal `build.bat` validation for this change set.
+
+Reason:
+- Requested that the debug window behave more like a normal shell surface so it does not cover app content while debugging startup and launch failures.
+
+### 31. Let the resized debug overlay use its full area
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
+
+Changes:
+- Expanded the debug log buffer from the original small fixed-capacity layout to a much larger history store.
+- Changed overlay rendering to show the most recent lines that fit in the current panel height instead of always drawing the original small visible set.
+- Kept line clipping tied to the live overlay width so wider panels can display longer messages cleanly.
+
+Build:
+- Included in the normal `build.bat` verification pass after the overlay rendering change.
+
+Reason:
+- Requested that debug messages use the full resized debug UI instead of staying confined to the original small top-left text area.
+
+### 32. Simplified startup storage profile and aligned boot card with shell styling
+
+Files:
+- `src/impl/filesystem/fs.c`
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
+
+Changes:
+- Replaced the shell-visible fake multi-device storage profile with a single stable system volume during startup.
+- Simplified Explorer's `This PC` bootstrap labels so app launch no longer depends on copying dynamic storage metadata during lazy storage initialization.
+- Restyled the loading screen card to match the desktop shell and Start menu more closely:
+  - left profile rail
+  - blue accent strip
+  - light chamfered card
+  - subtitle rendered as a shell-style status strip
+
+Build:
+- Included in the normal `build.bat` verification pass.
+
+Reason:
+- Requested a storage system that lets apps open reliably without shell-side startup faults, and asked for the loading screen design to better match the desktop and Start menu.
+
+### 33. Scaled logical resolution changes correctly and moved display controls into System
+
+Files:
+- `src/impl/graphics/vga_graphics.c`
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
+
+Changes:
+- Changed truecolor presentation so logical shell resolutions are scaled to the full native framebuffer instead of leaving stale regions on screen.
+- Updated partial truecolor presents to fall back to a full-frame present for correctness while scaled logical resolutions are active.
+- Moved resolution controls out of a separate `Display` page and into the `System` page.
+- Added a `Debug window` toggle under `System`.
+
+Build:
+- Included in the normal `build.bat` verification pass.
+
+Reason:
+- Requested that resolution switching behave like a real whole-screen mode change instead of shrinking the shell into the top-left corner, and asked for display controls plus debug-window toggle to live under `System`.
+
+### 34. Unified the shell and built-in apps around a more modern UI pass
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/notepad/notepad_ui.c`
+- `src/apps/explorer/explorer_ui.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
+
+Changes:
+- Restyled shared window chrome with stronger accent rails, cleaner title bars, and lighter content panels.
+- Updated Notepad, Settings, About, and Explorer interiors so their headers, sections, and status areas match the current shell direction better.
+- Refreshed Start, taskbar, task buttons, context menu, clock, and modal button treatment so the desktop surfaces feel like one coherent UI family.
+- Updated small app-facing strings like Notepad toolbar/status text and Explorer title wording to fit the newer presentation.
+
+Build:
+- Included in the normal `build.bat` verification pass.
+
+Reason:
+- Requested that the UI feel modern everywhere instead of only on isolated surfaces like the loading screen or parts of the desktop shell.
+
+### 35. Removed the last glow strip and modernized the desktop surfaces
+
+Files:
+- `src/impl/kernel/main.c`
+- `src/apps/settings/settings_ui.c`
+- `changelog_2026-03-27.md`
+- `walkthrough_src_bugfixes_2026-03-27.md`
+
+Changes:
+- Removed the remaining desktop-edge glow strip above the taskbar instead of merely dimming it.
+- Switched the debug overlay to start disabled by default, while keeping the runtime toggle in Settings.
+- Restyled the desktop wallpaper backdrop, icon cards, watermark card, and debug console card so the desktop base layer matches the newer app chrome better.
+- Simplified the `System` settings rows by removing the obsolete desktop-glow toggle and aligning the click targets with the newer layout offsets.
+
+Build:
+- Included in the normal `build.bat` verification pass.
+
+Reason:
+- Requested that the old taskbar glow disappear completely, that the debug window stay off on startup, and that the desktop itself be redesigned instead of only receiving small surface tweaks.

@@ -54,7 +54,7 @@ void mouse_init(void) {
     // Send mouse defaults
     mouse_send_cmd(0xF6);
     mouse_send_cmd(0xF4);
-
+    
     // Enable IntelliMouse wheel packets (4-byte PS/2 packet format) when supported.
     mouse_send_cmd(0xF3);
     mouse_send_cmd(200);
@@ -72,7 +72,7 @@ void mouse_init(void) {
     }
 
     mouse_send_cmd(0xF4); // Ensure streaming enabled after reconfiguration.
-    
+
     // Reset position to center
     mouse_x = current_width / 2;
     mouse_y = current_height / 2;

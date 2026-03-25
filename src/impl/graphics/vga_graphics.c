@@ -318,6 +318,8 @@ int graphics_set_resolution(uint32_t width, uint32_t height) {
     if (width > native_width || height > native_height) return 0;
     current_width = width;
     current_height = height;
+    clear_screen(0);
+    swap_buffers();
     return 1;
 }
 
@@ -570,21 +572,30 @@ void swap_buffers(void) {
         outb(0x3C4, 0x02);
         outb(0x3C5, 0x0F);
     } else if (framebuffer_truecolor && (framebuffer_bpp == 32 || framebuffer_bpp == 24)) {
-        for (uint32_t y = 0; y < current_height; y++) {
+        uint32_t dst_w = native_width;
+        uint32_t dst_h = native_height;
+        if (dst_w == 0 || dst_h == 0) {
+            dst_w = current_width;
+            dst_h = current_height;
+        }
+        for (uint32_t y = 0; y < dst_h; y++) {
+            uint32_t sy = (y * current_height) / dst_h;
+            uint32_t src_off = sy * current_width;
             uint8_t* row = (uint8_t*)target + ((uint32_t)y * framebuffer_pitch_bytes);
-            uint32_t src_off = y * current_width;
             if (framebuffer_bpp == 32) {
                 uint32_t* row32 = (uint32_t*)row;
-                for (uint32_t x = 0; x < current_width; x++) {
-                    row32[x] = back_buffer_rgb[src_off + x];
+                for (uint32_t x = 0; x < dst_w; x++) {
+                    uint32_t sx = (x * current_width) / dst_w;
+                    row32[x] = back_buffer_rgb[src_off + sx];
                 }
             } else {
-                for (uint32_t x = 0; x < current_width; x++) {
-                    uint32_t rgb = back_buffer_rgb[src_off + x];
+                for (uint32_t x = 0; x < dst_w; x++) {
+                    uint32_t sx = (x * current_width) / dst_w;
+                    uint32_t rgb = back_buffer_rgb[src_off + sx];
                     uint8_t* px = row + (x * 3);
-                    px[0] = (uint8_t)(rgb & 0xFF);         // B
-                    px[1] = (uint8_t)((rgb >> 8) & 0xFF);  // G
-                    px[2] = (uint8_t)((rgb >> 16) & 0xFF); // R
+                    px[0] = (uint8_t)(rgb & 0xFF);
+                    px[1] = (uint8_t)((rgb >> 8) & 0xFF);
+                    px[2] = (uint8_t)((rgb >> 16) & 0xFF);
                 }
             }
         }
@@ -646,24 +657,8 @@ void present_rect(int x, int y, int w, int h) {
         outb(0x3C4, 0x02);
         outb(0x3C5, 0x0F);
     } else if (framebuffer_truecolor && (framebuffer_bpp == 32 || framebuffer_bpp == 24)) {
-        for (int yy = y0; yy < y1; yy++) {
-            uint32_t src_row_off = (uint32_t)yy * current_width;
-            uint8_t* row = (uint8_t*)target + ((uint32_t)yy * framebuffer_pitch_bytes);
-            if (framebuffer_bpp == 32) {
-                uint32_t* row32 = (uint32_t*)row;
-                for (int xx = x0; xx < x1; xx++) {
-                    row32[xx] = back_buffer_rgb[src_row_off + (uint32_t)xx];
-                }
-            } else {
-                for (int xx = x0; xx < x1; xx++) {
-                    uint32_t rgb = back_buffer_rgb[src_row_off + (uint32_t)xx];
-                    uint8_t* px = row + ((uint32_t)xx * 3);
-                    px[0] = (uint8_t)(rgb & 0xFF);
-                    px[1] = (uint8_t)((rgb >> 8) & 0xFF);
-                    px[2] = (uint8_t)((rgb >> 16) & 0xFF);
-                }
-            }
-        }
+        // Scaled truecolor presentation uses whole-frame blits for correctness.
+        swap_buffers();
     } else {
         for (int yy = y0; yy < y1; yy++) {
             uint32_t row_off = (uint32_t)yy * current_width;

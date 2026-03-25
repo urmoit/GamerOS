@@ -5,13 +5,13 @@ const char* notepad_ui_title(void) {
 }
 
 const char* notepad_ui_status_saved(void) {
-    return "Saved (PgUp Save, PgDn Reload)";
+    return "All changes saved  |  PgUp Save  PgDn Reload";
 }
 
 const char* notepad_ui_status_modified(void) {
-    return "Modified (PgUp Save, PgDn Reload)";
+    return "Unsaved changes  |  PgUp Save  PgDn Reload";
 }
 
 const char* notepad_ui_toolbar_hint(void) {
-    return "File  Edit  View";
+    return "File  Edit  Format  View  Help";
 }

@@ -2,15 +2,15 @@
 
 static const char* g_safe_lines[] = {
     "Explorer Safe Mode",
-    "Drive view temporarily",
-    "limited for VMware stability.",
+    "Modern drive surface active",
+    "while VMware paths are hardened.",
     "",
-    "C: Local Disk",
+    "C: System Disk",
     "D: Data"
 };
 
 const char* explorer_ui_title(void) {
-    return "This PC";
+    return "File Explorer";
 }
 
 int explorer_ui_safe_line_count(void) {

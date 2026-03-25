@@ -1,11 +1,11 @@
-# GamerOS Changelog (TBD)
+# GamerOS Changelog (2026-03-27)
 
 This changelog tracks work for the next release cycle.
 
 ## Release
 - Version: `00m1`
 - Build: `1.400`
-- Date: `TBD`
+- Date: `2026-03-267`
 
 ## Added
 - True-color framebuffer path added (24/32bpp linear framebuffer support).
@@ -27,10 +27,13 @@ This changelog tracks work for the next release cycle.
  - Added `GOSAPP` executable loader format (`GOSAPP`, `Name=...`, `Entry=...`) and task table for spawned app processes.
  - Expanded the virtual storage layout with real app install roots, `AppData` folders, registry snapshots, Documents/Downloads roots, and persisted preference files for built-in apps.
  - Added shell-visible installed app registry and storage registry files under `C:/GamerOS/Registry`.
- - Added a dedicated `Display` Settings tab with clickable resolution profiles and backend-aware availability checks.
  - Added runtime display resolution helpers so the shell can switch render size without rebooting when framebuffer mode is active.
  - Added an always-visible top-left debug overlay that mirrors recent boot/runtime fault messages on-screen.
  - Added staged boot progress tracing so startup now reports graphics, input, storage, and shell handoff milestones.
+ - Added draggable and resizable debug overlay behavior so the on-screen diagnostics panel can be moved out of the way while testing apps.
+ - Expanded debug overlay log capacity and viewport rendering so resized panels can show many more lines instead of keeping the original tiny message area.
+ - Simplified the shell-visible storage profile to a single stable system volume while app-launch and VMware storage init are being hardened.
+ - Added a `Debug window` toggle to Settings so the on-screen diagnostics overlay can be turned on or off without rebuilding.
 
 ## Changed
 - Build metadata updated from `1.300` to `1.400`.
@@ -70,10 +73,14 @@ This changelog tracks work for the next release cycle.
  - App launch path now creates/marks runtime tasks via loader validation before opening the target window.
  - File Explorer now browses real filesystem entries from GamerOS system/user folders and can launch `.EXE` files directly from the file list.
  - Built-in app metadata now includes manifest path, install root, and per-app user data root so apps are represented as real installed applications in the storage tree.
- - Settings navigation now includes a dedicated `Display` page instead of keeping display information buried under other tabs.
+ - Resolution controls now live under the `System` page instead of a separate `Display` tab.
  - Docker build packaging was hardened so repeated ISO builds overwrite staged files cleanly instead of failing on existing outputs.
  - Boot handoff now paints one shell frame before entering steady-state input polling so VMware no longer sits on a black post-loader screen when PS/2 state is noisy.
- - Input polling was moved onto bounded safety loops instead of unbounded controller drains.
+- Input polling was moved onto bounded safety loops instead of unbounded controller drains.
+- Loading screen card styling now matches the desktop shell and Start menu more closely, using the same light card, left rail, and blue accent treatment.
+- Framebuffer resolution changes now scale the shell to the full physical display instead of leaving old desktop regions behind.
+- Window chrome, taskbar, Start menu, context menu, dialogs, and built-in app interiors were restyled into a more consistent modern shell language.
+- Desktop wallpaper, icon cards, watermark card, and debug overlay styling were redesigned so the desktop itself matches the newer shell chrome.
 
 ## Fixed
 - Fixed wallpaper/taskbar transition mismatch caused by the two blue desktop glow strips.
@@ -93,11 +100,17 @@ This changelog tracks work for the next release cycle.
 - Fixed storage bootstrap paths still writing stale `1.300` build metadata into the GamerOS system config.
 - Fixed repository noise by ignoring generated `build`/`dist` outputs and common binary/log artifacts via `.gitignore`.
 - Fixed repeated Docker ISO builds failing during staging because `cp` refused to overwrite existing `kernel.elf` and ISO outputs.
-- Fixed Settings missing a real display configuration surface by exposing resolution switching directly in the UI.
+- Fixed Settings missing a real display configuration surface by exposing resolution switching directly inside the `System` page.
 - Fixed post-loading-screen black screen on VMware by presenting the desktop before first PS/2 polling and capping poll-loop drain counts.
 - Fixed a kernel-stack-heavy app loader path by moving the executable read buffer out of the launch-time stack frame.
 - Fixed boot/storage investigation visibility by surfacing storage/bootstrap milestones in the debug overlay instead of relying only on serial.
 - Fixed unstable VMware boot path further by disabling the unsafe ATA PIO probe and forcing the filesystem onto the RAM-backed storage fallback for now.
+- Fixed debug overlay usability by letting it share the shell's drag/resize interaction model instead of staying pinned in the top-left corner.
+- Fixed debug overlay content clipping by letting larger overlay sizes render more history instead of staying limited to the original 12-line buffer.
+- Fixed shell storage bootstrap instability by replacing the fake multi-device startup profile with a single safe system volume model during app-launch initialization.
+- Fixed framebuffer resolution-switch artifacts where old taskbars and desktop regions were left behind after changing logical size.
+- Fixed debug overlay startup noise by leaving the debug window off by default until the user enables it.
+- Fixed the remaining taskbar glow treatment by removing the last desktop-edge glow strip entirely.
 
 ## Notes
 - Release date is not finalized yet.
