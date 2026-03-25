@@ -1,22 +1,26 @@
 # GamerOS
 
-<div align="center">
-
-**A modern x86_64 hobby operating system with a Windows 11-inspired desktop environment**
-
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/chosentechies/GamerOS)
 [![License](https://img.shields.io/badge/license-Custom-red.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-x86__64-lightgrey.svg)](https://github.com/chosentechies/GamerOS)
 [![Language](https://img.shields.io/badge/language-C%20%26%20Assembly-blue.svg)](https://github.com/chosentechies/GamerOS)
 [![Architecture](https://img.shields.io/badge/architecture-64--bit-green.svg)](https://github.com/chosentechies/GamerOS)
 
-[Getting Started](#-quick-start) • [Documentation](#-project-structure) • [Contributing](#-contributing) • [Report Bug](https://github.com/chosentechies/GamerOS/issues)
+GamerOS is a hobby `x86_64` operating system written in C and Assembly. It includes a custom kernel, graphics stack, desktop shell, input drivers, filesystem work, and built-in apps such as Settings, Explorer, Notepad, and About.
 
-![Repobeats analytics](https://repobeats.axiom.co/api/embed/1d66b34dad5bb8f95e429c7d37c1559c50b08608.svg)
+Build `1.400` is coming soon.
 
-</div>
+You can download the latest public ISO release from:
 
----
+- [GamerOS Releases](https://github.com/urmoit/GamerOS/releases)
+
+Current public release:
+
+- `1.300`
+
+Upcoming release:
+
+- `1.400` coming soon
 
 > [!WARNING]
 > **ACTIVE DEVELOPMENT**: This project is under heavy development. Features may change, break, or be incomplete. The name "GamerOS" is a placeholder and subject to change.
@@ -24,34 +28,18 @@
 > [!NOTE]
 > **Progress Update**: 71% of tracked issues resolved • 0 critical bugs • 0 logic errors
 
-## ✨ Features
+## Overview
 
-<table>
-<tr>
-<td width="50%">
+Current development focuses on:
 
-### Core System
-- 🔧 Custom 64-bit microkernel architecture
-- 💾 Advanced memory management with paging
-- ⚡ Hardware abstraction layer (HAL)
-- 🔄 Process and thread scheduling
-- 📁 Native file system support
+- framebuffer and VGA graphics paths
+- desktop shell and windowing behavior
+- built-in app launching through the `GOSAPP` loader format
+- filesystem and storage layout bootstrapping
+- display settings and runtime resolution switching
+- VMware boot and app-launch stability fixes
 
-</td>
-<td width="50%">
-
-### User Experience
-- 🎨 Windows 11-inspired desktop environment
-- 🖼️ Hardware-accelerated graphics
-- 🖱️ Native input device support
-- 🔌 Modular driver architecture
-- 🛡️ Security and process isolation
-
-</td>
-</tr>
-</table>
-
-## 🚀 Quick Start
+## Quick Start
 
 Get GamerOS running in under 5 minutes:
 
@@ -67,9 +55,9 @@ build.bat
 run-qemu.bat
 ```
 
-**First time?** Follow the [detailed installation guide](#%EF%B8%8F-installation-guide) below.
+First time? Follow the [detailed installation guide](#installation-guide) below.
 
-## 📋 Prerequisites
+## Prerequisites
 
 <details>
 <summary><b>System Requirements</b></summary>
@@ -94,11 +82,11 @@ run-qemu.bat
 
 </details>
 
-## 🛠️ Installation Guide
+## Installation Guide
 
-### Method 1: MSYS2 (Recommended)
+### Method 1: MSYS2
 
-**Best for beginners** - Automated package management
+Recommended for most users because package installation is simpler.
 
 ```bash
 # 1. Download and install MSYS2 from https://www.msys2.org/
@@ -120,15 +108,20 @@ pacman -S mingw-w64-x86_64-gcc nasm mingw-w64-x86_64-binutils make
 <summary><b>Expand for manual setup steps</b></summary>
 
 **GCC (MinGW-w64)**
+
 1. Download from [winlibs.com](https://winlibs.com/)
 2. Extract to `C:\mingw64`
-3. Add `C:\mingw64\bin` to PATH
+3. Add `C:\mingw64\bin` to `PATH`
 
 **NASM**
-1. Download from [nasm.us](https://www.nasm.us/pub/nasm/releasebuilds/)
-2. Extract and add to PATH
 
-**LD** - Included with GCC
+1. Download from [nasm.us](https://www.nasm.us/pub/nasm/releasebuilds/)
+2. Extract it
+3. Add its binary folder to `PATH`
+
+**LD**
+
+Included with GCC / MinGW-w64.
 
 </details>
 
@@ -139,15 +132,25 @@ pacman -S mingw-w64-x86_64-gcc nasm mingw-w64-x86_64-binutils make
 
 1. Download the [QEMU Windows installer](https://qemu.weilnetz.de/w64/)
 2. Run the installer with default settings
-3. Verify installation: `qemu-system-x86_64 --version`
+3. Verify the install:
 
-📹 **New to QEMU?** Watch this [complete setup tutorial](https://www.youtube.com/watch?v=HywXtRz0URE)
+```cmd
+qemu-system-x86_64 --version
+```
+
+If you are new to QEMU, this setup tutorial may help:
+
+- [QEMU setup tutorial](https://www.youtube.com/watch?v=HywXtRz0URE)
 
 ### Installing Docker
 
 1. Download [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 2. Install and launch Docker Desktop
-3. Verify: `docker --version`
+3. Verify the install:
+
+```cmd
+docker --version
+```
 
 ### Verify Installation
 
@@ -162,9 +165,9 @@ docker --version
 ```
 
 > [!TIP]
-> If any command fails, check that the tool's directory is in your PATH environment variable.
+> If any command fails, check that the tool's install directory is present in your `PATH`.
 
-## 🏗️ Building and Running
+## Building and Running
 
 ### Basic Commands
 
@@ -180,6 +183,12 @@ debug.bat
 
 # Clean build artifacts
 clean.bat
+```
+
+Main ISO output:
+
+```text
+dist/x86_64/kernel.iso
 ```
 
 ### Advanced Options
@@ -200,137 +209,44 @@ build.bat --no-rebuild
 
 </details>
 
-## 📁 Project Architecture
+## Project Layout
 
-```
+```text
 GamerOS/
-├── 🔧 src/                    # Source code
-│   ├── intf/                  # Public interfaces
-│   └── impl/                  # Implementations
-│       ├── drivers/           # Hardware drivers
-│       ├── filesystem/        # File system layer
-│       ├── graphics/          # Graphics subsystem
-│       ├── kernel/            # Core kernel
-│       ├── kernel_mode/       # Kernel mode components
-│       │   ├── hal/           # Hardware abstraction
-│       │   └── microkernel/   # Microkernel core
-│       ├── ui_system/         # User interface
-│       └── x86_64/            # Architecture-specific
-│
-├── ⚙️ executive/              # Executive services
-│   ├── filesystem_manager/
-│   ├── gdi/                   # Graphics device interface
-│   ├── io_manager/
-│   ├── ipc_manager/           # Inter-process communication
-│   ├── object_manager/
-│   ├── power_manager/
-│   ├── process_manager/
-│   └── security_manager/
-│
-├── 👤 user_mode/              # User space
-│   ├── compatibility_layers/
-│   ├── environment_subsystems/
-│   └── integral_subsystems/
-│
-├── 📦 build/                  # Build artifacts
-├── 🐋 buildenv/               # Docker environment
-└── 🎯 targets/                # Target configurations
+  src/
+    apps/         Built-in app UI and app-facing logic
+    impl/         Kernel, drivers, graphics, filesystem, architecture code
+    intf/         Shared interfaces and headers
+    resources/    Embedded assets
+    user_mode/    Experimental user-mode and subsystem code
+  targets/        Linker scripts and target boot assets
+  buildenv/       Docker build environment
+  build/          Intermediate build output
+  dist/           Final generated images
 ```
 
-<details>
-<summary><b>View detailed architecture</b></summary>
+## Development Notes
 
-For comprehensive design documentation, see [executive_layer_design.md](executive_layer_design.md)
+- QEMU is usually the safer first test target.
+- VMware support is still being stabilized.
+- Repeated Docker ISO builds are supported in the current packaging flow.
+- There are still known non-fatal NASM warnings from `src/impl/x86_64/boot.asm` related to `.bss` initialization.
 
-**Key Components:**
-- **HAL**: Hardware abstraction for CPU, memory, interrupts, I/O
-- **Microkernel**: Core scheduling, IPC, minimal services
-- **Executive**: Higher-level OS services and managers
-- **User Mode**: Application environment and subsystems
+## Important Files
 
-</details>
+- [changelog_2026-xx-xx.md](changelog_2026-xx-xx.md)
+- [walkthrough_src_bugfixes_2026-xx-xx.md](walkthrough_src_bugfixes_2026-xx-xx.md)
+- [currentbugs.md](currentbugs.md)
+- [executive_layer_design.md](executive_layer_design.md)
 
-## 🐛 Bug Tracking
+## Contributing
 
-We maintain transparent bug tracking to show project health:
+1. Fork the repository.
+2. Create a branch for your work.
+3. Keep changes focused.
+4. Update documentation when behavior changes.
+5. Test in at least one VM or emulator before opening a pull request.
 
-- 📊 **Overall Progress**: 71% of issues resolved
-- ✅ **Critical Issues**: 0 remaining
-- 🔧 **Logic Errors**: 0 remaining
-- 📝 **Full Issue Tracker**: [currentbugs.md](currentbugs.md)
+## License
 
-> [!NOTE]
-> Found a bug? Please [report it](https://github.com/chosentechies/GamerOS/issues) with detailed reproduction steps.
-
-## 🤝 Contributing
-
-We welcome contributions from developers of all skill levels!
-
-### How to Contribute
-
-1. **🍴 Fork the repository**
-2. **🌿 Create your feature branch** (`git checkout -b feature/AmazingFeature`)
-3. **💾 Commit your changes** (`git commit -m 'Add some AmazingFeature'`)
-4. **📤 Push to the branch** (`git push origin feature/AmazingFeature`)
-5. **🔀 Open a Pull Request**
-
-### Contribution Ideas
-
-- 🐛 **Bug Fixes**: Check [current bugs](currentbugs.md)
-- ✨ **New Features**: Implement drivers, system calls, UI components
-- 📖 **Documentation**: Improve guides and code comments
-- 🧪 **Testing**: Add test cases and validation
-- 🎨 **UI/UX**: Enhance the desktop environment
-
-### Development Guidelines
-
-- Follow existing code style and conventions
-- Add comments for complex logic
-- Update documentation for new features
-- Ensure builds pass before submitting PRs
-- Write clear commit messages
-
-## 📚 Learning Resources
-
-### Essential Reading
-
-- 📖 [OSDev Wiki](https://wiki.osdev.org/) - Comprehensive OS development guide
-- 📘 Intel 64 and IA-32 Architectures Software Developer Manuals
-- 📕 "Operating System Concepts" by Silberschatz, Galvin, and Gagne
-- 📗 "Computer Systems: A Programmer's Perspective" by Bryant and O'Hallaron
-
-### Video Tutorials
-
-- 🎥 [QEMU Complete Setup Guide](https://www.youtube.com/watch?v=HywXtRz0URE)
-- 🎬 YouTube: Search "x86 OS development" for hands-on tutorials
-
-### Community
-
-- 💬 OSDev Forums - Active community of OS developers
-- 🗨️ Reddit: r/osdev - Discussions and project showcases
-- 💻 GitHub Topics: [#operating-system](https://github.com/topics/operating-system)
-
-## 📄 License
-
-This project is licensed under a custom license. See the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-**Created by** [Chosentechies](https://github.com/chosentechies)
-
-**Inspired by:** Modern desktop operating systems and the pursuit of deep systems knowledge
-
-**Special thanks to:**
-- The OSDev community for invaluable resources
-- Contributors to GCC, NASM, QEMU, and other open-source tools
-- Everyone who has contributed code, ideas, and feedback
-
----
-
-<div align="center">
-
-**Made with ❤️ for learning, experimentation, and fun**
-
-[⬆ Back to Top](#gameros)
-
-</div>
+See [LICENSE](LICENSE).
