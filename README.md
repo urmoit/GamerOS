@@ -25,9 +25,6 @@ Upcoming release:
 > [!WARNING]
 > **ACTIVE DEVELOPMENT**: This project is under heavy development. Features may change, break, or be incomplete. The name "GamerOS" is a placeholder and subject to change.
 
-> [!NOTE]
-> **Progress Update**: 71% of tracked issues resolved • 0 critical bugs • 0 logic errors
-
 ## Overview
 
 Current development focuses on:
@@ -138,9 +135,9 @@ Included with GCC / MinGW-w64.
 qemu-system-x86_64 --version
 ```
 
-If you are new to QEMU, this setup tutorial may help:
+If you are new to QEMU, open the local setup guide:
 
-- [QEMU setup tutorial](https://www.youtube.com/watch?v=HywXtRz0URE)
+- [QEMU setup tutorial](QemuTut.md)
 
 ### Installing Docker
 
