@@ -28,7 +28,7 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic) {
     }
     
     // Draw boot message
-    draw_string(50, 50, "GamerOS 1.400 booting...", 0xFFE4E4E4);
+    draw_string(50, 50, "GamerOS 1.500 booting...", 0xFFE4E4E4);
     
     // Halt
     for (;;) {
