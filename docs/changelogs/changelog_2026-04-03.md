@@ -159,7 +159,7 @@ This changelog tracks work for the next release cycle.
 - Fixed build scripts silently failing without error messages.
 
 ## Notes
-- Release date is not finalized yet.
+- Release date is finalized.
 - This is a stability-focused release with no new user-visible features.
 - All changes are backward compatible with existing apps and configurations.
 - Build numbers incremented to 1.500 to reflect significant internal improvements.
