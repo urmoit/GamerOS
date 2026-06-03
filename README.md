@@ -46,8 +46,8 @@ Get GamerOS running in under 5 minutes:
 git clone https://github.com/chosentechies/GamerOS.git
 cd GamerOS
 
-# 2. Build the OS (requires Docker)
-build.bat
+# 2. Build the OS locally from MSYS2/MinGW or WSL
+make -C tools build-x86_64
 
 # 3. Launch in QEMU
 run-qemu.bat
@@ -72,19 +72,23 @@ First time? Follow the [detailed installation guide](#installation-guide) below.
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Docker Desktop](https://www.docker.com/get-started) | Latest | Cross-compilation environment |
 | GCC | 7.0+ | C compiler |
 | NASM | 2.13+ | Assembler |
 | LD | 2.26+ | Linker |
+| GRUB / xorriso | >= 2.06 | ISO image creation |
 | [QEMU](https://www.qemu.org/) | Latest | Emulation and testing |
 
 </details>
 
 ## Installation Guide
 
-### Method 1: MSYS2
+### Docker-free local builds
 
-Recommended for most users because package installation is simpler.
+GamerOS now builds natively from a Unix-like shell on Windows (MSYS2, Git Bash, or WSL), or directly on a Linux host. You do **not** need Docker.
+
+#### Method 1: MSYS2
+
+Recommended for most Windows users because package installation is simpler.
 
 ```bash
 # 1. Download and install MSYS2 from https://www.msys2.org/
@@ -95,12 +99,24 @@ pacman -Syu
 # 3. Install toolchain
 pacman -S mingw-w64-x86_64-gcc nasm mingw-w64-x86_64-binutils make
 
-# 4. Add to PATH
-# C:\msys64\usr\bin
-# C:\msys64\mingw64\bin
+# 4. Add to PATH if needed
+# C:\\msys64\\usr\\bin
+# C:\\msys64\\mingw64\\bin
 ```
 
-### Method 2: Manual Installation
+#### Method 2: WSL or Linux
+
+From an Ubuntu/Debian-based shell:
+
+```bash
+sudo apt update
+sudo apt install build-essential gcc-multilib nasm make grub-pc-bin xorriso binutils
+```
+
+> [!TIP]
+> You can also use `x86_64-w64-mingw32-gcc` on Debian/Ubuntu to produce a Windows-targeted toolchain if desired.
+
+#### Method 3: MinGW-w64 manual install (Windows)
 
 <details>
 <summary><b>Expand for manual setup steps</b></summary>
@@ -108,8 +124,8 @@ pacman -S mingw-w64-x86_64-gcc nasm mingw-w64-x86_64-binutils make
 **GCC (MinGW-w64)**
 
 1. Download from [winlibs.com](https://winlibs.com/)
-2. Extract to `C:\mingw64`
-3. Add `C:\mingw64\bin` to `PATH`
+2. Extract to `C:\\mingw64`
+3. Add `C:\\mingw64\\bin` to `PATH`
 
 **NASM**
 
@@ -117,9 +133,10 @@ pacman -S mingw-w64-x86_64-gcc nasm mingw-w64-x86_64-binutils make
 2. Extract it
 3. Add its binary folder to `PATH`
 
-**LD**
+**LD / objcopy / grub-mkrescue / xorriso**
 
-Included with GCC / MinGW-w64.
+- `ld` and `objcopy` are included with MinGW-w64/binutils.
+- For ISO creation on Windows, use the MSYS2 `grub-mkrescue` and `xorriso` packages (Method 1); on WSL/Linux, install `grub-pc-bin` and `xorriso` as shown above.
 
 </details>
 
@@ -140,16 +157,6 @@ If you are new to QEMU, open the local setup guide:
 
 - [QEMU setup tutorial](QemuTut.md)
 
-### Installing Docker
-
-1. Download [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-2. Install and launch Docker Desktop
-3. Verify the install:
-
-```cmd
-docker --version
-```
-
 ### Verify Installation
 
 Run these commands to confirm everything is set up:
@@ -158,29 +165,28 @@ Run these commands to confirm everything is set up:
 gcc --version
 nasm -v
 ld --version
+objcopy --version
+make --version
 qemu-system-x86_64 --version
-docker --version
 ```
 
-> [!TIP]
-> If any command fails, check that the tool's install directory is present in your `PATH`.
+> [!IMPORTANT]
+> Ensure your build shell provides `grub-mkrescue` and `xorriso` (MSYS2/WSL/Linux).
 
 ## Building and Running
 
-### Basic Commands
+```batch
+Build from MSYS2/MinGW, Git Bash, WSL, or Linux:
+make -C tools build-x86_64
+```
 
 ```batch
-# Build the OS image
-build.bat
-
-# Run in QEMU emulator
-run-qemu.bat
-
-# Launch with debugging
-debug.bat
-
-# Clean build artifacts
-clean.bat
+REM Windows batch helpers:
+build.bat         REM native Windows build entry point
+build-iso.bat     REM rebuild ISO after existing build artifacts
+run-qemu.bat      REM launch ISO in QEMU
+debug.bat         REM launch QEMU with monitor attached
+clean.bat         REM clean build outputs
 ```
 
 Main ISO output:
@@ -195,14 +201,35 @@ dist/x86_64/kernel.iso
 <summary><b>Custom build configurations</b></summary>
 
 ```batch
+REM Build from tools/ using native toolchain
+make -C tools build-x86_64
+
+REM Force a full rebuild
+make -C tools clean build-x86_64
+
+REM Use WSL Makefile layout
+make -C tools -f Makefile.wsl build-x86_64
+```
+
+</details>
+
+### Advanced Options
+
+<details>
+<summary><b>Custom build configurations</b></summary>
+
+```batch
 # Build specific target
-build.bat x86_64
+make -C tools build-x86_64
 
 # Verbose output
-build.bat --verbose
+make -C tools build-x86_64 V=1
 
-# Skip Docker rebuild
-build.bat --no-rebuild
+# Force a clean rebuild
+make -C tools clean build-x86_64
+
+# Use WSL Makefile layout
+make -C tools -f Makefile.wsl build-x86_64
 ```
 
 </details>
@@ -218,17 +245,19 @@ GamerOS/
     resources/    Embedded assets
     user_mode/    Experimental user-mode and subsystem code
   targets/        Linker scripts and target boot assets
-  buildenv/       Docker build environment
+  tools/          Makefiles and local build entry points
+  config/
+    buildenv/     Legacy build environment
+    targets/      Target linker scripts and GRUB config
   build/          Intermediate build output
   dist/           Final generated images
 ```
 
 ## Development Notes
 
+- Use MSYS2, Git Bash, WSL, or Linux for local ISO builds via `make`.
 - QEMU is usually the safer first test target.
 - VMware support is still being stabilized.
-- Repeated Docker ISO builds are supported in the current packaging flow.
-- There are still known non-fatal NASM warnings from `src/impl/x86_64/boot.asm` related to `.bss` initialization.
 
 ## Important Files
 
@@ -243,7 +272,8 @@ GamerOS/
 2. Create a branch for your work.
 3. Keep changes focused.
 4. Update documentation when behavior changes.
-5. Test in at least one VM or emulator before opening a pull request.
+5. Build and test with `make -C tools build-x86_64` before opening a pull request.
+6. Build natively; batch helpers are supported for QEMU and cleanup but are not required for ISO builds.
 
 ## License
 

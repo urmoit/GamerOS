@@ -22,14 +22,14 @@ This changelog tracks work for the next release cycle.
 - Theme colors now applied in `ui_load_default_theme()` function
 
 ### Build System Stabilization
-- Fixed Makefile for Docker compatibility (relative path corrections)
+- Fixed Makefile for local/runnable build compatibility instead of Docker-only path assumptions.
 - Corrected boot.asm include paths for graphics font
 - Removed non-existent file references from compilation
 - Created HAL I/O port implementation module
 - Implemented full x86-64 I/O port API (inb, outb, inw, outw, inl, outl)
 
 ### First Successful ISO Build Completed ✅
-- **Status:** ISO build successful via Docker cross-compilation
+- **Status:** ISO build successful via native/cross local compilation
 - **Output:** `dist/x86_64/kernel.iso` (5.3 MB, Multiboot2 compatible)
 - **Kernel:** Minimal 27-line entry point with graphics initialization
 - **Boot:** GRUB bootloader with Fluent UI theme preparation

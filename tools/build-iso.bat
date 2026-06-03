@@ -1,8 +1,8 @@
 @echo off
 echo Building GamerOS ISO...
 echo.
-REM Mount the parent directory so /root/env maps to GamerOS root
-docker run --rm -v "%cd%\..:/root/env" gameros-buildenv bash -c "cd /root/env/tools && make build-x86_64"
+REM Build the OS image natively on Windows
+make build-x86_64
 if %errorlevel% neq 0 (
     echo.
     echo Build FAILED with error code %errorlevel%

@@ -1,14 +1,14 @@
 @echo off
 
-REM Build GamerOS
+@echo off
 
-REM Build the Docker image
-docker build -t gameros-buildenv ../config/buildenv
-
-REM Run the build from tools directory where Makefile is located
-REM Mount the parent directory so /root/env maps to GamerOS root
-docker run --rm -v "%cd%\..:/root/env" gameros-buildenv bash -c "cd /root/env/tools && make build-x86_64"
-
+REM Build GamerOS natively on Windows
+make build-x86_64
+if %errorlevel% neq 0 (
+    echo Build FAILED with error code %errorlevel%
+    pause
+    exit /b %errorlevel%
+)
 echo.
 echo Build complete!
 pause
