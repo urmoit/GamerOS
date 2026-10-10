@@ -113,5 +113,6 @@ void vga_draw_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius,
 #define XP_COLOR_WHITE XP_WHITE
 #define XP_DESKTOP    0x39
 #define XP_TASKBAR    0x01
+#define XP_SHADOW     0x3E
 
 #endif

@@ -79,8 +79,7 @@ void keyboard_handler(void) {
     }
 
     uint8_t scancode = inb(KBD_DATA_PORT);
-    
-    // Extended key prefix
+// Extended key prefix
     if (scancode == 0xE0) {
         is_extended = 1;
         extended_age = 0;
@@ -145,7 +144,11 @@ void keyboard_handler(void) {
 // Keyboard polling fallback
 void keyboard_poll(void) {
     int safety = 64;
-    while (safety-- > 0 && (inb(KBD_STATUS_PORT) & 0x01)) {
+    while (safety-- > 0) {
+        uint8_t status = inb(KBD_STATUS_PORT);
+        if (!(status & 0x01)) break;   // Output buffer empty.
+        // Bit 5 set means this byte belongs to the mouse; leave it in place.
+        if (status & 0x20) break;
         keyboard_handler();
     }
 }

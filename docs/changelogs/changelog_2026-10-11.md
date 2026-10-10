@@ -89,6 +89,27 @@ and boot screen — on top of that fix.
   zero-pad flag and a width, and applies them to `%d`, `%i`, `%u`, `%x`, `%X`,
   and `%s`, with the sign counted toward the width for signed conversions.
   Anything else in the OS that used `%02u` was silently broken in the same way.
+- **Fixed the keyboard and mouse starving each other on the PS/2 controller.** The
+  keyboard and the auxiliary mouse share one output buffer, and status bit 5 says
+  which device a pending byte belongs to. Both poll loops drained on bit 0 alone,
+  so `mouse_poll()`, running first each frame, discarded nearly every keystroke
+  before `keyboard_poll()` saw it: tracing raw scancodes showed one keypress
+  surviving a 60-key burst. Each loop now stops at the device boundary. Typing
+  did not work at all before this.
+- **Fixed Notepad's line-number gutter clipping.** 22px held two digits, so every
+  number from line 100 up lost its leading digit; it is now 30px for 160 rows.
+
+## Application modularisation
+
+- **Split Notepad out of `main.c` into its own module.** ~340 lines of editing,
+  rendering, storage and input now live in `src/ui/apps/notepad/` behind a small
+  public interface. `src/ui/shell/shell_api.h` defines what an app may ask of the
+  shell: bring the volume up, test readiness, open or create a `GOS:/` file, raise
+  an error. Those implementations are thin, so an app never needs to know whether
+  storage is on ATA or in RAM. The shell keeps window chrome, focus and the input
+  pump; an app supplies its title, icon, renderer and event handlers and never
+  touches a `window_t`. This is a source-layout change, not a new on-disk format.
+  File Explorer and Settings are still embedded in `main.c` and are next.
 
 ## Build Verification
 - Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.
@@ -105,6 +126,11 @@ and boot screen — on top of that fix.
 - File Explorer was driven through the QEMU monitor to confirm the drive block
   and the details columns render, and each captured frame was checked for
   exceptions: `triple faults: 0` throughout.
+- Notepad was verified end to end after being split into its own module: launched
+  from the desktop icon, typed into, caret moved with the arrow/Home/End keys, the
+  modified indicator flipping between `Modified` and `Saved`, saved with the
+  toolbar button, and re-read after a full reboot with the text intact. Storage
+  stayed at `files=30 dirs=27` across both boots and `triple faults: 0`.
 
 ## Storage
 
@@ -154,6 +180,21 @@ and boot screen — on top of that fix.
   app launch, so a boot log actually reports whether the medium was detected.
 
 ## UI
+
+- **Turned the taskbar into a floating dock.** A full-width bar glued to the bottom
+  edge is now a rounded panel inset from the sides and bottom, sized to its
+  contents and centred, with the wallpaper showing through on all sides. Start,
+  the task buttons and the clock live inside it, plus a soft drop shadow. The
+  wallpaper now covers the full screen height, so no seam is left where the dock
+  used to be, and window placement clamps against the dock's real footprint so the
+  taller dock never overlaps window bottoms.
+- Dock geometry comes from one `dock_compute_layout` call read by both the
+  renderer and the hit tester, so the dock re-centring when windows open or close
+  cannot leave click targets out of step with the pixels. The Start menu hangs off
+  the dock's left edge instead of the screen corner.
+- `vga_fill_rounded_rect` and `vga_draw_rounded_rect` were stubs that ignored
+  `radius` and drew plain rectangles. They now round the corners for real,
+  clipping to the screen and writing both the indexed and truecolour buffers.
 
 - **Added a Windows-style drive block to Explorer "This PC".** Each volume now
   shows its model, a usage bar, and a capacity line reading
@@ -250,13 +291,56 @@ and boot screen — on top of that fix.
   VMware VMs commonly default to NVMe or SATA and will need those drivers.
 
 ## Planned
-- Visually confirm the Start menu and loading screen under QEMU; the Start menu
-  is now verified, and the desktop, taskbar, watermark and Start menu have all
-  been captured as rendered frames.
+
+### Kernel
+
+- **Populate a real IDT with exception handlers.** `IDT` still reads back as
+  `0000000000000000 00000000`, so hardware interrupts work only because the
+  firmware descriptor happens to be in place, and any fault triple-faults
+  instead of reaching a handler. This is why the `CR4.OSFXSR` bug presented as
+  an instant shutdown with no diagnostic at all.
+- Add a panic path that prints the fault vector, error code and the registers
+  QEMU captured, so a crash is diagnosable from the serial log.
+- Replace the polled input loop with PIT/HPET timer-driven frame pacing.
+- Add keyboard shortcuts: Alt+Tab window cycling, a Windows key, and Ctrl+Alt+Del.
+
+### Storage
+
 - Implement an AHCI (SATA) driver so VMware VMs without a legacy IDE controller
   can mount a real volume.
 - Implement an NVMe driver over PCI for the same reason.
-- Add a free-sector map so deleted space is reclaimed instead of leaked.
+- Add a free-sector map so deleted space is reclaimed instead of leaked, and
+  address the fragmentation the append-only allocator produces over time.
+- Add a journal so an interrupted metadata write cannot corrupt the volume.
+- Stop rewriting the whole file table on every write. `fs_save_metadata()`
+  serialises all 256 records on each `fs_write_file()`, so saving a file costs
+  the same whether the volume holds three files or three hundred.
+- Add rename and move, and make `fs_delete_directory()` refuse non-empty
+  directories instead of deleting the entry and orphaning its children.
+- Raise the 24 KiB per-file cap in `MAX_FILE_SIZE`, and handle paths that
+  exceed the 64-character `MAX_FILENAME_LEN` rather than rejecting them.
+- Add a BIOS-style POST screen so storage detection and capacity are visible
+  before the desktop loads, instead of only on the serial log.
+
+### Shell
+
+- Add Explorer sorting by column. The details view draws Name, Date modified,
+  Type and Size, but only the zone dropdown is interactive so far; the reference
+  layout shows a sort indicator on the header that does nothing yet.
+- Expose create, rename and delete in the Explorer UI. The filesystem already
+  has `fs_create_file`, `fs_delete_file` and `fs_delete_directory`; nothing
+  calls them.
+- Give Notepad open/save dialogs instead of the single fixed file path.
+- Taskbar: window previews on hover, overflow grouping, and show-desktop.
+- Visually confirm the loading screen; the desktop, taskbar, watermark, Start
+  menu and Explorer have all been captured as rendered frames.
+
+### Settings and time
+
 - Persist Settings state so toggles survive a reboot instead of resetting.
-- Replace the polled input loop with PIT/HPET timer-driven frame pacing.
-- Complete the USB driver stack; the filesystem currently runs on ATA or RAM.
+- Allow the clock to be set. The RTC is read-only today, so the time zone can
+  only shift the displayed time; nothing corrects a clock that has drifted.
+- Cover the remaining daylight-saving rules. Iran, Chile, and Lord Howe Island
+  are approximated by one of the four implemented rules rather than their real
+  transitions.
+- Remember each Settings tab's scroll position between visits.

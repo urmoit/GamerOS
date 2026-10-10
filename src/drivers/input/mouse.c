@@ -217,7 +217,11 @@ void mouse_handler(void) {
 // Poll mouse (for systems without interrupts)
 void mouse_poll(void) {
     int safety = 64;
-    while (safety-- > 0 && (inb(MOUSE_STATUS_PORT) & 0x01)) {
+    while (safety-- > 0) {
+        uint8_t status = inb(MOUSE_STATUS_PORT);
+        if (!(status & 0x01)) break;   // Output buffer empty.
+        // Bit 5 clear means this byte belongs to the keyboard; leave it in place.
+        if (!(status & 0x20)) break;
         mouse_handler();
     }
 }

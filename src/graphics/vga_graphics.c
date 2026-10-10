@@ -56,6 +56,7 @@ static void palette_apply_shell_entries(void) {
     palette_set_entry(0x39, 36, 50, 58);
     palette_set_entry(0x2A, 38, 48, 12);
     palette_set_entry(0x3D, 56, 46, 18);
+    palette_set_entry(0x3E, 16, 24, 30);
 }
 
 static void ensure_palette_ready(void) {
@@ -202,6 +203,11 @@ void vga_set_palette(void) {
     outb(0x3C9, 56);
     outb(0x3C9, 46);
     outb(0x3C9, 18);
+
+    outb(0x3C8, 0x3E);
+    outb(0x3C9, 16);
+    outb(0x3C9, 24);
+    outb(0x3C9, 30);
 }
 
 // Set standard VGA 320x200 mode
@@ -766,14 +772,120 @@ void vga_draw_shadow(int x, int y, uint32_t w, uint32_t h, uint32_t color, uint8
     fill_rect(x + offset, y + offset, (int)w, (int)h, (uint8_t)color);
 }
 
+// ---------------------------------------------------------------------------
+// Rounded rectangles
+//
+// A rounded rectangle is a rectangle whose four corners are quarter circles of
+// `radius`. Only the corner squares need the circle test; every other pixel is a
+// plain span, so each row is computed once as a left/right inset and then filled
+// as a run. That keeps this cheap enough to run on every repaint.
+// ---------------------------------------------------------------------------
+
+// Integer square root. Only ever called with small values (radius^2), so a
+// simple incremental scan is cheaper than any floating-point setup.
+static int rr_isqrt(uint32_t v) {
+    int r = 0;
+    while ((uint32_t)((r + 1) * (r + 1)) <= v) r++;
+    return r;
+}
+
+// How far the filled span is pulled in from the left edge on row `yy` of a
+// rounded rect `w` x `h`. Zero on rows that clear the corner circles.
+static int rr_row_inset(int w, int h, int radius, int yy) {
+    if (radius <= 0) return 0;
+    int r = radius;
+    if (r * 2 > w) r = w / 2;
+    if (r * 2 > h) r = h / 2;
+    if (r <= 0) return 0;
+    if (yy >= r && yy < h - r) return 0;
+
+    // Distance from the corner arc's centre to this row.
+    int dy = (yy < r) ? (r - yy) : (yy - (h - 1 - r));
+    int half = rr_isqrt((uint32_t)((r * r) - (dy * dy)));
+    int inset = r - half;
+    return (inset < 0) ? 0 : inset;
+}
+
 void vga_fill_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius, uint32_t color) {
-    (void)radius;
-    fill_rect(x, y, (int)w, (int)h, (uint8_t)color);
+    if (w == 0 || h == 0) return;
+    if (x < 0) {
+        uint32_t cut = (uint32_t)(-x);
+        if (cut >= w) return;
+        w -= cut;
+        x = 0;
+    }
+    if (y < 0) {
+        uint32_t cut = (uint32_t)(-y);
+        if (cut >= h) return;
+        h -= cut;
+        y = 0;
+    }
+    if (x >= (int)current_width || y >= (int)current_height) return;
+    if (x + (int)w > (int)current_width) w = (uint32_t)((int)current_width - x);
+    if (y + (int)h > (int)current_height) h = (uint32_t)((int)current_height - y);
+    if (w == 0 || h == 0) return;
+
+    uint8_t idx = (uint8_t)color;
+    uint32_t rgb = palette_rgb[idx];
+    int width = (int)w;
+    int height = (int)h;
+
+    for (int yy = 0; yy < height; yy++) {
+        int inset = rr_row_inset(width, height, (int)radius, yy);
+        int row = y + yy;
+        uint32_t base = (uint32_t)row * current_width + (uint32_t)(x + inset);
+        int run = width - (inset * 2);
+        if (run <= 0) continue;
+        memset(&back_buffer_idx[base], idx, (size_t)run);
+        uint32_t* dst = &back_buffer_rgb[base];
+        int cw = run;
+        while (cw >= 8) {
+            dst[0] = rgb; dst[1] = rgb; dst[2] = rgb; dst[3] = rgb;
+            dst[4] = rgb; dst[5] = rgb; dst[6] = rgb; dst[7] = rgb;
+            dst += 8; cw -= 8;
+        }
+        for (int i = 0; i < cw; i++) dst[i] = rgb;
+    }
 }
 
 void vga_draw_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius, uint32_t color) {
-    (void)radius;
-    draw_rect(x, y, (int)w, (int)h, (uint8_t)color);
+    // A degenerate box has no interior to leave alone, so outline it as a fill.
+    if (w < 3 || h < 3) {
+        vga_fill_rounded_rect(x, y, w, h, radius, color);
+        return;
+    }
+    if (x >= (int)current_width || y >= (int)current_height) return;
+
+    uint8_t idx = (uint8_t)color;
+    uint32_t rgb = palette_rgb[idx];
+    int width = (int)w;
+    int height = (int)h;
+    int r = (int)radius;
+    if (r * 2 > width) r = width / 2;
+    if (r * 2 > height) r = height / 2;
+    int inner_r = (r > 0) ? (r - 1) : 0;
+
+    for (int yy = 0; yy < height; yy++) {
+        int outer_in = rr_row_inset(width, height, r, yy);
+        // The interior is the same shape inset by one pixel on every side.
+        int inner_in = 0;
+        if (yy >= 1 && yy <= height - 2) {
+            inner_in = rr_row_inset(width - 2, height - 2, inner_r, yy - 1);
+        }
+        int outer_l = x + outer_in;
+        int outer_r = x + width - 1 - outer_in;
+        int inner_l = x + 1 + inner_in;
+        int inner_r = x + width - 2 - inner_in;
+
+        int row = y + yy;
+        if (row < 0 || row >= (int)current_height) continue;
+        for (int px = outer_l; px <= outer_r; px++) {
+            if (px >= 0 && px < (int)current_width && (px < inner_l || px > inner_r)) {
+                back_buffer_idx[(uint32_t)row * current_width + (uint32_t)px] = idx;
+                back_buffer_rgb[(uint32_t)row * current_width + (uint32_t)px] = rgb;
+            }
+        }
+    }
 }
 
 // TODO: Add dirty-rectangle coalescing so multiple small updates batch into one planar present.

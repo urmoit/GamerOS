@@ -23,8 +23,6 @@ FS_H = os.path.join(ROOT, "src", "include", "fs.h")
 
 DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-11.md")
 
-MAX_MD_LINES = 320
-
 
 def read_max_file_size():
     """Read MAX_FILE_SIZE from fs.h so this script cannot drift from the kernel."""
@@ -34,6 +32,17 @@ def read_max_file_size():
             if m:
                 return int(m.group(1))
     raise RuntimeError("MAX_FILE_SIZE not found in %s" % FS_H)
+
+
+def read_md_max_lines():
+    """Read SETTINGS_MD_MAX_LINES from the kernel so this script cannot drift
+    from the viewer capacity it is warning about."""
+    with io.open(MAIN_C, "r", encoding="utf-8") as fh:
+        for line in fh:
+            m = re.match(r'^\s*#define\s+SETTINGS_MD_MAX_LINES\s+(\d+)', line)
+            if m:
+                return int(m.group(1))
+    raise RuntimeError("SETTINGS_MD_MAX_LINES not found in %s" % MAIN_C)
 
 START_RE = re.compile(
     r'^static const char\* settings_ui_changelog_md_text\(void\) \{$'
@@ -79,9 +88,10 @@ def main():
               % (size_bytes, max_file_size))
         return 1
 
-    if len(lines) > MAX_MD_LINES:
+    max_md_lines = read_md_max_lines()
+    if len(lines) > max_md_lines:
         print("warning: %d lines exceeds SETTINGS_MD_MAX_LINES (%d); "
-              "the viewer will drop the tail" % (len(lines), MAX_MD_LINES))
+              "the viewer will drop the tail" % (len(lines), max_md_lines))
 
     with io.open(MAIN_C, "r", encoding="utf-8") as fh:
         src = fh.read().split("\n")

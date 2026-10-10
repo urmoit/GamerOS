@@ -15,6 +15,8 @@ C_SRC = $(SRC_DIR)/core/kernel/main.c \
         $(SRC_DIR)/graphics/vga_graphics.c \
         $(SRC_DIR)/graphics/font.c \
         $(SRC_DIR)/resources/wallpapers/background_wallpaper.c \
+  $(SRC_DIR)/ui/apps/notepad/notepad_app.c \
+  $(SRC_DIR)/ui/markdown/markdown.c \
         $(SRC_DIR)/filesystem/fs.c \
         $(SRC_DIR)/graphics/cursor.c \
         $(SRC_DIR)/drivers/input/keyboard.c \
@@ -36,6 +38,8 @@ C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
         $(BUILD_DIR)/$(ARCH)/font.o \
         $(BUILD_DIR)/$(ARCH)/background_wallpaper.o \
+  $(BUILD_DIR)/$(ARCH)/notepad_app.o \
+  $(BUILD_DIR)/$(ARCH)/markdown.o \
         $(BUILD_DIR)/$(ARCH)/fs.o \
         $(BUILD_DIR)/$(ARCH)/cursor.o \
         $(BUILD_DIR)/$(ARCH)/keyboard.o \
@@ -63,7 +67,7 @@ ASMFLAGS = -f elf64 -I$(SRC_DIR)
 
 CC = x86_64-linux-gnu-gcc
 CFLAGS = -m64 -mno-red-zone -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -fomit-frame-pointer -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -O2
-INCLUDES = -I$(SRC_DIR)/include
+  INCLUDES = -I$(SRC_DIR)/include -I$(SRC_DIR)/ui/shell -I$(SRC_DIR)/ui/apps/notepad
 
 LD = x86_64-linux-gnu-ld
 LDFLAGS = -m elf_x86_64 -T $(TARGETS_DIR)/$(ARCH)/linker.ld -nostdlib -O2
@@ -114,6 +118,10 @@ $(BUILD_DIR)/$(ARCH)/font.o: $(SRC_DIR)/graphics/font.c | $(BUILD_DIR)/$(ARCH)
 $(BUILD_DIR)/$(ARCH)/background_wallpaper.o: $(SRC_DIR)/resources/wallpapers/background_wallpaper.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+  $(BUILD_DIR)/$(ARCH)/notepad_app.o: $(SRC_DIR)/ui/apps/notepad/notepad_app.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+  $(BUILD_DIR)/$(ARCH)/markdown.o: $(SRC_DIR)/ui/markdown/markdown.c | $(BUILD_DIR)/$(ARCH)
+  	$(CC) $(CFLAGS) $(INCLUDES) -I$(SRC_DIR)/ui/markdown -c -o $@ $<
 $(BUILD_DIR)/$(ARCH)/fs.o: $(SRC_DIR)/filesystem/fs.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 

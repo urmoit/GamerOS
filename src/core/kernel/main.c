@@ -11,6 +11,9 @@
 #include <fs.h>
 #include <ata_pio.h>
 #include <apps.h>
+#include <shell_api.h>
+#include <markdown.h>
+#include <notepad_app.h>
 #include <process_model.h>
 #include <multiboot.h>
 #include "../../resources/wallpapers/background_wallpaper.h"
@@ -25,7 +28,6 @@
 #define APP_WINDOW_EXPLORER 5
 
 // Forward declarations for UI functions only
-static const char* notepad_ui_title(void);
 static const char* settings_ui_panel_title(void);
 static const char* settings_ui_tab_name(int tab_idx);
 static const char* settings_ui_changelog_md_path(void);
@@ -44,20 +46,12 @@ static const char* settings_ui_changelog_md_text(void);
 // Compact UI text renders the canonical 8x8 font at its natural advance.
 // Cropping glyphs to 6 of 8 columns (the old behaviour) sheared letters into
 // vertical smears, so both the sample width and the advance are 8.
-#define FONT_CW 8
-#define FONT_CH 8
-#define TASKBAR_HEIGHT         20
 #define START_BTN_X            4
 // Wide enough for the flag plus "Start" at the full 8px advance (5 * 8 = 40px).
 #define START_BTN_W            64
 #define START_BTN_H            16
-#define DESKTOP_ICON_W         20
-#define DESKTOP_ICON_H         20
-#define DESKTOP_ICON_HIT_W     28
-#define DESKTOP_ICON_HIT_H     32
 #define TASKBTN_W              70
 #define TASKBTN_H              16
-#define START_MENU_X           0
 // The rail has to fit "Admin" at the full 8px advance (40px) plus padding,
 // otherwise the profile label bled into the content column.
 #define START_MENU_RAIL_W      56
@@ -86,20 +80,6 @@ static window_t windows[MAX_WINDOWS];
 static int active_window = -1;
 static int window_count = 0;
 
-// Notepad content
-#define NOTEPAD_MAX_LINES 160
-#define NOTEPAD_MAX_COLS  96
-static char notepad_lines[NOTEPAD_MAX_LINES][NOTEPAD_MAX_COLS];
-static int notepad_cursor_x = 0;
-static int notepad_cursor_y = 0;
-static int notepad_view_top = 0;
-// Rows the editor actually rendered last frame; the wheel handler scrolls by
-// this instead of recomputing a viewport size of its own.
-static int notepad_lines_shown = 1;
-static uint8_t notepad_dirty = 0;
-// Use a virtual GamerOS-style path for Notepad data; this is resolved
-// into a concrete filesystem path by the GOS path helpers below.
-#define NOTEPAD_FILE_PATH "GOS:/User/Notepad/NOTEPAD.TXT"
 
 // Input state
 static uint8_t last_buttons = 0;
@@ -138,16 +118,11 @@ static uint8_t setting_large_text = 0;
 #define SETTINGS_TAB_GAMEROS_UPDATE 10
 #define SETTINGS_TAB_COUNT 11
 static int settings_scroll_top[SETTINGS_TAB_COUNT] = {0};
-typedef struct {
-    char text[120];
-    uint8_t color;
-    uint8_t indent;
-} markdown_line_t;
-#define SETTINGS_MD_MAX_LINES 320
-static markdown_line_t settings_md_lines[SETTINGS_MD_MAX_LINES];
-static int settings_md_line_count = 0;
-static uint8_t settings_md_loaded = 0;
-static int settings_md_plan_start = -1;
+// The Settings changelog is parsed and drawn by src/ui/markdown/markdown.c.
+// Capacity of the Settings changelog viewer. The array is static BSS (122 bytes
+// per entry) and the view scrolls, so this is a size choice rather than a hard
+// limit; it was raised from 320 when the 1.550 notes outgrew it and the viewer
+// started silently dropping the tail.
 
 typedef enum {
     SETTINGS_UPDATE_VIEW_CHANGELOG = 0,
@@ -196,7 +171,6 @@ static int settings_view_hit_gap = 0;
 
 // Rows the changelog viewer actually rendered last frame; the wheel handler
 // scrolls by this rather than recomputing a viewport size of its own.
-static int settings_md_visible_rows = 0;
 
 #define EXPLORER_MAX_ENTRIES 14
 // "This PC" renders one block per volume in the style of a Windows drive list:
@@ -239,11 +213,8 @@ static int explorer_list_hit_y[EXPLORER_MAX_ENTRIES];
 static int explorer_list_hit_count = 0;
 static int explorer_list_hit_h = 0;
 
-// Notepad hit boxes (Save button) and published layout metrics.
-static int notepad_save_x = 0, notepad_save_y = 0, notepad_save_w = 0, notepad_save_h = 0;
 static uint8_t storage_initialized = 0;
 static uint32_t cursor_under_rgb[CURSOR_SIZE * CURSOR_SIZE];
-static uint8_t notepad_io_buffer[MAX_FILE_SIZE + 1];
 static int32_t cursor_drawn_x = 0;
 static int32_t cursor_drawn_y = 0;
 static uint8_t cursor_drawn_valid = 0;
@@ -402,23 +373,83 @@ static int taskbar_clock_width(void) {
     return ((time_chars + 1 + date_chars) * FONT_CW) + 8;
 }
 
-// X of the first task button in the centred strip, plus how many fit. Shared by
-// the taskbar renderer and its click handler: these blocks used to recompute the
-// strip independently, so the hit boxes could silently stop matching the pixels.
-static int taskbar_strip_start(int taskbtn_w, int strip_left, int strip_right,
-                               int* task_count_out) {
+// ---------------------------------------------------------------------------
+// Dock geometry
+//
+// The dock is a floating rounded panel centred on the bottom edge, sized to its
+// contents rather than to the screen. Both the renderer and the hit tester call
+// dock_compute_layout, so the clickable areas cannot drift away from the pixels:
+// when task buttons appear or vanish the dock re-centres and both sides agree.
+// ---------------------------------------------------------------------------
+
+#define DOCK_PAD_X       8    // Inner padding left and right of the items.
+#define DOCK_PAD_Y       5    // Inner padding above and below the items.
+#define DOCK_GAP_BOTTOM  7    // Gap between the dock and the bottom of the screen.
+#define DOCK_GAP_ITEMS   6    // Gap between Start, the task run and the clock.
+#define DOCK_RADIUS      8    // Corner radius of the panel.
+#define DOCK_SHADOW      3    // Soft drop shadow depth, in whole pixels.
+
+// Vertical space the dock claims from the bottom edge, including the gap beneath
+// it. Window placement, the desktop context menu and the debug overlay all clamp
+// against this so nothing ends up hidden underneath the dock. Expressed in
+// terms of the same pieces dock_compute_layout uses, so the two cannot drift.
+#define DOCK_INNER_H     ((TASKBTN_H > START_BTN_H) ? TASKBTN_H : START_BTN_H)
+#define DOCK_RESERVED_H  (DOCK_INNER_H + (DOCK_PAD_Y * 2) + DOCK_GAP_BOTTOM)
+
+typedef struct {
+    int x, y, w, h;         // Panel rectangle.
+    int start_x, start_y;   // Start button.
+    int taskbtn_w, taskbtn_y;
+    int task_x, task_count; // Left edge of the task run, and how many fit.
+    int clock_x, clock_y, clock_w;
+} dock_layout_t;
+
+static void dock_compute_layout(dock_layout_t* d) {
+    if (!d) return;
+
+    int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
+    int clock_w = taskbar_clock_width();
+
+    int inner_h = (TASKBTN_H > START_BTN_H) ? TASKBTN_H : START_BTN_H;
+    int h = inner_h + (DOCK_PAD_Y * 2);
+
+    // Start and the clock are always present, so they come off the top before
+    // deciding how many task buttons are allowed to claim space.
+    int fixed_w = (DOCK_PAD_X * 2) + START_BTN_W + clock_w;
+    int max_w = (int)current_width - fixed_w - (DOCK_GAP_ITEMS * 2) - 8;
+    if (max_w < 0) max_w = 0;
+    int max_count = max_w / (taskbtn_w + 2);
+
     int task_count = 0;
-    for (int i = 0; i < MAX_WINDOWS; i++) {
-        if (!windows[i].active) continue;
-        if (strip_left + (task_count + 1) * (taskbtn_w + 2) - 2 > strip_right) break;
-        task_count++;
+    for (int i = 0; i < MAX_WINDOWS && task_count < max_count; i++) {
+        if (windows[i].active) task_count++;
     }
-    int run_w = task_count * taskbtn_w + (task_count > 0 ? (task_count - 1) * 2 : 0);
-    int strip_w = strip_right - strip_left;
-    int start = strip_left + ((strip_w - run_w) / 2);
-    if (start < strip_left) start = strip_left;
-    if (task_count_out) *task_count_out = task_count;
-    return start;
+
+    int run_w = task_count * taskbtn_w;
+    if (task_count > 1) run_w += (task_count - 1) * 2;
+    int gaps = (task_count > 0) ? (DOCK_GAP_ITEMS * 2) : DOCK_GAP_ITEMS;
+    int w = fixed_w + run_w + gaps;
+    if (w > (int)current_width - 8) w = (int)current_width - 8;
+    if (w < 32) w = 32;
+
+    int x = ((int)current_width - w) / 2;
+    if (x < 4) x = 4;
+    int y = (int)current_height - h - DOCK_GAP_BOTTOM;
+    if (y < 0) y = 0;
+
+    d->x = x;
+    d->y = y;
+    d->w = w;
+    d->h = h;
+    d->start_x = x + DOCK_PAD_X;
+    d->start_y = y + DOCK_PAD_Y;
+    d->taskbtn_w = taskbtn_w;
+    d->taskbtn_y = y + DOCK_PAD_Y;
+    d->task_x = d->start_x + START_BTN_W + DOCK_GAP_ITEMS;
+    d->task_count = task_count;
+    d->clock_w = clock_w;
+    d->clock_x = x + w - DOCK_PAD_X - clock_w;
+    d->clock_y = y + DOCK_PAD_Y;
 }
 
 typedef struct {
@@ -445,7 +476,7 @@ typedef struct {
     int item_h;
 } desktop_menu_metrics_t;
 
-static void append_string(char* dest, size_t dest_cap, const char* src);
+void append_string(char* dest, size_t dest_cap, const char* src);
 static void initialize_storage_layout(void);
 static file_t* fs_open_or_create_file(const char* path);
 static void write_text_file(const char* path, const char* txt);
@@ -473,11 +504,8 @@ static void get_desktop_menu_metrics(desktop_menu_metrics_t* m);
 static void raise_runtime_error(const char* title, const char* message);
 static void launch_application_exe(const char* exe_name, int fallback_x, int fallback_y);
 static void launch_settings_tab(int tab_idx);
-static void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color);
-static void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color);
-static void notepad_load_from_storage(void);
-static void settings_md_reset(void);
-static void settings_md_add_line(const char* src, uint8_t color, uint8_t indent);
+void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color);
+void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color);
 static void settings_md_parse(const char* markdown);
 static void settings_md_ensure_loaded(void);
 void open_window(int type, int x, int y);
@@ -733,19 +761,19 @@ static void apply_display_profile(void) {
     for (int i = 0; i < MAX_WINDOWS; i++) {
         if (!windows[i].active) continue;
         if (windows[i].w > (int)current_width - 8) windows[i].w = (int)current_width - 8;
-        if (windows[i].h > (int)current_height - TASKBAR_HEIGHT - 8) windows[i].h = (int)current_height - TASKBAR_HEIGHT - 8;
+        if (windows[i].h > (int)current_height - DOCK_RESERVED_H - 8) windows[i].h = (int)current_height - DOCK_RESERVED_H - 8;
         if (windows[i].w < WINDOW_MIN_W_DEFAULT) windows[i].w = WINDOW_MIN_W_DEFAULT;
         if (windows[i].h < WINDOW_MIN_H_DEFAULT) windows[i].h = WINDOW_MIN_H_DEFAULT;
         if (windows[i].x > (int)current_width - windows[i].w) windows[i].x = (int)current_width - windows[i].w;
-        if (windows[i].y > (int)current_height - TASKBAR_HEIGHT - windows[i].h) {
-            windows[i].y = (int)current_height - TASKBAR_HEIGHT - windows[i].h;
+        if (windows[i].y > (int)current_height - DOCK_RESERVED_H - windows[i].h) {
+            windows[i].y = (int)current_height - DOCK_RESERVED_H - windows[i].h;
         }
         if (windows[i].x < 0) windows[i].x = 0;
         if (windows[i].y < 0) windows[i].y = 0;
     }
 }
 
-static const char* path_basename(const char* path) {
+const char* path_basename(const char* path) {
     const char* last = path;
     for (const char* p = path; *p; p++) {
         if (*p == '/') {
@@ -762,7 +790,7 @@ static const char* path_basename(const char* path) {
     return last;
 }
 
-static int path_has_extension(const char* path, const char* ext) {
+int path_has_extension(const char* path, const char* ext) {
     if (!path || !ext) return 0;
     size_t path_len = strlen(path);
     size_t ext_len = strlen(ext);
@@ -1067,14 +1095,14 @@ static void shutdown_os(void) {
 }
 
 // Compact UI text uses the canonical 8x8 bitmap font at its natural 8px advance.
-static int compact_text_width(const char* str) {
+int compact_text_width(const char* str) {
     if (!str) return 0;
     int n = 0;
     while (str[n]) n++;
     return n * FONT_CW;
 }
 
-static void draw_compact_string(int x, int y, const char* str, uint8_t color) {
+void draw_compact_string(int x, int y, const char* str, uint8_t color) {
     if (!str) return;
     while (*str) {
         uint8_t uc = (uint8_t)(*str);
@@ -1093,7 +1121,7 @@ static void draw_compact_string(int x, int y, const char* str, uint8_t color) {
     }
 }
 
-static void draw_compact_string_clipped(int x, int y, int max_chars, const char* str, uint8_t color) {
+void draw_compact_string_clipped(int x, int y, int max_chars, const char* str, uint8_t color) {
     if (max_chars <= 0) return;
     int i = 0;
     while (str[i] && i < max_chars) {
@@ -1105,7 +1133,7 @@ static void draw_compact_string_clipped(int x, int y, int max_chars, const char*
     }
 }
 
-static void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
+void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
     if (w <= 0 || h <= 0) return;
     if (w < 3 || h < 3) {
         fill_rect(x, y, w, h, color);
@@ -1115,7 +1143,7 @@ static void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
     fill_rect(x, y + 1, w, h - 2, color);
 }
 
-static void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
+void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
     if (w <= 0 || h <= 0) return;
     if (w < 3 || h < 3) {
         draw_rect(x, y, w, h, color);
@@ -1147,7 +1175,7 @@ static void draw_desktop_watermark(void) {
     int card_w = inner_w + pad_x * 2 + accent_w;
     int card_h = 26;
     int x = (int)current_width - card_w - 10;
-    int y = (int)current_height - TASKBAR_HEIGHT - card_h - 10;
+    int y = (int)current_height - DOCK_RESERVED_H - card_h - 10;
     if (x < 6) x = 6;
     if (y < 6) y = 6;
 
@@ -1289,7 +1317,7 @@ static void draw_desktop_wallpaper(int desktop_h) {
     }
 }
 
-static void append_string(char* dest, size_t dest_cap, const char* src) {
+void append_string(char* dest, size_t dest_cap, const char* src) {
     if (!dest || !src || dest_cap == 0) return;
     size_t dlen = strlen(dest);
     size_t i = 0;
@@ -1330,13 +1358,27 @@ static void get_start_menu_metrics(start_menu_metrics_t* m) {
     int menu_h = START_MENU_H;
     int item_h = START_MENU_ITEM_H;
     int item_count = 5;
+
+    dock_layout_t dock;
+    dock_compute_layout(&dock);
+
+    // The menu hangs off the dock's left edge so the two read as one control,
+    // then gets nudged back on screen if the centred dock would push it off.
+    int menu_x = dock.x;
+    if (menu_x + menu_w > (int)current_width - 4) menu_x = (int)current_width - 4 - menu_w;
+    if (menu_x < 4) menu_x = 4;
+
     if (menu_w > (int)current_width - 8) menu_w = (int)current_width - 8;
-    if (menu_h > (int)current_height - TASKBAR_HEIGHT - 4) menu_h = (int)current_height - TASKBAR_HEIGHT - 4;
-    m->x = START_MENU_X;
+    int avail_h = dock.y - 4;
+    if (avail_h < 40) avail_h = 40;
+    if (menu_h > avail_h) menu_h = avail_h;
+
+    m->x = menu_x;
     m->w = menu_w;
     m->h = menu_h;
     m->item_h = item_h;
-    m->y = (int)current_height - TASKBAR_HEIGHT - menu_h;
+    m->y = dock.y - menu_h;
+    if (m->y < 0) m->y = 0;
 
     m->rail_w = START_MENU_RAIL_W;
     m->panel_x = m->x + m->rail_w + 8;
@@ -1356,7 +1398,7 @@ static void get_desktop_menu_metrics(desktop_menu_metrics_t* m) {
     int menu_y = desktop_menu_y;
 
     if (menu_x + menu_w > (int)current_width) menu_x = (int)current_width - menu_w;
-    if (menu_y + menu_h > (int)current_height - TASKBAR_HEIGHT) menu_y = (int)current_height - TASKBAR_HEIGHT - menu_h;
+    if (menu_y + menu_h > (int)current_height - DOCK_RESERVED_H) menu_y = (int)current_height - DOCK_RESERVED_H - menu_h;
     if (menu_x < 0) menu_x = 0;
     if (menu_y < 0) menu_y = 0;
 
@@ -1414,7 +1456,7 @@ static void get_debug_overlay_rect(int* out_x, int* out_y, int* out_w, int* out_
     int min_w = 160;
     int min_h = 42;
     int max_w = (int)current_width - 8;
-    int max_h = (int)current_height - TASKBAR_HEIGHT - 8;
+    int max_h = (int)current_height - DOCK_RESERVED_H - 8;
     int wanted_h = 16 + (debug_log_count * 8);
 
     if (debug_overlay_w < min_w) debug_overlay_w = min_w;
@@ -1428,8 +1470,8 @@ static void get_debug_overlay_rect(int* out_x, int* out_y, int* out_w, int* out_
     if (debug_overlay_x > (int)current_width - debug_overlay_w) {
         debug_overlay_x = (int)current_width - debug_overlay_w;
     }
-    if (debug_overlay_y > (int)current_height - TASKBAR_HEIGHT - debug_overlay_h) {
-        debug_overlay_y = (int)current_height - TASKBAR_HEIGHT - debug_overlay_h;
+    if (debug_overlay_y > (int)current_height - DOCK_RESERVED_H - debug_overlay_h) {
+        debug_overlay_y = (int)current_height - DOCK_RESERVED_H - debug_overlay_h;
     }
     if (debug_overlay_x < 0) debug_overlay_x = 0;
     if (debug_overlay_y < 0) debug_overlay_y = 0;
@@ -1522,10 +1564,10 @@ static void launch_application_exe(const char* exe_name, int fallback_x, int fal
     debug_log_message("App: open window");
     debug_present_boot_status();
     open_window(win_type, launch_x, launch_y);
-    if (win_type == WIN_NOTEPAD && storage_initialized) {
+    if (win_type == WIN_NOTEPAD) {
         debug_log_message("App: load notepad data");
         debug_present_boot_status();
-        notepad_load_from_storage();
+        notepad_app_init();
     }
 
     debug_log_message("App: launch complete");
@@ -1541,142 +1583,13 @@ static void launch_settings_tab(int tab_idx) {
 }
 
 static void settings_md_reset(void) {
-    settings_md_line_count = 0;
-    settings_md_plan_start = -1;
     settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
 }
 
-static void settings_md_add_line(const char* src, uint8_t color, uint8_t indent) {
-    if (!src || settings_md_line_count >= SETTINGS_MD_MAX_LINES) return;
-    markdown_line_t* line = &settings_md_lines[settings_md_line_count++];
-    size_t i = 0;
-    while (src[i] && i + 1 < sizeof(line->text)) {
-        if (src[i] != '`') {
-            line->text[i] = src[i];
-        } else {
-            line->text[i] = '\'';
-        }
-        i++;
-    }
-    line->text[i] = 0;
-    line->color = color;
-    line->indent = indent;
-}
-
-static void settings_md_strip_bold_markers(char* text) {
-    char* src = text;
-    char* dst = text;
-    while (*src) {
-        if (src[0] == '*' && src[1] == '*') {
-            src += 2;
-        } else {
-            *dst++ = *src++;
-        }
-    }
-    *dst = 0;
-}
-
 static void settings_md_parse(const char* markdown) {
-    settings_md_reset();
-    if (!markdown) return;
-
-    char line_buf[160];
-    char processed_buf[160];
-    size_t pos = 0;
-    uint8_t in_code = 0;
-    for (size_t i = 0;; i++) {
-        char ch = markdown[i];
-        if (ch == '\r') continue;
-        if (ch == '\n' || ch == 0) {
-            line_buf[pos] = 0;
-            if (strcmp(line_buf, "```") == 0) {
-                in_code = (uint8_t)!in_code;
-            } else if (in_code) {
-                // Code block content
-                settings_md_add_line(line_buf, XP_DGRAY, 8);
-            } else if (strncmp(line_buf, "# ", 2) == 0) {
-                // Main title - largest
-                strncpy(processed_buf, line_buf + 2, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                settings_md_add_line(processed_buf, XP_LBLUE, 0);
-            } else if (strncmp(line_buf, "## ", 3) == 0) {
-                // Major section heading
-                strncpy(processed_buf, line_buf + 3, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                // The roadmap view starts at this section. Accept the usual
-                // spellings rather than only "Planned", so renaming the
-                // heading cannot silently make the two views identical again.
-                if (settings_md_plan_start < 0 &&
-                    (strncmp(processed_buf, "Planned", 7) == 0 ||
-                     strncmp(processed_buf, "Roadmap", 7) == 0 ||
-                     strncmp(processed_buf, "Upcoming", 7) == 0)) {
-                    settings_md_plan_start = settings_md_line_count;
-                }
-                settings_md_add_line(processed_buf, XP_BLUE, 0);
-            } else if (strncmp(line_buf, "### ", 4) == 0) {
-                // Subsection heading
-                strncpy(processed_buf, line_buf + 4, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                settings_md_add_line(processed_buf, XP_BLUE, 0);
-            } else if (strncmp(line_buf, "#### ", 5) == 0) {
-                // Sub-subsection heading
-                strncpy(processed_buf, line_buf + 5, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                settings_md_add_line(processed_buf, XP_BLACK, 0);
-            } else if (strncmp(line_buf, "> ", 2) == 0) {
-                // Blockquote / callout. Rendered indented and in the accent
-                // colour so warnings stand out instead of reading as a stray
-                // literal '>' in the body text.
-                strncpy(processed_buf, line_buf + 2, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                settings_md_add_line(processed_buf, XP_BLUE, 8);
-            } else if (strncmp(line_buf, "  - ", 4) == 0) {
-                // Nested bullet point (double indented)
-                char nested[160];
-                nested[0] = '-';
-                nested[1] = ' ';
-                nested[2] = 0;
-                append_string(nested, sizeof(nested), line_buf + 4);
-                settings_md_strip_bold_markers(nested);
-                settings_md_add_line(nested, XP_DGRAY, 12);
-            } else if (strncmp(line_buf, "- ", 2) == 0) {
-                // Regular bullet point
-                strncpy(processed_buf, line_buf, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                settings_md_add_line(processed_buf, XP_BLACK, 6);
-            } else if (line_buf[0] >= '0' && line_buf[0] <= '9' && line_buf[1] == '.' && line_buf[2] == ' ') {
-                // Numbered list
-                strncpy(processed_buf, line_buf, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                settings_md_add_line(processed_buf, XP_BLACK, 6);
-            } else if (line_buf[0] == '`' || strstr(line_buf, "`") != 0) {
-                // Inline code or code reference
-                settings_md_add_line(line_buf, XP_DGRAY, 0);
-            } else if (line_buf[0] == 0) {
-                // Empty line - add spacing
-                settings_md_add_line("", XP_WHITE, 0);
-            } else {
-                // Regular paragraph text - may contain bold markers
-                strncpy(processed_buf, line_buf, sizeof(processed_buf) - 1);
-                processed_buf[sizeof(processed_buf) - 1] = 0;
-                settings_md_strip_bold_markers(processed_buf);
-                settings_md_add_line(processed_buf, XP_BLACK, 0);
-            }
-
-            pos = 0;
-            if (ch == 0) break;
-            continue;
-        }
-        if (pos + 1 < sizeof(line_buf)) {
-            line_buf[pos++] = ch;
-        }
+    md_parse(markdown);
+    if (md_was_truncated()) {
+        debug_log_message("Settings changelog: document truncated");
     }
 }
 
@@ -1701,63 +1614,6 @@ static void settings_md_ensure_loaded(void) {
     settings_md_parse((const char*)md_buffer);
 }
 
-static void notepad_clear(void) {
-    for (int i = 0; i < NOTEPAD_MAX_LINES; i++) {
-        for (int j = 0; j < NOTEPAD_MAX_COLS; j++) {
-            notepad_lines[i][j] = 0;
-        }
-    }
-    notepad_cursor_x = 0;
-    notepad_cursor_y = 0;
-    notepad_view_top = 0;
-    notepad_dirty = 0;
-}
-
-static void notepad_load_from_storage(void) {
-    file_t* file = gos_fs_open_file(NOTEPAD_FILE_PATH);
-    notepad_clear();
-    if (!file || file->size == 0) return;
-
-    memset(notepad_io_buffer, 0, sizeof(notepad_io_buffer));
-    fs_read_file(file, notepad_io_buffer, MAX_FILE_SIZE);
-
-    int x = 0;
-    int y = 0;
-    for (uint32_t i = 0; i < MAX_FILE_SIZE && notepad_io_buffer[i]; i++) {
-        char c = (char)notepad_io_buffer[i];
-        if (c == '\n') {
-            y++;
-            x = 0;
-            if (y >= NOTEPAD_MAX_LINES) break;
-            continue;
-        }
-        if (c < 32 || c > 126) continue;
-        if (x < NOTEPAD_MAX_COLS && y < NOTEPAD_MAX_LINES) {
-            notepad_lines[y][x++] = c;
-        }
-    }
-}
-
-static void notepad_save_to_storage(void) {
-    file_t* file = gos_fs_open_file(NOTEPAD_FILE_PATH);
-    if (!file) file = gos_fs_create_file(NOTEPAD_FILE_PATH);
-    if (!file) return;
-
-    memset(notepad_io_buffer, 0, sizeof(notepad_io_buffer));
-    uint32_t pos = 0;
-    for (int y = 0; y < NOTEPAD_MAX_LINES && pos < MAX_FILE_SIZE - 1; y++) {
-        int last = NOTEPAD_MAX_COLS - 1;
-        while (last >= 0 && notepad_lines[y][last] == 0) last--;
-        for (int x = 0; x <= last && pos < MAX_FILE_SIZE - 1; x++) {
-            notepad_io_buffer[pos++] = (uint8_t)notepad_lines[y][x];
-        }
-        if (y < NOTEPAD_MAX_LINES - 1 && pos < MAX_FILE_SIZE - 1) {
-            notepad_io_buffer[pos++] = '\n';
-        }
-    }
-    fs_write_file(file, notepad_io_buffer, pos);
-    notepad_dirty = 0;
-}
 
 static void startup_animation(void) {
     const char* title = "GamerOS";
@@ -1916,7 +1772,7 @@ void init_windows(void) {
     for (int i = 0; i < MAX_WINDOWS; i++) {
         windows[i].active = 0;
     }
-    notepad_clear();
+    notepad_app_init();
 }
 
 // Open a window
@@ -1933,13 +1789,12 @@ void open_window(int type, int x, int y) {
             windows[i].h = 150;
             
             if (type == WIN_NOTEPAD) {
-                strncpy(windows[i].title, notepad_ui_title(), 31);
+                strncpy(windows[i].title, notepad_app_title(), 31);
                 windows[i].w = (int)current_width - 20;
-                windows[i].h = (int)current_height - TASKBAR_HEIGHT - 26;
+                windows[i].h = (int)current_height - DOCK_RESERVED_H - 26;
                 windows[i].x = 10;
                 windows[i].y = 8;
-                notepad_clear();
-                notepad_view_top = 0;
+                notepad_app_init();
             } else if (type == WIN_ABOUT) {
                 strncpy(windows[i].title, "About GamerOS", 31);
                 windows[i].w = 210;
@@ -1947,14 +1802,14 @@ void open_window(int type, int x, int y) {
             } else if (type == WIN_SETTINGS) {
                 strncpy(windows[i].title, settings_ui_panel_title(), 31);
                 windows[i].w = (int)current_width - 16;
-                windows[i].h = (int)current_height - TASKBAR_HEIGHT - 22;
+                windows[i].h = (int)current_height - DOCK_RESERVED_H - 22;
                 windows[i].x = 8;
                 windows[i].y = 6;
                 for (int si = 0; si < SETTINGS_TAB_COUNT; si++) settings_scroll_top[si] = 0;
             } else if (type == WIN_EXPLORER) {
                 strncpy(windows[i].title, "File Explorer", 31);
                 windows[i].w = (int)current_width - 16;
-                windows[i].h = (int)current_height - TASKBAR_HEIGHT - 22;
+                windows[i].h = (int)current_height - DOCK_RESERVED_H - 22;
                 windows[i].x = 8;
                 windows[i].y = 6;
                 explorer_open_this_pc();
@@ -1968,12 +1823,12 @@ void open_window(int type, int x, int y) {
             }
             windows[i].title[31] = 0;
             if (windows[i].w > (int)current_width) windows[i].w = (int)current_width;
-            if (windows[i].h > (int)current_height - TASKBAR_HEIGHT) windows[i].h = (int)current_height - TASKBAR_HEIGHT;
+            if (windows[i].h > (int)current_height - DOCK_RESERVED_H) windows[i].h = (int)current_height - DOCK_RESERVED_H;
             if (windows[i].x < 0) windows[i].x = 0;
             if (windows[i].y < 0) windows[i].y = 0;
             if (windows[i].x > (int)current_width - windows[i].w) windows[i].x = (int)current_width - windows[i].w;
-            if (windows[i].y > (int)current_height - TASKBAR_HEIGHT - windows[i].h) {
-                windows[i].y = (int)current_height - TASKBAR_HEIGHT - windows[i].h;
+            if (windows[i].y > (int)current_height - DOCK_RESERVED_H - windows[i].h) {
+                windows[i].y = (int)current_height - DOCK_RESERVED_H - windows[i].h;
             }
             window_count++;
             bring_window_to_front(i);
@@ -1985,8 +1840,8 @@ void open_window(int type, int x, int y) {
 // Close window
 void close_window(int idx) {
     if (idx >= 0 && idx < MAX_WINDOWS && windows[idx].active) {
-        if (windows[idx].type == WIN_NOTEPAD && notepad_dirty && storage_initialized) {
-            notepad_save_to_storage();
+        if (windows[idx].type == WIN_NOTEPAD && notepad_app_is_dirty() && shell_storage_ready()) {
+            notepad_app_save();
         }
         // Update simple app lifecycle state when a top-level app window closes.
         app_lifecycle_mark_closed_by_type(windows[idx].type);
@@ -2364,7 +2219,7 @@ static void settings_apply_toggle(int id) {
 }
 
 // Draw a small toolbar button with an optional enabled/disabled state.
-static void draw_tool_button(int x, int y, int w, int h, const char* label, int enabled) {
+void draw_tool_button(int x, int y, int w, int h, const char* label, int enabled) {
     uint8_t bg = enabled ? XP_WHITE : XP_LGRAY;
     uint8_t txt = enabled ? XP_BLACK : XP_DGRAY;
     fill_chamfer_rect(x, y, w, h, bg);
@@ -2374,99 +2229,6 @@ static void draw_tool_button(int x, int y, int w, int h, const char* label, int 
     draw_compact_string_clipped(x + 3, y + (h - 8) / 2, chars, label, txt);
 }
 
-// Draw the Notepad window body: toolbar, line-numbered editor, status bar.
-static void draw_notepad_body(int x, int y, int w, int h, int is_active) {
-    const int TOOLBAR_H = 15;
-    const int STATUS_H = 13;
-    const int LINE_H = 8;
-    const int GUTTER_W = 22;
-
-    int tool_y = y + 28;
-    int edit_y = tool_y + TOOLBAR_H + 3;
-    int edit_h = h - (edit_y - y) - STATUS_H - 4;
-    if (edit_h < LINE_H + 4) edit_h = LINE_H + 4;
-
-    // Toolbar
-    const int btn_w = 34;
-    const int btn_h = 13;
-    int bx = x + 6;
-    draw_tool_button(bx, tool_y, btn_w, btn_h, "Save", 1);
-    notepad_save_x = bx;
-    notepad_save_y = tool_y;
-    notepad_save_w = btn_w;
-    notepad_save_h = btn_h;
-
-    // Right-aligned modified indicator.
-    const char* state = notepad_dirty ? "Modified" : "Saved";
-    int sx = x + w - 6 - ((int)strlen(state) * FONT_CW);
-    draw_compact_string(sx, tool_y + (btn_h - 8) / 2, state, notepad_dirty ? XP_BLUE : XP_DGRAY);
-
-    // Editor surface
-    fill_chamfer_rect(x + 5, edit_y, w - 10, edit_h, XP_WHITE);
-    draw_chamfer_rect(x + 5, edit_y, w - 10, edit_h, XP_DGRAY);
-
-    int text_x = x + 5 + 2 + GUTTER_W + 2;
-    int text_w = w - 10 - 4 - GUTTER_W - 2;
-    if (text_w < 12) text_w = 12;
-    int max_chars = text_w / FONT_CW;
-    if (max_chars > NOTEPAD_MAX_COLS) max_chars = NOTEPAD_MAX_COLS;
-    int max_chars_gutter = (GUTTER_W - 6) / FONT_CW;
-
-    int lines_shown = (edit_h - 6) / LINE_H;
-    if (lines_shown < 1) lines_shown = 1;
-    notepad_lines_shown = lines_shown;
-
-    if (notepad_view_top < 0) notepad_view_top = 0;
-    int max_top = NOTEPAD_MAX_LINES - lines_shown;
-    if (max_top < 0) max_top = 0;
-    if (notepad_view_top > max_top) notepad_view_top = max_top;
-
-    // Gutter separator.
-    fill_rect(x + 5 + 2 + GUTTER_W, edit_y + 3, 1, edit_h - 6, XP_LGRAY);
-
-    for (int row = 0; row < lines_shown; row++) {
-        int i = notepad_view_top + row;
-        if (i >= NOTEPAD_MAX_LINES) break;
-        int row_y = edit_y + 3 + row * LINE_H;
-        if (row_y + LINE_H > edit_y + edit_h - 1) break;
-
-        // Line number, dimmed, right-aligned in the gutter.
-        char num[8];
-        sprintf(num, "%d", i + 1);
-        int nx = x + 5 + 2 + GUTTER_W - 2 - ((int)strlen(num) * FONT_CW);
-        draw_compact_string_clipped(nx, row_y, max_chars_gutter, num, XP_DGRAY);
-
-        if (notepad_lines[i][0]) {
-            draw_compact_string_clipped(text_x, row_y, max_chars, notepad_lines[i], XP_BLACK);
-        }
-    }
-
-    // Caret
-    if (is_active) {
-        int cx = text_x + notepad_cursor_x * FONT_CW;
-        int cy = edit_y + 3 + (notepad_cursor_y - notepad_view_top) * LINE_H;
-        if (cy >= edit_y + 3 && cy + LINE_H <= edit_y + edit_h - 1 && cx < x + w - 8) {
-            fill_rect(cx, cy, 1, LINE_H - 1, XP_BLACK);
-        }
-    }
-
-    // Status bar
-    int status_y = y + h - STATUS_H - 2;
-    fill_chamfer_rect(x + 5, status_y, w - 10, STATUS_H, XP_LGRAY);
-    draw_chamfer_rect(x + 5, status_y, w - 10, STATUS_H, XP_DGRAY);
-    fill_rect(x + 6, status_y + 1, w - 12, 1, XP_WHITE);
-
-    char pos[32];
-    sprintf(pos, "Ln %d, Col %d", notepad_cursor_y + 1, notepad_cursor_x + 1);
-    draw_compact_string_clipped(x + 9, status_y + 3, (w - 60) / FONT_CW, pos, XP_DGRAY);
-
-    // File name, right-aligned.
-    const char* fname = path_basename(NOTEPAD_FILE_PATH);
-    int fw = (int)strlen(fname) * FONT_CW;
-    if (fw < w - 90) {
-        draw_compact_string_clipped(x + w - 8 - fw, status_y + 3, fw / FONT_CW + 1, fname, XP_DGRAY);
-    }
-}
 
 // Draw window
 void draw_window(window_t* win) {
@@ -2481,7 +2243,7 @@ void draw_window(window_t* win) {
     if (y < 0) y = 0;
     if (x >= (int)current_width || y >= (int)current_height) return;
     if (x + w > (int)current_width) w = (int)current_width - x;
-    if (y + h > (int)current_height - TASKBAR_HEIGHT) h = (int)current_height - TASKBAR_HEIGHT - y;
+    if (y + h > (int)current_height - DOCK_RESERVED_H) h = (int)current_height - DOCK_RESERVED_H - y;
     if (w < 24 || h < 24) return;
     
     int is_active_window = (active_window >= 0 && win == &windows[active_window]);
@@ -2510,7 +2272,8 @@ void draw_window(window_t* win) {
     }
     
     if (win->type == WIN_NOTEPAD) {
-        draw_notepad_body(x + 2, y + 2, w - 4, h - 4, is_active_window);
+        // Notepad renders itself; the shell only supplies the client rect.
+        notepad_app_draw_content(x + 2, y + 2, w - 4, h - 4, is_active_window);
     } else if (win->type == WIN_SETTINGS) {
         fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
         draw_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_DGRAY);
@@ -3175,16 +2938,6 @@ static void layout_desktop_icons(void) {
     }
 }
 
-static void draw_notepad_icon(int x, int y) {
-    fill_chamfer_rect(x, y, DESKTOP_ICON_W, DESKTOP_ICON_H, XP_WHITE);
-    draw_chamfer_rect(x, y, DESKTOP_ICON_W, DESKTOP_ICON_H, XP_DGRAY);
-    fill_rect(x + 2, y + 2, 3, DESKTOP_ICON_H - 4, XP_LBLUE);
-    fill_rect(x + DESKTOP_ICON_W - 5, y, 5, 5, XP_LGRAY);
-    draw_line(x + DESKTOP_ICON_W - 5, y + 4, x + DESKTOP_ICON_W - 1, y, XP_DGRAY);
-    fill_rect(x + 7, y + 6, DESKTOP_ICON_W - 10, 1, XP_DGRAY);
-    fill_rect(x + 7, y + 10, DESKTOP_ICON_W - 10, 1, XP_DGRAY);
-    fill_rect(x + 7, y + 14, DESKTOP_ICON_W - 10, 1, XP_DGRAY);
-}
 
 static void draw_settings_icon(int x, int y) {
     fill_chamfer_rect(x, y, DESKTOP_ICON_W, DESKTOP_ICON_H, XP_WHITE);
@@ -3213,7 +2966,7 @@ static void draw_desktop_icon(int x, int y, int window_type) {
         draw_explorer_icon(x, y);
         return;
     }
-    draw_notepad_icon(x, y);
+    notepad_app_draw_icon(x, y);
 }
 
 static void draw_start_menu(void) {
@@ -3320,7 +3073,7 @@ static void draw_error_popup(void) {
     int w = 264;
     int h = 94;
     int x = ((int)current_width - w) / 2;
-    int y = (((int)current_height - TASKBAR_HEIGHT) - h) / 2;
+    int y = (((int)current_height - DOCK_RESERVED_H) - h) / 2;
     if (x < 4) x = 4;
     if (y < 4) y = 4;
 
@@ -3339,8 +3092,10 @@ static void draw_error_popup(void) {
 
 void draw_desktop(void) {
     layout_desktop_icons();
-    int desktop_h = (int)current_height - TASKBAR_HEIGHT;
-    draw_desktop_wallpaper(desktop_h);
+    // The wallpaper covers the whole screen, including the band the dock floats
+    // over and the gap beneath it. Stopping it above the dock would leave a hard
+    // horizontal seam that gives away the dock as a bar in disguise.
+    draw_desktop_wallpaper((int)current_height);
     draw_desktop_watermark();
     
     for (int i = 0; i < (int)NUM_ICONS; i++) {
@@ -3360,29 +3115,40 @@ void draw_desktop(void) {
         }
     }
     
-    // Taskbar
-    int taskbar_y = (int)current_height - TASKBAR_HEIGHT;
-    int start_y = taskbar_y + ((TASKBAR_HEIGHT - START_BTN_H) / 2);
-    int taskbtn_y = taskbar_y + ((TASKBAR_HEIGHT - TASKBTN_H) / 2);
-    fill_rect(0, taskbar_y, current_width, TASKBAR_HEIGHT, XP_LGRAY);
-    fill_rect(0, taskbar_y, current_width, 2, XP_WHITE);
-    fill_rect(0, taskbar_y + TASKBAR_HEIGHT - 2, current_width, 2, XP_DGRAY);
+    // Dock: a floating rounded panel centred on the bottom edge and drawn over
+    // the wallpaper, so it reads as its own surface rather than a bar glued to
+    // the screen edge.
+    dock_layout_t dock;
+    dock_compute_layout(&dock);
+
+    // Soft drop shadow, built from concentric outlines so it fades with distance
+    // instead of reading as a hard second border.
+    for (int s = DOCK_SHADOW; s >= 1; s--) {
+        vga_draw_rounded_rect(dock.x - s, dock.y + s, (uint32_t)(dock.w + (s * 2)),
+                              (uint32_t)dock.h, (uint8_t)(DOCK_RADIUS + s), XP_SHADOW);
+    }
+    vga_fill_rounded_rect(dock.x, dock.y, (uint32_t)dock.w, (uint32_t)dock.h,
+                          (uint8_t)DOCK_RADIUS, XP_LGRAY);
+    vga_draw_rounded_rect(dock.x, dock.y, (uint32_t)dock.w, (uint32_t)dock.h,
+                          (uint8_t)DOCK_RADIUS, XP_DGRAY);
+    // Bevel highlight along the top edge, inset past the corners.
+    fill_rect(dock.x + DOCK_RADIUS, dock.y + 1, dock.w - (DOCK_RADIUS * 2), 1, XP_WHITE);
 
     // Start button. The flag sits in its own gutter and the label is centred
     // in the space that remains, so the text cannot spill past the border.
     const char* start_label = "Start";
     const int start_flag_w = 12;
-    fill_chamfer_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H,
+    fill_chamfer_rect(dock.start_x, dock.start_y, START_BTN_W, START_BTN_H,
                       start_menu_open ? XP_LBLUE : XP_WHITE);
-    fill_rect(START_BTN_X + 1, start_y + 1, START_BTN_W - 2, 2, XP_LBLUE);
-    fill_rect(START_BTN_X + 5, start_y + 4, 4, 8, XP_LBLUE);
-    draw_chamfer_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_DGRAY);
+    fill_rect(dock.start_x + 1, dock.start_y + 1, START_BTN_W - 2, 2, XP_LBLUE);
+    fill_rect(dock.start_x + 5, dock.start_y + 4, 4, 8, XP_LBLUE);
+    draw_chamfer_rect(dock.start_x, dock.start_y, START_BTN_W, START_BTN_H, XP_DGRAY);
     {
         int start_text_w = compact_text_width(start_label);
-        int start_text_area_x = START_BTN_X + start_flag_w;
+        int start_text_area_x = dock.start_x + start_flag_w;
         int start_text_area_w = START_BTN_W - start_flag_w - 4;
         int start_text_x = start_text_area_x + ((start_text_area_w - start_text_w) / 2);
-        int start_text_y = start_y + ((START_BTN_H - FONT_CH) / 2);
+        int start_text_y = dock.start_y + ((START_BTN_H - FONT_CH) / 2);
         draw_compact_string(start_text_x, start_text_y, start_label, XP_BLACK);
     }
 
@@ -3394,33 +3160,21 @@ void draw_desktop(void) {
     }
     draw_error_popup();
     draw_debug_overlay();
-    
-    // Taskbar items. The strip is centred in the space between the Start
-    // button and the clock instead of starting at a hardcoded x, which used to
-    // leave a large dead gap on wide displays.
-    int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
-    int clock_w = taskbar_clock_width();
-    int clock_h = TASKBTN_H;
-    int clock_x = (int)current_width - clock_w - 4;
-    int clock_y = taskbar_y + ((TASKBAR_HEIGHT - clock_h) / 2);
 
-    int strip_left = START_BTN_X + START_BTN_W + 6;
-    int strip_right = clock_x - 6;
-
-    // Count the visible task buttons so the run can be centred as a group.
-    int task_count = 0;
-    int task_x = taskbar_strip_start(taskbtn_w, strip_left, strip_right, &task_count);
+    // Task buttons, laid out left to right inside the dock. The run width was
+    // already reserved by dock_compute_layout, so this loop never overflows.
+    int taskbtn_w = dock.taskbtn_w;
+    int taskbtn_y = dock.taskbtn_y;
+    int task_x = dock.task_x;
 
     // Longest label that fits inside a task button, minus its side padding.
     int task_chars = (taskbtn_w - 8) / FONT_CW;
     if (task_chars < 1) task_chars = 1;
     if (task_chars > 12) task_chars = 12;
 
-    for (int i = 0; i < MAX_WINDOWS; i++) {
+    int drawn = 0;
+    for (int i = 0; i < MAX_WINDOWS && drawn < dock.task_count; i++) {
         if (windows[i].active) {
-            if (task_x + taskbtn_w > strip_right) {
-                break;
-            }
             if (i == active_window) {
                 fill_chamfer_rect(task_x, taskbtn_y, taskbtn_w, TASKBTN_H, XP_LBLUE);
             } else {
@@ -3442,6 +3196,7 @@ void draw_desktop(void) {
             int ty = taskbtn_y + ((TASKBTN_H - FONT_CH) / 2);
             draw_compact_string(tx, ty, task_text, XP_BLACK);
             task_x += taskbtn_w + 2;
+            drawn++;
         }
     }
     
@@ -3479,13 +3234,13 @@ void draw_desktop(void) {
     datetime_str[datetime_len++] = (char)('0' + ((year / 10) % 10));
     datetime_str[datetime_len++] = (char)('0' + (year % 10));
     datetime_str[datetime_len] = 0;
-    fill_chamfer_rect(clock_x, clock_y, clock_w, clock_h, XP_WHITE);
-    draw_chamfer_rect(clock_x, clock_y, clock_w, clock_h, XP_DGRAY);
-    fill_rect(clock_x + 1, clock_y + 1, clock_w - 2, 2, XP_LBLUE);
+    fill_chamfer_rect(dock.clock_x, dock.clock_y, dock.clock_w, TASKBTN_H, XP_WHITE);
+    draw_chamfer_rect(dock.clock_x, dock.clock_y, dock.clock_w, TASKBTN_H, XP_DGRAY);
+    fill_rect(dock.clock_x + 1, dock.clock_y + 1, dock.clock_w - 2, 2, XP_LBLUE);
     {
         int clock_text_w = ((int)strlen(datetime_str)) * FONT_CW;
-        int clock_text_x = clock_x + (clock_w - clock_text_w) / 2;
-        int clock_text_y = clock_y + (clock_h - 8) / 2;
+        int clock_text_x = dock.clock_x + ((dock.clock_w - clock_text_w) / 2);
+        int clock_text_y = dock.clock_y + ((TASKBTN_H - FONT_CH) / 2);
         draw_compact_string(clock_text_x, clock_text_y, datetime_str, XP_BLACK);
     }
 }
@@ -3663,30 +3418,6 @@ static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
     return 0;
 }
 
-static int handle_notepad_wheel(window_t* win, int8_t wheel_delta) {
-    if (!win || wheel_delta == 0) return 0;
-    int visible_lines = notepad_lines_shown;
-    if (visible_lines < 1) visible_lines = 1;
-    int top = notepad_view_top - (int)wheel_delta;
-    if (top < 0) top = 0;
-    if (top > NOTEPAD_MAX_LINES - visible_lines) top = NOTEPAD_MAX_LINES - visible_lines;
-    if (top < 0) top = 0;
-    if (top != notepad_view_top) {
-        notepad_view_top = top;
-        return 1;
-    }
-    return 0;
-}
-
-// Notepad Save button (published by draw_notepad_body()).
-static int handle_notepad_click(window_t* win, int32_t mx, int32_t my) {
-    if (!win || notepad_save_h <= 0) return 0;
-    if (mx < notepad_save_x || mx >= notepad_save_x + notepad_save_w) return 0;
-    if (my < notepad_save_y || my >= notepad_save_y + notepad_save_h) return 0;
-    if (!storage_initialized) ensure_storage_initialized();
-    if (storage_initialized) notepad_save_to_storage();
-    return 1;
-}
 
 static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t wheel_delta) {
     if (!win || wheel_delta == 0) return 0;
@@ -3762,7 +3493,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
 
     if (pressed & MOUSE_BTN_RIGHT) {
         int clicked_idx = find_top_window_at(mx, my);
-        int desktop_h = (int)current_height - TASKBAR_HEIGHT;
+        int desktop_h = (int)current_height - DOCK_RESERVED_H;
         if (clicked_idx < 0 && mx >= 0 && mx < (int)current_width && my >= 0 && my < desktop_h) {
             desktop_menu_open = 1;
             desktop_menu_x = mx;
@@ -3777,7 +3508,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
         if (error_popup_open) {
             int ew = 264, eh = 94;
             int ex = ((int)current_width - ew) / 2;
-            int ey = (((int)current_height - TASKBAR_HEIGHT) - eh) / 2;
+            int ey = (((int)current_height - DOCK_RESERVED_H) - eh) / 2;
             if (ex < 4) ex = 4;
             if (ey < 4) ey = 4;
             int ok_x = ex + ew - 58;
@@ -3828,10 +3559,13 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             RETURN_MOUSE();
         }
 
+        // Dock: same layout the renderer used, so the hit boxes match the pixels.
+        dock_layout_t dock;
+        dock_compute_layout(&dock);
+
         // Start button
-        int start_y = (int)current_height - TASKBAR_HEIGHT + ((TASKBAR_HEIGHT - START_BTN_H) / 2);
-        if (mx >= START_BTN_X && mx < START_BTN_X + START_BTN_W &&
-            my >= start_y && my < start_y + START_BTN_H) {
+        if (mx >= dock.start_x && mx < dock.start_x + START_BTN_W &&
+            my >= dock.start_y && my < dock.start_y + START_BTN_H) {
             start_menu_open = !start_menu_open;
             desktop_menu_open = 0;
             RETURN_MOUSE();
@@ -3918,7 +3652,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             if (focused->type == WIN_EXPLORER && handle_explorer_click(focused, mx, my)) {
                 RETURN_MOUSE();
             }
-            if (focused->type == WIN_NOTEPAD && handle_notepad_click(focused, mx, my)) {
+            if (focused->type == WIN_NOTEPAD && notepad_app_handle_click(mx, my)) {
                 RETURN_MOUSE();
             }
             RETURN_MOUSE();
@@ -3935,28 +3669,23 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             }
         }
         
-        // Check taskbar
-        int taskbar_y = (int)current_height - TASKBAR_HEIGHT;
-        int taskbtn_y = taskbar_y + ((TASKBAR_HEIGHT - TASKBTN_H) / 2);
-          int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
-          int clock_w = taskbar_clock_width();
-          int clock_x = (int)current_width - clock_w - 4;
-          int strip_left = START_BTN_X + START_BTN_W + 6;
-          int strip_right = clock_x - 6;
-          int task_count = 0;
-          int task_x = taskbar_strip_start(taskbtn_w, strip_left, strip_right, &task_count);
-          for (int i = 0; i < MAX_WINDOWS; i++) {
-              if (windows[i].active) {
-                  if (task_x + taskbtn_w > strip_right) {
-                      break;
-                  }
-                if (mx >= task_x && mx < task_x + taskbtn_w &&
-                    my >= taskbtn_y &&
-                    my < taskbtn_y + TASKBTN_H) {
-                    bring_window_to_front(i);
-                    RETURN_MOUSE();
+        // Task buttons
+        {
+            int taskbtn_y = dock.taskbtn_y;
+            int taskbtn_w = dock.taskbtn_w;
+            int task_x = dock.task_x;
+            int matched = 0;
+            for (int i = 0; i < MAX_WINDOWS && matched < dock.task_count; i++) {
+                if (windows[i].active) {
+                    if (mx >= task_x && mx < task_x + taskbtn_w &&
+                        my >= taskbtn_y &&
+                        my < taskbtn_y + TASKBTN_H) {
+                        bring_window_to_front(i);
+                        RETURN_MOUSE();
+                    }
+                    task_x += taskbtn_w + 2;
+                    matched++;
                 }
-                task_x += taskbtn_w + 2;
             }
         }
     }
@@ -3970,7 +3699,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             int min_w = 160;
             int min_h = 42;
             int max_w = (int)current_width - debug_overlay_x;
-            int max_h = ((int)current_height - TASKBAR_HEIGHT) - debug_overlay_y;
+            int max_h = ((int)current_height - DOCK_RESERVED_H) - debug_overlay_y;
             int new_w = debug_overlay_resize_start_w + (mx - debug_overlay_resize_start_mx);
             int new_h = debug_overlay_resize_start_h + (my - debug_overlay_resize_start_my);
             if (new_w < min_w) new_w = min_w;
@@ -3990,8 +3719,8 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
                     windows[i].x = (int)current_width - windows[i].w;
                 }
                 if (windows[i].x < 0) windows[i].x = 0;
-                if (windows[i].y > (int)current_height - TASKBAR_HEIGHT - 20) {
-                    windows[i].y = (int)current_height - TASKBAR_HEIGHT - 20;
+                if (windows[i].y > (int)current_height - DOCK_RESERVED_H - 20) {
+                    windows[i].y = (int)current_height - DOCK_RESERVED_H - 20;
                 }
                 if (windows[i].y < 0) windows[i].y = 0;
             } else if (windows[i].active && windows[i].resizing) {
@@ -3999,7 +3728,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
                 int min_h = WINDOW_MIN_H_DEFAULT;
                 get_window_min_size(&windows[i], &min_w, &min_h);
                 int max_w = (int)current_width - windows[i].x;
-                int max_h = ((int)current_height - TASKBAR_HEIGHT) - windows[i].y;
+                int max_h = ((int)current_height - DOCK_RESERVED_H) - windows[i].y;
                 int new_w = windows[i].resize_start_w + (mx - windows[i].resize_start_mx);
                 int new_h = windows[i].resize_start_h + (my - windows[i].resize_start_my);
                 if (new_w < min_w) new_w = min_w;
@@ -4027,7 +3756,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
         if (hovered_idx >= 0 && windows[hovered_idx].active) {
             window_t* hovered = &windows[hovered_idx];
             if (hovered->type == WIN_NOTEPAD) {
-                (void)handle_notepad_wheel(hovered, wheel_delta);
+                (void)notepad_app_handle_wheel(wheel_delta);
             } else if (hovered->type == WIN_SETTINGS) {
                 (void)handle_settings_wheel(hovered, mx, my, wheel_delta);
             }
@@ -4048,117 +3777,13 @@ int process_keyboard(void) {
     while (1) {
         char c = keyboard_getchar();
         if (!c) break;
-        
-        if (win->type == WIN_NOTEPAD) {
-            if ((uint8_t)c == KEY_PGUP) {
-                if (!storage_initialized) ensure_storage_initialized();
-                if (storage_initialized) notepad_save_to_storage();
-                changed = 1;
-            } else if ((uint8_t)c == KEY_PGDN) {
-                if (!storage_initialized) ensure_storage_initialized();
-                if (storage_initialized) notepad_load_from_storage();
-                changed = 1;
-            } else if ((uint8_t)c == KEY_DEL) {
-                if (notepad_cursor_x < NOTEPAD_MAX_COLS - 1) {
-                    for (int x = notepad_cursor_x; x < NOTEPAD_MAX_COLS - 1; x++) {
-                        notepad_lines[notepad_cursor_y][x] = notepad_lines[notepad_cursor_y][x + 1];
-                    }
-                    notepad_lines[notepad_cursor_y][NOTEPAD_MAX_COLS - 1] = 0;
-                    notepad_dirty = 1;
-                    changed = 1;
-                }
-            } else if (c == '\b') {
-                if (notepad_cursor_x > 0) {
-                    notepad_cursor_x--;
-                    notepad_lines[notepad_cursor_y][notepad_cursor_x] = 0;
-                    notepad_dirty = 1;
-                    changed = 1;
-                } else if (notepad_cursor_y > 0) {
-                    notepad_cursor_y--;
-                    notepad_cursor_x = NOTEPAD_MAX_COLS - 1;
-                    while (notepad_cursor_x > 0 && !notepad_lines[notepad_cursor_y][notepad_cursor_x - 1]) {
-                        notepad_cursor_x--;
-                    }
-                    notepad_dirty = 1;
-                    changed = 1;
-                }
-            } else if ((uint8_t)c == KEY_LEFT) {
-                if (notepad_cursor_x > 0) {
-                    notepad_cursor_x--;
-                } else if (notepad_cursor_y > 0) {
-                    notepad_cursor_y--;
-                    notepad_cursor_x = NOTEPAD_MAX_COLS - 1;
-                    while (notepad_cursor_x > 0 &&
-                           notepad_lines[notepad_cursor_y][notepad_cursor_x - 1] == 0) {
-                        notepad_cursor_x--;
-                    }
-                }
-                changed = 1;
-            } else if ((uint8_t)c == KEY_RIGHT) {
-                if (notepad_cursor_x < NOTEPAD_MAX_COLS - 1) {
-                    notepad_cursor_x++;
-                } else if (notepad_cursor_y < NOTEPAD_MAX_LINES - 1) {
-                    notepad_cursor_y++;
-                    notepad_cursor_x = 0;
-                }
-                changed = 1;
-            } else if ((uint8_t)c == KEY_UP) {
-                if (notepad_cursor_y > 0) {
-                    notepad_cursor_y--;
-                    if (notepad_cursor_x >= NOTEPAD_MAX_COLS) {
-                        notepad_cursor_x = NOTEPAD_MAX_COLS - 1;
-                    }
-                }
-                changed = 1;
-            } else if ((uint8_t)c == KEY_DOWN) {
-                if (notepad_cursor_y < NOTEPAD_MAX_LINES - 1) {
-                    notepad_cursor_y++;
-                    if (notepad_cursor_x >= NOTEPAD_MAX_COLS) {
-                        notepad_cursor_x = NOTEPAD_MAX_COLS - 1;
-                    }
-                }
-                changed = 1;
-            } else if ((uint8_t)c == KEY_HOME) {
-                notepad_cursor_x = 0;
-                changed = 1;
-            } else if ((uint8_t)c == KEY_END) {
-                int end = 0;
-                while (end < NOTEPAD_MAX_COLS && notepad_lines[notepad_cursor_y][end]) {
-                    end++;
-                }
-                notepad_cursor_x = end;
-                changed = 1;
-            } else if (c == '\n') {
-                notepad_cursor_y++;
-                notepad_cursor_x = 0;
-                if (notepad_cursor_y >= NOTEPAD_MAX_LINES) notepad_cursor_y = NOTEPAD_MAX_LINES - 1;
-                notepad_dirty = 1;
-                changed = 1;
-            } else if (c >= 32 && c < 127) {
-                notepad_lines[notepad_cursor_y][notepad_cursor_x] = c;
-                notepad_cursor_x++;
-                if (notepad_cursor_x >= NOTEPAD_MAX_COLS) {
-                    notepad_cursor_x = 0;
-                    notepad_cursor_y++;
-                    if (notepad_cursor_y >= NOTEPAD_MAX_LINES) notepad_cursor_y = NOTEPAD_MAX_LINES - 1;
-                }
-                notepad_dirty = 1;
-                changed = 1;
-            }
 
-            // Keep edit caret in visible viewport after keyboard movement/editing.
-            if (notepad_cursor_y < notepad_view_top) {
-                notepad_view_top = notepad_cursor_y;
-            } else {
-                int text_top = win->y + 36;
-                int text_bottom = win->y + win->h - 18;
-                int visible_lines = (text_bottom - text_top) / 5;
-                if (visible_lines < 1) visible_lines = 1;
-                if (notepad_cursor_y >= notepad_view_top + visible_lines) {
-                    notepad_view_top = notepad_cursor_y - visible_lines + 1;
-                }
-            }
+        // Notepad owns its own editing keys.
+        if (win->type == WIN_NOTEPAD) {
+            changed |= notepad_app_handle_key(c);
+            continue;
         }
+        
     }
     return changed;
 }
@@ -4200,6 +3825,36 @@ static void cursor_compose_on_backbuffer(int32_t x, int32_t y) {
 }
 
 // Main kernel entry
+// ============================================================================
+// Shell API implementations
+//
+// These are the only entry points standalone apps have into the shell. They stay
+// deliberately thin: the shell owns storage bring-up and GOS:/ path translation,
+// so an app never needs to know whether the volume is on ATA or in RAM.
+// ============================================================================
+
+void shell_ensure_storage_initialized(void) {
+    ensure_storage_initialized();
+}
+
+uint8_t shell_storage_ready(void) {
+    return storage_initialized;
+}
+
+file_t* shell_fs_open(const char* gos_path) {
+    if (!storage_initialized) ensure_storage_initialized();
+    return gos_fs_open_file(gos_path);
+}
+
+file_t* shell_fs_create(const char* gos_path) {
+    if (!storage_initialized) ensure_storage_initialized();
+    return gos_fs_create_file(gos_path);
+}
+
+void shell_raise_error(const char* title, const char* message) {
+    raise_runtime_error(title, message);
+}
+
 void kernel_main(multiboot_info_t* mb_info) {
     serial_init();
     serial_write_string("GamerOS Starting...\n");
@@ -4282,8 +3937,10 @@ void kernel_main(multiboot_info_t* mb_info) {
             }
         }
 
-        mouse_poll();
+        // Keyboard first: both devices share the PS/2 output buffer, and the
+        // mouse drain must never be allowed to consume a keystroke.
         keyboard_poll();
+        mouse_poll();
         
         int32_t raw_mx = mouse_get_x();
         int32_t raw_my = mouse_get_y();
@@ -4407,9 +4064,6 @@ int apps_resolve_launch(const char* exe_name, int* out_win_type, int* out_x, int
 // UI String Helper Stubs (for missing component headers)
 // ============================================================================
 
-static const char* notepad_ui_title(void) {
-    return "Notepad";
-}
 
 
 
@@ -4532,6 +4186,27 @@ static const char* settings_ui_changelog_md_text(void) {
            "  zero-pad flag and a width, and applies them to `%d`, `%i`, `%u`, `%x`, `%X`,\n"
            "  and `%s`, with the sign counted toward the width for signed conversions.\n"
            "  Anything else in the OS that used `%02u` was silently broken in the same way.\n"
+           "- **Fixed the keyboard and mouse starving each other on the PS/2 controller.** The\n"
+           "  keyboard and the auxiliary mouse share one output buffer, and status bit 5 says\n"
+           "  which device a pending byte belongs to. Both poll loops drained on bit 0 alone,\n"
+           "  so `mouse_poll()`, running first each frame, discarded nearly every keystroke\n"
+           "  before `keyboard_poll()` saw it: tracing raw scancodes showed one keypress\n"
+           "  surviving a 60-key burst. Each loop now stops at the device boundary. Typing\n"
+           "  did not work at all before this.\n"
+           "- **Fixed Notepad's line-number gutter clipping.** 22px held two digits, so every\n"
+           "  number from line 100 up lost its leading digit; it is now 30px for 160 rows.\n"
+           "\n"
+           "## Application modularisation\n"
+           "\n"
+           "- **Split Notepad out of `main.c` into its own module.** ~340 lines of editing,\n"
+           "  rendering, storage and input now live in `src/ui/apps/notepad/` behind a small\n"
+           "  public interface. `src/ui/shell/shell_api.h` defines what an app may ask of the\n"
+           "  shell: bring the volume up, test readiness, open or create a `GOS:/` file, raise\n"
+           "  an error. Those implementations are thin, so an app never needs to know whether\n"
+           "  storage is on ATA or in RAM. The shell keeps window chrome, focus and the input\n"
+           "  pump; an app supplies its title, icon, renderer and event handlers and never\n"
+           "  touches a `window_t`. This is a source-layout change, not a new on-disk format.\n"
+           "  File Explorer and Settings are still embedded in `main.c` and are next.\n"
            "\n"
            "## Build Verification\n"
            "- Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.\n"
@@ -4548,6 +4223,11 @@ static const char* settings_ui_changelog_md_text(void) {
            "- File Explorer was driven through the QEMU monitor to confirm the drive block\n"
            "  and the details columns render, and each captured frame was checked for\n"
            "  exceptions: `triple faults: 0` throughout.\n"
+           "- Notepad was verified end to end after being split into its own module: launched\n"
+           "  from the desktop icon, typed into, caret moved with the arrow/Home/End keys, the\n"
+           "  modified indicator flipping between `Modified` and `Saved`, saved with the\n"
+           "  toolbar button, and re-read after a full reboot with the text intact. Storage\n"
+           "  stayed at `files=30 dirs=27` across both boots and `triple faults: 0`.\n"
            "\n"
            "## Storage\n"
            "\n"
@@ -4597,6 +4277,21 @@ static const char* settings_ui_changelog_md_text(void) {
            "  app launch, so a boot log actually reports whether the medium was detected.\n"
            "\n"
            "## UI\n"
+           "\n"
+           "- **Turned the taskbar into a floating dock.** A full-width bar glued to the bottom\n"
+           "  edge is now a rounded panel inset from the sides and bottom, sized to its\n"
+           "  contents and centred, with the wallpaper showing through on all sides. Start,\n"
+           "  the task buttons and the clock live inside it, plus a soft drop shadow. The\n"
+           "  wallpaper now covers the full screen height, so no seam is left where the dock\n"
+           "  used to be, and window placement clamps against the dock's real footprint so the\n"
+           "  taller dock never overlaps window bottoms.\n"
+           "- Dock geometry comes from one `dock_compute_layout` call read by both the\n"
+           "  renderer and the hit tester, so the dock re-centring when windows open or close\n"
+           "  cannot leave click targets out of step with the pixels. The Start menu hangs off\n"
+           "  the dock's left edge instead of the screen corner.\n"
+           "- `vga_fill_rounded_rect` and `vga_draw_rounded_rect` were stubs that ignored\n"
+           "  `radius` and drew plain rectangles. They now round the corners for real,\n"
+           "  clipping to the screen and writing both the indexed and truecolour buffers.\n"
            "\n"
            "- **Added a Windows-style drive block to Explorer \"This PC\".** Each volume now\n"
            "  shows its model, a usage bar, and a capacity line reading\n"
@@ -4693,15 +4388,58 @@ static const char* settings_ui_changelog_md_text(void) {
            "  VMware VMs commonly default to NVMe or SATA and will need those drivers.\n"
            "\n"
            "## Planned\n"
-           "- Visually confirm the Start menu and loading screen under QEMU; the Start menu\n"
-           "  is now verified, and the desktop, taskbar, watermark and Start menu have all\n"
-           "  been captured as rendered frames.\n"
+           "\n"
+           "### Kernel\n"
+           "\n"
+           "- **Populate a real IDT with exception handlers.** `IDT` still reads back as\n"
+           "  `0000000000000000 00000000`, so hardware interrupts work only because the\n"
+           "  firmware descriptor happens to be in place, and any fault triple-faults\n"
+           "  instead of reaching a handler. This is why the `CR4.OSFXSR` bug presented as\n"
+           "  an instant shutdown with no diagnostic at all.\n"
+           "- Add a panic path that prints the fault vector, error code and the registers\n"
+           "  QEMU captured, so a crash is diagnosable from the serial log.\n"
+           "- Replace the polled input loop with PIT/HPET timer-driven frame pacing.\n"
+           "- Add keyboard shortcuts: Alt+Tab window cycling, a Windows key, and Ctrl+Alt+Del.\n"
+           "\n"
+           "### Storage\n"
+           "\n"
            "- Implement an AHCI (SATA) driver so VMware VMs without a legacy IDE controller\n"
            "  can mount a real volume.\n"
            "- Implement an NVMe driver over PCI for the same reason.\n"
-           "- Add a free-sector map so deleted space is reclaimed instead of leaked.\n"
+           "- Add a free-sector map so deleted space is reclaimed instead of leaked, and\n"
+           "  address the fragmentation the append-only allocator produces over time.\n"
+           "- Add a journal so an interrupted metadata write cannot corrupt the volume.\n"
+           "- Stop rewriting the whole file table on every write. `fs_save_metadata()`\n"
+           "  serialises all 256 records on each `fs_write_file()`, so saving a file costs\n"
+           "  the same whether the volume holds three files or three hundred.\n"
+           "- Add rename and move, and make `fs_delete_directory()` refuse non-empty\n"
+           "  directories instead of deleting the entry and orphaning its children.\n"
+           "- Raise the 24 KiB per-file cap in `MAX_FILE_SIZE`, and handle paths that\n"
+           "  exceed the 64-character `MAX_FILENAME_LEN` rather than rejecting them.\n"
+           "- Add a BIOS-style POST screen so storage detection and capacity are visible\n"
+           "  before the desktop loads, instead of only on the serial log.\n"
+           "\n"
+           "### Shell\n"
+           "\n"
+           "- Add Explorer sorting by column. The details view draws Name, Date modified,\n"
+           "  Type and Size, but only the zone dropdown is interactive so far; the reference\n"
+           "  layout shows a sort indicator on the header that does nothing yet.\n"
+           "- Expose create, rename and delete in the Explorer UI. The filesystem already\n"
+           "  has `fs_create_file`, `fs_delete_file` and `fs_delete_directory`; nothing\n"
+           "  calls them.\n"
+           "- Give Notepad open/save dialogs instead of the single fixed file path.\n"
+           "- Taskbar: window previews on hover, overflow grouping, and show-desktop.\n"
+           "- Visually confirm the loading screen; the desktop, taskbar, watermark, Start\n"
+           "  menu and Explorer have all been captured as rendered frames.\n"
+           "\n"
+           "### Settings and time\n"
+           "\n"
            "- Persist Settings state so toggles survive a reboot instead of resetting.\n"
-           "- Replace the polled input loop with PIT/HPET timer-driven frame pacing.\n"
-           "- Complete the USB driver stack; the filesystem currently runs on ATA or RAM.\n";
+           "- Allow the clock to be set. The RTC is read-only today, so the time zone can\n"
+           "  only shift the displayed time; nothing corrects a clock that has drifted.\n"
+           "- Cover the remaining daylight-saving rules. Iran, Chile, and Lord Howe Island\n"
+           "  are approximated by one of the four implemented rules rather than their real\n"
+           "  transitions.\n"
+           "- Remember each Settings tab's scroll position between visits.\n";
 }
 
