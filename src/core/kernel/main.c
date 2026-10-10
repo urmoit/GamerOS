@@ -39,9 +39,15 @@ static const char* settings_ui_changelog_md_text(void);
 #define WIN_EXPLORER APP_WINDOW_EXPLORER
 
 // Desktop shell sizing (compact XP-like layout for 320x200)
+// Compact UI text renders the canonical 8x8 font at its natural advance.
+// Cropping glyphs to 6 of 8 columns (the old behaviour) sheared letters into
+// vertical smears, so both the sample width and the advance are 8.
+#define FONT_CW 8
+#define FONT_CH 8
 #define TASKBAR_HEIGHT         20
 #define START_BTN_X            4
-#define START_BTN_W            52
+// Wide enough for the flag plus "Start" at the full 8px advance (5 * 8 = 40px).
+#define START_BTN_W            64
 #define START_BTN_H            16
 #define DESKTOP_ICON_W         20
 #define DESKTOP_ICON_H         20
@@ -50,9 +56,13 @@ static const char* settings_ui_changelog_md_text(void);
 #define TASKBTN_W              70
 #define TASKBTN_H              16
 #define START_MENU_X           0
-#define START_MENU_W           220
-#define START_MENU_H           164
+// The rail has to fit "Admin" at the full 8px advance (40px) plus padding,
+// otherwise the profile label bled into the content column.
+#define START_MENU_RAIL_W      56
+#define START_MENU_W           248
+#define START_MENU_H           176
 #define START_MENU_ITEM_H      20
+#define START_MENU_ITEMS_TOP   50
 #define WINDOW_RESIZE_GRIP     12
 #define WINDOW_MIN_W_DEFAULT   140
 #define WINDOW_MIN_H_DEFAULT   90
@@ -131,7 +141,7 @@ typedef struct {
     uint8_t color;
     uint8_t indent;
 } markdown_line_t;
-#define SETTINGS_MD_MAX_LINES 256
+#define SETTINGS_MD_MAX_LINES 320
 static markdown_line_t settings_md_lines[SETTINGS_MD_MAX_LINES];
 static int settings_md_line_count = 0;
 static uint8_t settings_md_loaded = 0;
@@ -238,7 +248,7 @@ static int debug_log_count = 0;
 static uint8_t debug_overlay_enabled = 0;
 static int debug_overlay_x = 4;
 static int debug_overlay_y = 4;
-static int debug_overlay_w = 8 + (DEBUG_LOG_CHARS * 6);
+static int debug_overlay_w = 8 + (DEBUG_LOG_CHARS * FONT_CW);
 static int debug_overlay_h = 112;
 static uint8_t debug_overlay_dragging = 0;
 static uint8_t debug_overlay_resizing = 0;
@@ -382,7 +392,26 @@ static file_t* gos_fs_create_file(const char* gos_path) {
 static int taskbar_clock_width(void) {
     int time_chars = setting_show_seconds ? 8 : 5; // HH:MM:SS or HH:MM
     int date_chars = 10; // DD/MM/YYYY
-    return ((time_chars + 1 + date_chars) * 6) + 8;
+    return ((time_chars + 1 + date_chars) * FONT_CW) + 8;
+}
+
+// X of the first task button in the centred strip, plus how many fit. Shared by
+// the taskbar renderer and its click handler: these blocks used to recompute the
+// strip independently, so the hit boxes could silently stop matching the pixels.
+static int taskbar_strip_start(int taskbtn_w, int strip_left, int strip_right,
+                               int* task_count_out) {
+    int task_count = 0;
+    for (int i = 0; i < MAX_WINDOWS; i++) {
+        if (!windows[i].active) continue;
+        if (strip_left + (task_count + 1) * (taskbtn_w + 2) - 2 > strip_right) break;
+        task_count++;
+    }
+    int run_w = task_count * taskbtn_w + (task_count > 0 ? (task_count - 1) * 2 : 0);
+    int strip_w = strip_right - strip_left;
+    int start = strip_left + ((strip_w - run_w) / 2);
+    if (start < strip_left) start = strip_left;
+    if (task_count_out) *task_count_out = task_count;
+    return start;
 }
 
 typedef struct {
@@ -391,6 +420,14 @@ typedef struct {
     int w;
     int h;
     int item_h;
+    // Layout shared by the renderer and the click handler. These used to be
+    // duplicated in both places, which is how the rail and the item rows
+    // drifted out of alignment.
+    int rail_w;
+    int panel_x;
+    int panel_w;
+    int items_top;
+    int item_count;
 } start_menu_metrics_t;
 
 typedef struct {
@@ -737,7 +774,7 @@ static void initialize_storage_layout(void) {
     debug_log_message("Boot: seed system files");
     debug_present_boot_status();
     write_text_file("C:/GamerOS/System32/GAMEROS.INI",
-        "shell=GamerOS\nbuild=1.520\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
+        "shell=GamerOS\nbuild=1.550\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
     write_text_file("C:/Users/Admin/README.TXT", "Welcome to GamerOS user profile.\n");
     write_text_file(NOTEPAD_FILE_PATH, "GamerOS Notepad\n\nType here...\n");
 
@@ -806,20 +843,29 @@ static void shutdown_os(void) {
     outw(0x0604, 0x2000); // Alternate ACPI port forms
 }
 
+// Compact UI text uses the canonical 8x8 bitmap font at its natural 8px advance.
+static int compact_text_width(const char* str) {
+    if (!str) return 0;
+    int n = 0;
+    while (str[n]) n++;
+    return n * FONT_CW;
+}
+
 static void draw_compact_string(int x, int y, const char* str, uint8_t color) {
+    if (!str) return;
     while (*str) {
         uint8_t uc = (uint8_t)(*str);
         if (uc < 32 || uc > 127) uc = (uint8_t)' ';
         const uint8_t* bitmap = font_8x8[uc - 32];
-        for (int row = 0; row < 8; row++) {
+        for (int row = 0; row < FONT_CH; row++) {
             uint8_t row_data = bitmap[row];
-            for (int col = 0; col < 6; col++) {
+            for (int col = 0; col < FONT_CW; col++) {
                 if (row_data & (0x80 >> col)) {
                     draw_pixel(x + col, y + row, color);
                 }
             }
         }
-        x += 6;
+        x += FONT_CW;
         str++;
     }
 }
@@ -831,7 +877,7 @@ static void draw_compact_string_clipped(int x, int y, int max_chars, const char*
         char ch[2];
         ch[0] = str[i];
         ch[1] = 0;
-        draw_compact_string(x + (i * 6), y, ch, color);
+        draw_compact_string(x + (i * FONT_CW), y, ch, color);
         i++;
     }
 }
@@ -857,22 +903,39 @@ static void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
 }
 
 static void draw_desktop_watermark(void) {
-    const char* line1 = "GamerOS 00m2";
-    const char* line2 = "Stability release    Build 1.520";
-    int w1 = (int)strlen(line1) * 6;
-    int w2 = (int)strlen(line2) * 6;
-    int max_w = (w1 > w2) ? w1 : w2;
-    int card_w = max_w + 18;
-    int card_h = 24;
+    const char* brand = "GamerOS 00m2";
+    const char* tag = "Stability release";
+    const char* build = "Build 1.550";
+
+    int brand_w = compact_text_width(brand);
+    int tag_w = compact_text_width(tag);
+    int build_w = compact_text_width(build);
+
+    const int accent_w = 4;
+    const int pad_x = 8;
+    const int gap = FONT_CW;
+
+    // The build badge is right-aligned on the lower row, so the card has to be
+    // as wide as (tag + gap + build) whenever that exceeds the brand line.
+    int brand_row_w = brand_w;
+    int meta_row_w = tag_w + gap + build_w;
+    int inner_w = (brand_row_w > meta_row_w) ? brand_row_w : meta_row_w;
+
+    int card_w = inner_w + pad_x * 2 + accent_w;
+    int card_h = 26;
     int x = (int)current_width - card_w - 10;
     int y = (int)current_height - TASKBAR_HEIGHT - card_h - 10;
     if (x < 6) x = 6;
     if (y < 6) y = 6;
+
     fill_chamfer_rect(x, y, card_w, card_h, XP_WHITE);
     draw_chamfer_rect(x, y, card_w, card_h, XP_DGRAY);
-    fill_rect(x + 1, y + 1, 3, card_h - 2, XP_LBLUE);
-    draw_compact_string(x + 10, y + 5, line1, XP_BLACK);
-    draw_compact_string(x + 10, y + 13, line2, XP_DGRAY);
+    fill_rect(x + 2, y + 3, accent_w - 1, card_h - 6, XP_LBLUE);
+
+    int tx = x + accent_w + pad_x;
+    draw_compact_string(tx, y + 5, brand, XP_BLACK);
+    draw_compact_string(tx, y + 15, tag, XP_DGRAY);
+    draw_compact_string(x + card_w - pad_x - build_w, y + 15, build, XP_DGRAY);
 }
 
 static int wallpaper_is_too_dark(void) {
@@ -1043,6 +1106,7 @@ static void get_start_menu_metrics(start_menu_metrics_t* m) {
     int menu_w = START_MENU_W;
     int menu_h = START_MENU_H;
     int item_h = START_MENU_ITEM_H;
+    int item_count = 5;
     if (menu_w > (int)current_width - 8) menu_w = (int)current_width - 8;
     if (menu_h > (int)current_height - TASKBAR_HEIGHT - 4) menu_h = (int)current_height - TASKBAR_HEIGHT - 4;
     m->x = START_MENU_X;
@@ -1050,6 +1114,13 @@ static void get_start_menu_metrics(start_menu_metrics_t* m) {
     m->h = menu_h;
     m->item_h = item_h;
     m->y = (int)current_height - TASKBAR_HEIGHT - menu_h;
+
+    m->rail_w = START_MENU_RAIL_W;
+    m->panel_x = m->x + m->rail_w + 8;
+    m->panel_w = menu_w - m->rail_w - 14;
+    if (m->panel_w < 8) m->panel_w = 8;
+    m->items_top = m->y + START_MENU_ITEMS_TOP;
+    m->item_count = item_count;
 }
 
 static void get_desktop_menu_metrics(desktop_menu_metrics_t* m) {
@@ -1168,7 +1239,7 @@ static void draw_debug_overlay(void) {
     for (int i = 0; i < visible_rows; i++) {
         int log_idx = start_row + i;
         if (log_idx < 0 || log_idx >= debug_log_count) break;
-        draw_compact_string_clipped(box_x + 10, box_y + 18 + i * 8, (box_w - 16) / 6, debug_log_lines[log_idx], XP_BLACK);
+        draw_compact_string_clipped(box_x + 10, box_y + 18 + i * 8, (box_w - 16) / FONT_CW, debug_log_lines[log_idx], XP_BLACK);
     }
 
     for (int g = 0; g < 4; g++) {
@@ -1333,6 +1404,14 @@ static void settings_md_parse(const char* markdown) {
                 processed_buf[sizeof(processed_buf) - 1] = 0;
                 settings_md_strip_bold_markers(processed_buf);
                 settings_md_add_line(processed_buf, XP_BLACK, 0);
+            } else if (strncmp(line_buf, "> ", 2) == 0) {
+                // Blockquote / callout. Rendered indented and in the accent
+                // colour so warnings stand out instead of reading as a stray
+                // literal '>' in the body text.
+                strncpy(processed_buf, line_buf + 2, sizeof(processed_buf) - 1);
+                processed_buf[sizeof(processed_buf) - 1] = 0;
+                settings_md_strip_bold_markers(processed_buf);
+                settings_md_add_line(processed_buf, XP_BLUE, 8);
             } else if (strncmp(line_buf, "  - ", 4) == 0) {
                 // Nested bullet point (double indented)
                 char nested[160];
@@ -1460,19 +1539,36 @@ static void notepad_save_to_storage(void) {
 static void startup_animation(void) {
     const char* title = "GamerOS";
     const char* subtitle = "Preparing your workspace...";
-    int title_w = (int)strlen(title) * 8;
-    int panel_w = 340;
+    const char* loading_label = "Loading";
+
+    int panel_w = 380;
     if (panel_w > (int)current_width - 24) panel_w = (int)current_width - 24;
-    int panel_h = 120;
-    int title_x = ((int)current_width - title_w) / 2;
-    int title_y = ((int)current_height / 2) - 48;
+    int panel_h = 150;
+    if (panel_h > (int)current_height - 24) panel_h = (int)current_height - 24;
+
     int panel_x = ((int)current_width - panel_w) / 2;
-    int panel_y = title_y - 14;
-    int rail_w = 42;
+    int panel_y = ((int)current_height - panel_h) / 2;
+    if (panel_x < 0) panel_x = 0;
+    if (panel_y < 0) panel_y = 0;
+
+    int rail_w = 46;
     int panel_inner_x = panel_x + rail_w + 12;
-    int panel_inner_w = panel_w - rail_w - 20;
-    int loader_cx = (int)current_width / 2;
-    int loader_cy = panel_y + panel_h - 34;
+    int panel_inner_w = panel_w - rail_w - 24;
+    if (panel_inner_w < 8) panel_inner_w = 8;
+
+    // Title and subtitle hang off the panel's content column. The old code
+    // centred the title on the *screen*, which pushed it out past the panel
+    // edge on anything wider than the panel.
+    int title_x = panel_inner_x;
+    int title_y = panel_y + 12;
+
+    // Spinner sits on its own row with the label beneath it; previously the
+    // label was drawn across the ring at the same y and overwrote the dots.
+    int loader_cx = panel_x + (panel_w / 2);
+    int loader_cy = panel_y + 88;
+    int loading_w = compact_text_width(loading_label);
+    int loading_x = loader_cx - (loading_w / 2);
+    int loading_y = loader_cy + 26;
 
     int bg_h = (int)current_height;
     int frames = 48;
@@ -1508,19 +1604,25 @@ static void startup_animation(void) {
     draw_chamfer_rect(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, XP_DGRAY);
     fill_chamfer_rect(panel_x + 4, panel_y + 4, rail_w, panel_h - 8, XP_LGRAY);
     fill_rect(panel_x + 5, panel_y + 5, rail_w - 2, 2, XP_WHITE);
-    fill_chamfer_rect(panel_x + 13, panel_y + 12, 24, 14, XP_LBLUE);
-    draw_compact_string(panel_x + 21, panel_y + 16, "G", XP_BLACK);
 
+    // Avatar chip, centred in the rail.
+    int chip_w = 24;
+    int chip_x = panel_x + 4 + ((rail_w - chip_w) / 2);
+    fill_chamfer_rect(chip_x, panel_y + 12, chip_w, 14, XP_LBLUE);
+    draw_compact_string(chip_x + ((chip_w - FONT_CW) / 2), panel_y + 15, "G", XP_BLACK);
+
+    // Brand line inside the content column.
     fill_chamfer_rect(panel_inner_x, panel_y + 8, panel_inner_w, 18, XP_WHITE);
     fill_rect(panel_inner_x + 1, panel_y + 9, panel_inner_w - 2, 2, XP_LBLUE);
-    draw_string(title_x, title_y, title, XP_BLACK);
+    draw_compact_string(title_x, title_y, title, XP_BLACK);
 
     fill_chamfer_rect(panel_inner_x, panel_y + 32, panel_inner_w, 14, XP_LGRAY);
     draw_chamfer_rect(panel_inner_x, panel_y + 32, panel_inner_w, 14, XP_DGRAY);
-    draw_compact_string(panel_inner_x + 6, panel_y + 36, subtitle, XP_BLACK);
+    draw_compact_string_clipped(panel_inner_x + 6, panel_y + 36,
+                                (panel_inner_w - 10) / FONT_CW, subtitle, XP_BLACK);
 
-    // Loading text
-    draw_compact_string(loader_cx - 24, loader_cy - 3, "Loading", XP_DGRAY);
+    // Loading label sits below the ring, centred under it.
+    draw_compact_string(loading_x, loading_y, loading_label, XP_DGRAY);
 
     // Pre-compute ring positions
     static const int8_t ring_dx[24] = {
@@ -1717,7 +1819,7 @@ static int draw_settings_toggle(int content_x, int content_w, int row_y,
 
     // State text sits just left of the switch.
     const char* state = is_on ? "On" : "Off";
-    int state_x = toggle_x - 6 - ((int)strlen(state) * 6);
+    int state_x = toggle_x - 6 - ((int)strlen(state) * FONT_CW);
     if (state_x > content_x + 6) {
         draw_compact_string(state_x, row_y + 1, state, is_on ? XP_BLUE : XP_DGRAY);
     }
@@ -1730,7 +1832,7 @@ static int draw_settings_toggle(int content_x, int content_w, int row_y,
 // Returns the Y at which the section body may start.
 static int draw_settings_section(int content_x, int content_w, int y, const char* title) {
     if (y < 0) return y;
-    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / 6, title, XP_BLUE);
+    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, title, XP_BLUE);
     int rule_y = y + 9;
     fill_rect(content_x + 6, rule_y, 12, 1, XP_LBLUE);
     fill_rect(content_x + 20, rule_y, content_w - 26, 1, XP_LGRAY);
@@ -1740,7 +1842,7 @@ static int draw_settings_section(int content_x, int content_w, int y, const char
 // Quieter sub-heading for groups inside a section.
 static int draw_settings_subheader(int content_x, int content_w, int y, const char* title) {
     if (y < 0) return y;
-    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / 6, title, XP_DGRAY);
+    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, title, XP_DGRAY);
     return y + 11;
 }
 
@@ -1748,16 +1850,16 @@ static int draw_settings_subheader(int content_x, int content_w, int y, const ch
 static int draw_settings_kv(int content_x, int content_w, int y,
                             const char* key, const char* value) {
     if (y < 0 || !key || !value) return 11;
-    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / 6, key, XP_DGRAY);
+    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, key, XP_DGRAY);
 
-    int vw = (int)strlen(value) * 6;
+    int vw = (int)strlen(value) * FONT_CW;
     int vx = content_x + content_w - 6 - vw;
     int kx = content_x + 6;
     if (vx > kx + 54) {
         draw_compact_string(vx, y, value, XP_BLACK);
     } else {
         // Not enough room to right-align; place after the key instead.
-        draw_compact_string_clipped(content_x + 50, y, (content_w - 56) / 6, value, XP_BLACK);
+        draw_compact_string_clipped(content_x + 50, y, (content_w - 56) / FONT_CW, value, XP_BLACK);
     }
     return 11;
 }
@@ -1797,7 +1899,7 @@ static int draw_settings_toggle_group(int content_x, int content_w, int y,
 
     int tx = content_x + 10;
     int tw = content_w - 22;
-    int label_chars = (content_w - 60) / 6;
+    int label_chars = (content_w - 60) / FONT_CW;
     if (label_chars < 4) label_chars = 4;
 
     for (int i = 0; i < count; i++) {
@@ -1829,7 +1931,7 @@ static void draw_tool_button(int x, int y, int w, int h, const char* label, int 
     fill_chamfer_rect(x, y, w, h, bg);
     draw_chamfer_rect(x, y, w, h, XP_DGRAY);
     if (enabled) fill_rect(x + 1, y + 1, w - 2, 1, XP_WHITE);
-    int chars = (w - 6) / 6;
+    int chars = (w - 6) / FONT_CW;
     draw_compact_string_clipped(x + 3, y + (h - 8) / 2, chars, label, txt);
 }
 
@@ -1857,7 +1959,7 @@ static void draw_notepad_body(int x, int y, int w, int h, int is_active) {
 
     // Right-aligned modified indicator.
     const char* state = notepad_dirty ? "Modified" : "Saved";
-    int sx = x + w - 6 - ((int)strlen(state) * 6);
+    int sx = x + w - 6 - ((int)strlen(state) * FONT_CW);
     draw_compact_string(sx, tool_y + (btn_h - 8) / 2, state, notepad_dirty ? XP_BLUE : XP_DGRAY);
 
     // Editor surface
@@ -1867,9 +1969,9 @@ static void draw_notepad_body(int x, int y, int w, int h, int is_active) {
     int text_x = x + 5 + 2 + GUTTER_W + 2;
     int text_w = w - 10 - 4 - GUTTER_W - 2;
     if (text_w < 12) text_w = 12;
-    int max_chars = text_w / 6;
+    int max_chars = text_w / FONT_CW;
     if (max_chars > NOTEPAD_MAX_COLS) max_chars = NOTEPAD_MAX_COLS;
-    int max_chars_gutter = (GUTTER_W - 6) / 6;
+    int max_chars_gutter = (GUTTER_W - 6) / FONT_CW;
 
     int lines_shown = (edit_h - 6) / LINE_H;
     if (lines_shown < 1) lines_shown = 1;
@@ -1892,7 +1994,7 @@ static void draw_notepad_body(int x, int y, int w, int h, int is_active) {
         // Line number, dimmed, right-aligned in the gutter.
         char num[8];
         sprintf(num, "%d", i + 1);
-        int nx = x + 5 + 2 + GUTTER_W - 2 - ((int)strlen(num) * 6);
+        int nx = x + 5 + 2 + GUTTER_W - 2 - ((int)strlen(num) * FONT_CW);
         draw_compact_string_clipped(nx, row_y, max_chars_gutter, num, XP_DGRAY);
 
         if (notepad_lines[i][0]) {
@@ -1902,7 +2004,7 @@ static void draw_notepad_body(int x, int y, int w, int h, int is_active) {
 
     // Caret
     if (is_active) {
-        int cx = text_x + notepad_cursor_x * 6;
+        int cx = text_x + notepad_cursor_x * FONT_CW;
         int cy = edit_y + 3 + (notepad_cursor_y - notepad_view_top) * LINE_H;
         if (cy >= edit_y + 3 && cy + LINE_H <= edit_y + edit_h - 1 && cx < x + w - 8) {
             fill_rect(cx, cy, 1, LINE_H - 1, XP_BLACK);
@@ -1917,13 +2019,13 @@ static void draw_notepad_body(int x, int y, int w, int h, int is_active) {
 
     char pos[32];
     sprintf(pos, "Ln %d, Col %d", notepad_cursor_y + 1, notepad_cursor_x + 1);
-    draw_compact_string_clipped(x + 9, status_y + 3, (w - 60) / 6, pos, XP_DGRAY);
+    draw_compact_string_clipped(x + 9, status_y + 3, (w - 60) / FONT_CW, pos, XP_DGRAY);
 
     // File name, right-aligned.
     const char* fname = path_basename(NOTEPAD_FILE_PATH);
-    int fw = (int)strlen(fname) * 6;
+    int fw = (int)strlen(fname) * FONT_CW;
     if (fw < w - 90) {
-        draw_compact_string_clipped(x + w - 8 - fw, status_y + 3, fw / 6 + 1, fname, XP_DGRAY);
+        draw_compact_string_clipped(x + w - 8 - fw, status_y + 3, fw / FONT_CW + 1, fname, XP_DGRAY);
     }
 }
 
@@ -1992,8 +2094,8 @@ void draw_window(window_t* win) {
         draw_chamfer_rect(content_x, content_y, content_w, content_h, XP_DGRAY);
         fill_chamfer_rect(content_x + 1, content_y + 1, content_w - 2, 20, XP_LGRAY);
         fill_rect(content_x + 2, content_y + 2, content_w - 4, 2, XP_LBLUE);
-        draw_compact_string_clipped(content_x + 8, content_y + 7, (content_w - 16) / 6, "Modern Control Center", XP_BLACK);
-        int content_chars = (content_w - 12) / 6;
+        draw_compact_string_clipped(content_x + 8, content_y + 7, (content_w - 16) / FONT_CW, "Modern Control Center", XP_BLACK);
+        int content_chars = (content_w - 12) / FONT_CW;
         if (content_chars < 1) content_chars = 1;
 
         int nav_bottom = nav_y + nav_h;
@@ -2005,7 +2107,7 @@ void draw_window(window_t* win) {
             if (settings_tab == i) {
                 fill_rect(nav_x + 7, ty + 1, 3, 12, XP_WHITE);
             }
-            draw_compact_string_clipped(nav_x + 14, ty + 3, (nav_w - 24) / 6, settings_ui_tab_name(i), XP_BLACK);
+            draw_compact_string_clipped(nav_x + 14, ty + 3, (nav_w - 24) / FONT_CW, settings_ui_tab_name(i), XP_BLACK);
         }
 
         // Reset per-frame hit-box registries. Only the active tab renders, so
@@ -2057,7 +2159,7 @@ void draw_window(window_t* win) {
                     draw_chamfer_rect(rx, ry, rw, 12, XP_DGRAY);
                     // Selection marker.
                     if (selected) fill_rect(rx + 2, ry + 2, 2, 8, XP_WHITE);
-                    draw_compact_string_clipped(rx + 7, ry + 2, (rw - 12) / 6,
+                    draw_compact_string_clipped(rx + 7, ry + 2, (rw - 12) / FONT_CW,
                                                 g_display_profiles[i].label,
                                                 usable ? XP_BLACK : XP_DGRAY);
                     settings_res_hit_y[settings_res_hit_count++] = ry;
@@ -2130,7 +2232,7 @@ void draw_window(window_t* win) {
                     // Bullet marker, then the display name.
                     fill_rect(content_x + 9, ary + 4, 2, 2, XP_LBLUE);
                     draw_compact_string_clipped(content_x + 15, ary + 2,
-                                                (content_w - 60) / 6, app_names[i], XP_BLACK);
+                                                (content_w - 60) / FONT_CW, app_names[i], XP_BLACK);
                 }
                 ry += card_h + 10;
             }
@@ -2244,7 +2346,7 @@ void draw_window(window_t* win) {
                     fill_chamfer_rect(bx, sub_y, sub_w, sub_h, active ? XP_LBLUE : XP_LGRAY);
                     draw_chamfer_rect(bx, sub_y, sub_w, sub_h, XP_DGRAY);
                     if (active) fill_rect(bx + 1, sub_y + 1, sub_w - 2, 2, XP_WHITE);
-                    int chars = (sub_w - 10) / 6;
+                    int chars = (sub_w - 10) / FONT_CW;
                     draw_compact_string_clipped(bx + 5, sub_y + 4, chars, seg_labels[i], XP_BLACK);
                 }
             }
@@ -2267,7 +2369,7 @@ void draw_window(window_t* win) {
             if (top < 0) top = 0;
             settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
 
-            int body_chars = (content_w - 34) / 6;
+            int body_chars = (content_w - 34) / FONT_CW;
             if (body_chars < 8) body_chars = 8;
             for (int r = 0; r < visible; r++) {
                 int idx = start_idx + top + r;
@@ -2305,7 +2407,7 @@ void draw_window(window_t* win) {
         int content_x = x + 10;
         int content_y = y + 62;
         int content_w = w - 20;
-        int content_chars = content_w / 6;
+        int content_chars = content_w / FONT_CW;
         if (content_chars < 1) content_chars = 1;
         char gfx_line[64];
         uint8_t bpp = graphics_get_bpp();
@@ -2315,7 +2417,7 @@ void draw_window(window_t* win) {
                 (unsigned int)bpp,
                 graphics_is_truecolor() ? "RGBA" : "Indexed");
         draw_compact_string_clipped(content_x, content_y + 0, content_chars, "Version: 00m2", XP_BLACK);
-        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.520", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.550", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 24, content_chars, "Design language: GamerOS Modern", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 42, content_chars, "System", XP_DGRAY);
         draw_compact_string_clipped(content_x, content_y + 54, content_chars, "Kernel: x86_64", XP_BLACK);
@@ -2371,7 +2473,7 @@ void draw_window(window_t* win) {
             fill_chamfer_rect(bc_x, tb_y, bc_w, 13, XP_WHITE);
             draw_chamfer_rect(bc_x, tb_y, bc_w, 13, XP_DGRAY);
             const char* crumb = explorer_this_pc_view ? "This PC" : explorer_path;
-            int cc = (bc_w - 8) / 6;
+            int cc = (bc_w - 8) / FONT_CW;
             if (cc < 4) cc = 4;
             draw_compact_string_clipped(bc_x + 4, tb_y + 3, cc, crumb, XP_BLACK);
         }
@@ -2409,7 +2511,7 @@ void draw_window(window_t* win) {
                 fill_chamfer_rect(sb_x + 2, ry, SIDEBAR_W - 4, ROW_H - 1, XP_LBLUE);
             }
             fill_rect(sb_x + 6, ry + 4, 4, 3, active ? XP_WHITE : XP_LBLUE);
-            draw_compact_string_clipped(sb_x + 14, ry + 2, (SIDEBAR_W - 18) / 6,
+            draw_compact_string_clipped(sb_x + 14, ry + 2, (SIDEBAR_W - 18) / FONT_CW,
                                         explorer_quick_label(i), XP_BLACK);
         }
 
@@ -2421,7 +2523,7 @@ void draw_window(window_t* win) {
         draw_chamfer_rect(list_x, body_y, list_w, body_h, XP_DGRAY);
 
         fill_rect(list_x + 2, body_y + 2, list_w - 4, 9, XP_LGRAY);
-        draw_compact_string_clipped(list_x + 6, body_y + 3, (list_w - 12) / 6, "Name", XP_BLACK);
+        draw_compact_string_clipped(list_x + 6, body_y + 3, (list_w - 12) / FONT_CW, "Name", XP_BLACK);
         fill_rect(list_x + 2, body_y + 11, list_w - 4, 1, XP_DGRAY);
 
         explorer_list_x = list_x;
@@ -2431,7 +2533,7 @@ void draw_window(window_t* win) {
         explorer_list_hit_count = 0;
 
         int row_y0 = body_y + 14;
-        int name_chars = (list_w - 24) / 6;
+        int name_chars = (list_w - 24) / FONT_CW;
         if (name_chars < 6) name_chars = 6;
         int rows_visible = (body_h - 18) / ROW_H;
         if (rows_visible < 1) rows_visible = 1;
@@ -2478,10 +2580,10 @@ void draw_window(window_t* win) {
             char count_line[48];
             int n = explorer_this_pc_view ? explorer_drive_count : explorer_entry_count;
             sprintf(count_line, "%d item%s", n, n == 1 ? "" : "s");
-            draw_compact_string_clipped(x + 11, status_y + 2, (w - 70) / 6, count_line, XP_DGRAY);
+            draw_compact_string_clipped(x + 11, status_y + 2, (w - 70) / FONT_CW, count_line, XP_DGRAY);
 
             const char* right = explorer_this_pc_view ? "Computer" : path_basename(explorer_path);
-            int rw = (int)strlen(right) * 6;
+            int rw = (int)strlen(right) * FONT_CW;
             if (rw < w - 90) {
                 draw_compact_string(x + w - 10 - rw, status_y + 2, right, XP_DGRAY);
             }
@@ -2564,45 +2666,57 @@ static void draw_start_menu(void) {
     int menu_h = sm.h;
     int menu_y = sm.y;
     int item_h = sm.item_h;
+    int rail_w = sm.rail_w;
+    int panel_x = sm.panel_x;
+    int panel_w = sm.panel_w;
+    int items_top = sm.items_top;
 
     // Modern light panel style (wider, cleaner spacing, larger action rows).
     fill_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_WHITE);
     draw_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_LGRAY);
     draw_chamfer_rect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, XP_DGRAY);
 
-    int rail_w = 42;
-    int panel_x = menu_x + rail_w + 8;
-    int panel_w = menu_w - rail_w - 14;
-    int items_top = menu_y + 46;
-
-    // Left profile rail + avatar chip.
+    // Left profile rail + avatar chip. The chip and both labels are centred on
+    // the rail's own centre line rather than at fixed offsets.
     fill_chamfer_rect(menu_x + 4, menu_y + 4, rail_w, menu_h - 8, XP_LGRAY);
     fill_rect(menu_x + 5, menu_y + 5, rail_w - 2, 2, XP_LBLUE);
-    fill_chamfer_rect(menu_x + 11, menu_y + 10, 28, 16, XP_WHITE);
-    draw_chamfer_rect(menu_x + 11, menu_y + 10, 28, 16, XP_DGRAY);
-    draw_compact_string(menu_x + 21, menu_y + 15, "A", XP_BLACK);
-    draw_compact_string(menu_x + 13, menu_y + 34, "Admin", XP_BLACK);
-    draw_compact_string(menu_x + 9, menu_y + 46, "Profile", XP_DGRAY);
+
+    int rail_cx = menu_x + 4 + (rail_w / 2);
+    int chip_w = 28;
+    int chip_x = rail_cx - (chip_w / 2);
+    fill_chamfer_rect(chip_x, menu_y + 12, chip_w, 16, XP_WHITE);
+    draw_chamfer_rect(chip_x, menu_y + 12, chip_w, 16, XP_DGRAY);
+    draw_compact_string(chip_x + ((chip_w - FONT_CW) / 2), menu_y + 16, "A", XP_BLACK);
+
+    int rail_label_chars = (rail_w - 8) / FONT_CW;
+    draw_compact_string_clipped(rail_cx - (compact_text_width("Admin") / 2), menu_y + 36,
+                                rail_label_chars, "Admin", XP_BLACK);
+    draw_compact_string_clipped(rail_cx - (compact_text_width("Profile") / 2), menu_y + 47,
+                                rail_label_chars, "Profile", XP_DGRAY);
 
     // Header + search strip.
     fill_chamfer_rect(panel_x, menu_y + 4, panel_w, 20, XP_WHITE);
     fill_rect(panel_x + 1, menu_y + 5, panel_w - 2, 2, XP_LBLUE);
-    draw_string(panel_x + 6, menu_y + 10, "GamerOS", XP_BLACK);
-    draw_compact_string(panel_x + 74, menu_y + 11, "Launchpad", XP_DGRAY);
+    draw_compact_string(panel_x + 6, menu_y + 10, "GamerOS", XP_BLACK);
+    // Place "Launchpad" after the brand with a real gap instead of a magic x.
+    int header_chars = (panel_w - 12) / FONT_CW;
+    draw_compact_string_clipped(panel_x + 6 + (compact_text_width("GamerOS") + FONT_CW),
+                                menu_y + 11, header_chars, "Launchpad", XP_DGRAY);
+
     fill_chamfer_rect(panel_x, menu_y + 28, panel_w, 14, XP_LGRAY);
     draw_chamfer_rect(panel_x, menu_y + 28, panel_w, 14, XP_DGRAY);
-    draw_compact_string(panel_x + 6, menu_y + 32, "Search apps", XP_BLACK);
+    draw_compact_string_clipped(panel_x + 6, menu_y + 32, header_chars, "Search apps", XP_DGRAY);
 
     // Menu items
-    const char* items[] = {
+    static const char* items[] = {
         "Notepad",
         "Settings",
         "File Explorer",
         "GamerOS Update",
         "About GamerOS"
     };
-    int item_count = 5;
-    int text_chars = (panel_w - 24) / 6;
+    int item_count = sm.item_count;
+    int text_chars = (panel_w - 24) / FONT_CW;
     if (text_chars < 1) text_chars = 1;
     for (int i = 0; i < item_count; i++) {
         int iy = items_top + i * item_h;
@@ -2613,10 +2727,11 @@ static void draw_start_menu(void) {
         draw_compact_string_clipped(panel_x + 22, iy + 6, text_chars, items[i], XP_BLACK);
     }
 
-    fill_chamfer_rect(panel_x, menu_y + menu_h - 24, panel_w, 16, XP_LGRAY);
-    draw_chamfer_rect(panel_x, menu_y + menu_h - 24, panel_w, 16, XP_DGRAY);
-    fill_rect(panel_x + 1, menu_y + menu_h - 23, panel_w - 2, 2, XP_LBLUE);
-    draw_compact_string(panel_x + 8, menu_y + menu_h - 20, "Shut Down", XP_BLACK);
+    int shutdown_y = menu_y + menu_h - 24;
+    fill_chamfer_rect(panel_x, shutdown_y, panel_w, 16, XP_LGRAY);
+    draw_chamfer_rect(panel_x, shutdown_y, panel_w, 16, XP_DGRAY);
+    fill_rect(panel_x + 1, shutdown_y + 1, panel_w - 2, 2, XP_LBLUE);
+    draw_compact_string(panel_x + 8, shutdown_y + 4, "Shut Down", XP_BLACK);
 }
 
 static void draw_desktop_context_menu(void) {
@@ -2656,8 +2771,8 @@ static void draw_error_popup(void) {
     fill_chamfer_rect(x + 2, y + 2, w - 4, 16, XP_LBLUE);
     draw_compact_string(x + 8, y + 6, error_popup_title, XP_BLACK);
 
-    draw_compact_string_clipped(x + 8, y + 26, (w - 16) / 6, error_popup_message, XP_BLACK);
-    draw_compact_string_clipped(x + 8, y + 38, (w - 16) / 6, "Check serial log for details.", XP_DGRAY);
+    draw_compact_string_clipped(x + 8, y + 26, (w - 16) / FONT_CW, error_popup_message, XP_BLACK);
+    draw_compact_string_clipped(x + 8, y + 38, (w - 16) / FONT_CW, "Check serial log for details.", XP_DGRAY);
 
     fill_chamfer_rect(x + w - 58, y + h - 22, 46, 14, XP_WHITE);
     draw_chamfer_rect(x + w - 58, y + h - 22, 46, 14, XP_DGRAY);
@@ -2674,7 +2789,7 @@ void draw_desktop(void) {
         int x = desktop_icons[i].x;
         int y = desktop_icons[i].y;
         draw_desktop_icon(x, y, desktop_icons[i].window_type);
-        int label_w = (int)strlen(desktop_icons[i].label) * 6;
+        int label_w = (int)strlen(desktop_icons[i].label) * FONT_CW;
         int label_x = x + (DESKTOP_ICON_W / 2) - (label_w / 2);
         fill_chamfer_rect(label_x - 4, y + DESKTOP_ICON_H + 1, label_w + 8, 12, XP_WHITE);
         draw_chamfer_rect(label_x - 4, y + DESKTOP_ICON_H + 1, label_w + 8, 12, XP_DGRAY);
@@ -2695,16 +2810,21 @@ void draw_desktop(void) {
     fill_rect(0, taskbar_y, current_width, 2, XP_WHITE);
     fill_rect(0, taskbar_y + TASKBAR_HEIGHT - 2, current_width, 2, XP_DGRAY);
 
-    // Start button (center text inside the button using compact font for consistent metrics)
-    fill_chamfer_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_WHITE);
+    // Start button. The flag sits in its own gutter and the label is centred
+    // in the space that remains, so the text cannot spill past the border.
+    const char* start_label = "Start";
+    const int start_flag_w = 12;
+    fill_chamfer_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H,
+                      start_menu_open ? XP_LBLUE : XP_WHITE);
     fill_rect(START_BTN_X + 1, start_y + 1, START_BTN_W - 2, 2, XP_LBLUE);
-    fill_rect(START_BTN_X + 6, start_y + 4, 4, 8, XP_LBLUE);
+    fill_rect(START_BTN_X + 5, start_y + 4, 4, 8, XP_LBLUE);
     draw_chamfer_rect(START_BTN_X, start_y, START_BTN_W, START_BTN_H, XP_DGRAY);
     {
-        const char* start_label = "Start";
-        int start_text_w = (int)strlen(start_label) * 6;
-        int start_text_x = START_BTN_X + 14 + ((START_BTN_W - 14 - start_text_w) / 2);
-        int start_text_y = start_y + (START_BTN_H - 8) / 2;
+        int start_text_w = compact_text_width(start_label);
+        int start_text_area_x = START_BTN_X + start_flag_w;
+        int start_text_area_w = START_BTN_W - start_flag_w - 4;
+        int start_text_x = start_text_area_x + ((start_text_area_w - start_text_w) / 2);
+        int start_text_y = start_y + ((START_BTN_H - FONT_CH) / 2);
         draw_compact_string(start_text_x, start_text_y, start_label, XP_BLACK);
     }
 
@@ -2717,17 +2837,30 @@ void draw_desktop(void) {
     draw_error_popup();
     draw_debug_overlay();
     
-    // Taskbar items
+    // Taskbar items. The strip is centred in the space between the Start
+    // button and the clock instead of starting at a hardcoded x, which used to
+    // leave a large dead gap on wide displays.
     int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
-    int task_x = 56;
     int clock_w = taskbar_clock_width();
     int clock_h = TASKBTN_H;
     int clock_x = (int)current_width - clock_w - 4;
     int clock_y = taskbar_y + ((TASKBAR_HEIGHT - clock_h) / 2);
-    int task_right_limit = clock_x - 4;
+
+    int strip_left = START_BTN_X + START_BTN_W + 6;
+    int strip_right = clock_x - 6;
+
+    // Count the visible task buttons so the run can be centred as a group.
+    int task_count = 0;
+    int task_x = taskbar_strip_start(taskbtn_w, strip_left, strip_right, &task_count);
+
+    // Longest label that fits inside a task button, minus its side padding.
+    int task_chars = (taskbtn_w - 8) / FONT_CW;
+    if (task_chars < 1) task_chars = 1;
+    if (task_chars > 12) task_chars = 12;
+
     for (int i = 0; i < MAX_WINDOWS; i++) {
         if (windows[i].active) {
-            if (task_x + taskbtn_w > task_right_limit) {
+            if (task_x + taskbtn_w > strip_right) {
                 break;
             }
             if (i == active_window) {
@@ -2740,13 +2873,15 @@ void draw_desktop(void) {
                 fill_rect(task_x + 1, taskbtn_y + 1, taskbtn_w - 2, 2, XP_WHITE);
             }
 
-            char task_text[9];
             size_t len = strlen(windows[i].title);
-            if (len > 8) len = 8;
-            strncpy(task_text, windows[i].title, len);
+            if ((int)len > task_chars) len = (size_t)task_chars;
+            char task_text[16];
+            if (len > 0) {
+                strncpy(task_text, windows[i].title, len);
+            }
             task_text[len] = 0;
-            int tx = task_x + (taskbtn_w - ((int)len * 6)) / 2;
-            int ty = taskbtn_y + (TASKBTN_H - 8) / 2;
+            int tx = task_x + ((taskbtn_w - ((int)len * FONT_CW)) / 2);
+            int ty = taskbtn_y + ((TASKBTN_H - FONT_CH) / 2);
             draw_compact_string(tx, ty, task_text, XP_BLACK);
             task_x += taskbtn_w + 2;
         }
@@ -2787,7 +2922,7 @@ void draw_desktop(void) {
     draw_chamfer_rect(clock_x, clock_y, clock_w, clock_h, XP_DGRAY);
     fill_rect(clock_x + 1, clock_y + 1, clock_w - 2, 2, XP_LBLUE);
     {
-        int clock_text_w = ((int)strlen(datetime_str)) * 6;
+        int clock_text_w = ((int)strlen(datetime_str)) * FONT_CW;
         int clock_text_x = clock_x + (clock_w - clock_text_w) / 2;
         int clock_text_y = clock_y + (clock_h - 8) / 2;
         draw_compact_string(clock_text_x, clock_text_y, datetime_str, XP_BLACK);
@@ -3134,13 +3269,12 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             int menu_h = sm.h;
             int menu_y = sm.y;
             int menu_item_h = sm.item_h;
-            int rail_w = 42;
-            int panel_x = menu_x + rail_w + 8;
-            int panel_w = menu_w - rail_w - 14;
-            int items_top = menu_y + 46;
+            int panel_x = sm.panel_x;
+            int panel_w = sm.panel_w;
+            int items_top = sm.items_top;
             if (mx >= menu_x && mx < menu_x + menu_w && my >= menu_y && my < menu_y + menu_h) {
                 if (mx >= panel_x && mx < panel_x + panel_w &&
-                    my >= items_top && my < items_top + menu_item_h * 5) {
+                    my >= items_top && my < items_top + menu_item_h * sm.item_count) {
                     int idx = (my - items_top) / menu_item_h;
                     if (idx == 0) {
                         launch_application_exe("NOTEPAD.EXE", -1, -1);
@@ -3227,16 +3361,18 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
         // Check taskbar
         int taskbar_y = (int)current_height - TASKBAR_HEIGHT;
         int taskbtn_y = taskbar_y + ((TASKBAR_HEIGHT - TASKBTN_H) / 2);
-        int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
-        int task_x = 56;
-        int clock_w = taskbar_clock_width();
-        int clock_x = (int)current_width - clock_w - 4;
-        int task_right_limit = clock_x - 4;
-        for (int i = 0; i < MAX_WINDOWS; i++) {
-            if (windows[i].active) {
-                if (task_x + taskbtn_w > task_right_limit) {
-                    break;
-                }
+          int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
+          int clock_w = taskbar_clock_width();
+          int clock_x = (int)current_width - clock_w - 4;
+          int strip_left = START_BTN_X + START_BTN_W + 6;
+          int strip_right = clock_x - 6;
+          int task_count = 0;
+          int task_x = taskbar_strip_start(taskbtn_w, strip_left, strip_right, &task_count);
+          for (int i = 0; i < MAX_WINDOWS; i++) {
+              if (windows[i].active) {
+                  if (task_x + taskbtn_w > strip_right) {
+                      break;
+                  }
                 if (mx >= task_x && mx < task_x + taskbtn_w &&
                     my >= taskbtn_y &&
                     my < taskbtn_y + TASKBTN_H) {
@@ -3725,244 +3861,99 @@ static const char* settings_ui_changelog_md_path(void) {
 }
 
 static const char* settings_ui_changelog_md_text(void) {
-    return            "# GamerOS Changelog (2026-10-10)\n"
+    return            "# GamerOS Changelog (2026-10-11)\n"
            "\n"
-           "This changelog records the build-system, correctness, and stability fixes applied\n"
-           "after build 1.500. Most of these were latent defects that only surfaced once the\n"
-           "project was actually compiled — the tree did not build at all before this cycle.\n"
+           "> **WORK IN PROGRESS — DO NOT SHIP.** Build 1.550 is unfinished, and some of\n"
+           "> the entries below are only compile-verified. Treat this as a running log.\n"
+           "\n"
+           "Build 1.550 takes the shell rendered by 1.520 and repairs how text is drawn, then\n"
+           "rebuilds the four always-visible surfaces — taskbar, Start menu, desktop watermark\n"
+           "and boot screen — on top of that fix.\n"
            "\n"
            "## Release\n"
            "- Version: `00m2`\n"
-           "- Build: `1.520`\n"
-           "- Date: `2026-10-10`\n"
+           "- Build: `1.550` (in progress)\n"
+           "- Date: `2026-10-11`\n"
+           "- Status: **Unreleased.** Work in progress; still being verified.\n"
            "\n"
            "## Build Verification\n"
-           "- First verified clean compile and ISO build using the containerized toolchain\n"
-           "  (`config/buildenv/Dockerfile`).\n"
-           "- Result: **zero errors, zero warnings, zero undefined symbols**.\n"
-           "- Output: `dist/x86_64/kernel.iso` (5.5 MB, Multiboot compatible).\n"
            "\n"
-           "## Critical — Build Blockers\n"
-           "\n"
-           "- **Fixed the kernel failing to compile.** `back_buffer_rgb` was declared `static`\n"
-           "  in `vga_graphics.c`, but `main.c` dereferenced it directly in four places, so\n"
-           "  every translation unit failed. Added a bounds-checked `graphics_get_rgb_row(int y)`\n"
-           "  accessor and declared it in `graphics.h`, keeping the buffer private.\n"
-           "- **Fixed conflicting `draw_string` declarations.** `graphics.h` declared it with\n"
-           "  `int` coordinates while `ui.h` redeclared it with `uint32_t`, which is a hard\n"
-           "  compile error wherever both headers are included. Removed the duplicate\n"
-           "  declaration from `ui.h`.\n"
-           "- **Fixed `kmalloc`/`kfree` being declared but never defined.** The executive\n"
-           "  layer (`object_manager.c`, `gdi.c`) and the widget toolkit call them, so that\n"
-           "  code could never have linked. Implemented a real first-fit allocator in\n"
-           "  `src/core/kernel/mm.c` over a 1 MB static arena, with block validation and\n"
-           "  double-free rejection via a block magic value.\n"
-           "- **Fixed the Makefile pattern rule pointing at a deleted directory.** It\n"
-           "  referenced `$(SRC_DIR)/impl/`, which no longer exists. Repointed it at\n"
-           "  `$(SRC_DIR)/`.\n"
-           "- **Removed an empty `settings_ui.c`** (0 bytes) from the build; it produced a\n"
-           "  useless object file.\n"
-           "- **Repaired `Makefile.wsl`.** It referenced nine source files that do not exist\n"
-           "  in the tree (`core/hal/hal.c`, `cpu/gdt.c`, `interrupts/{idt,isr}.c`,\n"
-           "  `io/ports.c`, `interrupts/isr.asm`, `cpu/context_switch.asm`) and could not\n"
-           "  build at all. Rewritten to mirror the real, working source set.\n"
-           "\n"
-           "## Memory Safety\n"
-           "\n"
-           "- **Fixed an out-of-bounds read in `fs_write_file()`.** When the payload exceeded\n"
-           "  the reserved sector run, the function inflated `file->size` to the full\n"
-           "  reserved size regardless of the real data length. The trailing sector loop then\n"
-           "  `memcpy`'d past the caller's buffer. This was reachable from the shell's\n"
-           "  in-OS changelog viewer, which writes a ~11 KB string through this path.\n"
-           "- **Fixed a container teardown leak in `ui_widgets.c`.** `ui_destroy_widget()`\n"
-           "  freed the container but never its children, leaking the whole subtree on every\n"
-           "  window/panel destroy.\n"
-           "- **Fixed a division by zero in progress-bar rendering** when `max_value` equalled\n"
-           "  `min_value`. Also clamps the computed width so it cannot exceed the bar.\n"
-           "- **Fixed an unbounded textbox append.** Keyboard input wrote into a fixed 256-byte\n"
-           "  buffer with no real capacity check. Now performs a bounded append and honours\n"
-           "  the cursor position.\n"
-           "- **Fixed an out-of-bounds array read in the scaled 32bpp present path.** When the\n"
-           "  logical resolution differed from the native framebuffer, `swap_buffers()` copied\n"
-           "  a full native-width row from a narrower logical row, walking into the next row\n"
-           "  and past the buffer on the final row. Now scales horizontally as well.\n"
-           "- **Fixed `&windows[-1]` being formed** when `active_window` was `-1`.\n"
-           "- **Fixed `uint32_t`-to-`int` truncation** in the window drag clamp, which could\n"
-           "  assign a huge unsigned value to a signed coordinate.\n"
-           "\n"
-           "## Boot Stability\n"
-           "\n"
-           "- **Eliminated 4,080 spurious NASM warnings.** `align 4096` inside the `.bss`\n"
-           "  section emits fill bytes, which NASM rejects — once per padding byte. Switched\n"
-           "  the three page-table alignments to `alignb`, which needs no fill.\n"
-           "- **Fixed a VGA blanking bug in `boot.asm`.** Both graphics-controller setup loops\n"
-           "  wrote `0x00` to GC register 8, the plane bit mask, disabling all plane writes.\n"
-           "  Now writes `0xFF`.\n"
-           "- **Fixed a missing glyph in `font.inc`.** The Space character had no `db` data,\n"
-           "  shifting every glyph in the table by one. The table is now a correct 96 glyphs\n"
-           "  (32-127). Also gave `~` a real glyph instead of a blank one, in both the\n"
-           "  assembly and C font tables.\n"
-           "- **Made the boot font include path independent of the working directory.** It\n"
-           "  relied on being invoked from `tools/`. Now resolved through a `-I` include path.\n"
-           "\n"
-           "## Driver Hardening (Boot Hangs)\n"
-           "\n"
-           "- **Bounded the serial port waits.** `serial_putchar()` and `serial_read()` spun\n"
-           "  forever when no UART was present. Both now time out; `serial_putchar()` writes\n"
-           "  the byte and returns rather than blocking indefinitely.\n"
-           "- **Bounded the PS/2 mouse command waits.** `mouse_send_cmd()` contained two\n"
-           "  `while (inb(...) & 0x02);` loops that would hang forever with no controller.\n"
-           "- **Added real PS/2 mouse presence detection.** `mouse_init()` now probes the\n"
-           "  controller and records availability via a new `mouse_is_present()`; the handler\n"
-           "  returns early when absent. The previous code claimed to verify presence but did\n"
-           "  not, despite the changelog stating it did.\n"
-           "- **Added acknowledgement draining** between mouse commands so stale replies do not\n"
-           "  desynchronise the command stream.\n"
-           "- **Bounded the keyboard drain loop in `keyboard_init()`**, which could spin\n"
-           "  indefinitely on a noisy controller.\n"
-           "- **Added a timeout for the keyboard extended-key prefix.** A `0xE0` prefix whose\n"
-           "  follow-up scancode never arrived could leave the next real key misinterpreted\n"
-           "  as extended.\n"
-           "- **Added RTC update-in-progress handling.** The RTC now waits out an in-progress\n"
-           "  update and retries on unstable reads, preventing garbled clock values.\n"
-           "- **Fixed integer overflow in the VMware backdoor.** Coordinates were scaled with\n"
-           "  a 32-bit multiply that wrapped. Now scaled in 64-bit with proper clamping, and\n"
-           "  the absolute-pointer status/data reads follow a consistent protocol.\n"
-           "\n"
-           "## Correctness\n"
-           "\n"
-           "- **Fixed `graphics_get_bpp()` reporting the wrong colour depth.** It returned 16\n"
-           "  for the indexed fallback path, but the kernel programs VGA mode 12h\n"
-           "  (640x480x16 planar = 4bpp). Settings and About now report the true value.\n"
-           "- **Fixed the Explorer's click targets not matching what was drawn.** Hit testing\n"
-           "  used row offsets (`y+44`) that disagreed with the rendered rows (`y+58`), so\n"
-           "  clicks selected the wrong entry. Geometry re-derived from the draw code, and the\n"
-           "  highlight rectangle now aligns with the list pane.\n"
-           "- **Fixed three duplicated and conflicting Settings click handlers.** The System\n"
-           "  page had three separate blocks handling the same toggles with three different\n"
-           "  offset schemes, so behaviour depended on which block matched first. Consolidated\n"
-           "  into one handler whose geometry matches the rendered rows.\n"
-           "- **Fixed a nav-row offset drift in Settings.** Tabs were drawn at `nav_y + 28` but\n"
-           "  hit-tested at `nav_y + 22`, so every tab selection was off by one row.\n"
-           "- **Guarded Settings against short windows.** Nav rows and display-profile rows\n"
-           "  could overflow a small window and draw over the taskbar.\n"
-           "- **Fixed the PCI USB log rows drawing off-screen** and removed an unused variable.\n"
-           "  Row calculation no longer mixes bus and device indices incorrectly.\n"
-           "- **Fixed `ui.c` clipping to a hardcoded 320x200** while the shell runs at 640x480,\n"
-           "  truncating all text and gradients.\n"
-           "- **Made `ui.c` screen-size agnostic** throughout, and removed an underflow risk in\n"
-           "  the desktop hill renderer at small heights.\n"
-           "\n"
-           "## Build and Tooling\n"
-           "\n"
-           "- **Fixed the ISO staging path.** It wrote to `/tmp`, which is unreliable on the\n"
-           "  Windows/MSYS2 hosts the project targets. Now stages inside the build tree.\n"
-           "- **Fixed all batch scripts running `make` from the wrong directory**, so builds\n"
-           "  failed unless invoked from `tools/`. They now resolve their own location.\n"
-           "- **Fixed a stale `%errorlevel%` bug in `run-qemu.bat` and `debug.bat`.** Inside a\n"
-           "  parenthesised block, `%errorlevel%` expands at parse time, so the QEMU\n"
-           "  `where` check was testing a pre-existing value. Now uses `if not errorlevel 1`.\n"
-           "- **Added `mm.o` to the Makefile** for the new allocator.\n"
-           "- **Stopped including `io.h` alongside `ports.h`** in `main.c`; they duplicate the\n"
-           "  same port I/O prototypes.\n"
-           "- **Parenthesised `HEAP_SIZE`** in `mm.h` so the macro is safe in expressions.\n"
-           "\n"
-           "## Executive Layer\n"
-           "\n"
-           "- **Resolved a symbol collision.** The executive filesystem manager defined\n"
-           "  `fs_open_file`, `fs_read_file`, `fs_create_file`, and others with entirely\n"
-           "  different signatures from the real ones in `fs.h`. If both had ever been linked,\n"
-           "  this would have been a hard conflict. Renamed to `exec_fs_*`.\n"
-           "- **Fixed a duplicate `mouse_state_t` typedef** in the executive mouse driver by\n"
-           "  including the shared `<mouse.h>`.\n"
-           "- **Made `get_object()` reject `INVALID_HANDLE` explicitly** rather than relying\n"
-           "  on the range check alone.\n"
+           "- Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.\n"
+           "  Updated in the `GAMEROS.INI` written at boot, the Settings About page, the\n"
+           "  desktop watermark, and `README.md`.\n"
+           "- Compile-verified: zero warnings, zero errors, zero undefined symbols.\n"
+           "- Booted under QEMU and confirmed the desktop shell renders, including the\n"
+           "  desktop icons, taskbar, and watermark.\n"
            "\n"
            "## UI\n"
            "\n"
-           "- **Redesigned Notepad.** The old layout drew text across `y+54 .. y+h-26` while\n"
-           "  the white editor surface only covered `y+54 .. y+h-82`, so **text overflowed the\n"
-           "  editor and ran into the status bar**; the visible-line count was derived from\n"
-           "  the same mismatched bounds. Notepad now has a toolbar with a working Save\n"
-           "  button, a line-numbered gutter, a status bar showing `Ln/Col` and the file\n"
-           "  name, and a caret that cannot be drawn outside the editor.\n"
-           "- **Redesigned File Explorer.** Replaced the duplicate title, raw path text, and\n"
-           "  `[DIR] ` prefixes with a toolbar, breadcrumb, folder/file markers, a column\n"
-           "  header, selection highlighting, and a status bar showing the item count.\n"
-           "- **Made the Explorer actually navigable.** Back and Forward now work via a real\n"
-           "  navigation history, Up is disabled at the filesystem root, and the Quick Access\n"
-           "  entries for Documents and Downloads navigate instead of doing nothing.\n"
-           "  Previously only \"This PC\" responded and the other rows were inert text that\n"
-           "  looked clickable.\n"
-           "- Removed four UI string stubs the redesign made unused.\n"
-           "- **Fixed the GamerOS Update view switch appearing broken.** The changelog and\n"
-           "  roadmap views rendered identical content because the roadmap split is keyed off\n"
-           "  a `## Planned` heading, and the 1.520 changelog had none. Restored the heading,\n"
-           "  and the view switch now shows genuinely different documents.\n"
-           "- **Made the roadmap split resilient.** The parser now recognises `Planned`,\n"
-           "  `Roadmap`, or `Upcoming`, so renaming the heading cannot silently collapse the\n"
-           "  two views again.\n"
-           "- **Show an explicit notice** when a view has no entries, instead of silently\n"
-           "  duplicating the other document.\n"
-           "- **Raised `MAX_FILE_SIZE` from 12KB to 24KB.** The full release changelog no\n"
-           "  longer overflows the per-file cap. The generator now reads this constant from\n"
-           "  `fs.h` rather than hardcoding it, so the two cannot drift. Sector budget\n"
-           "  re-checked: 48 reserved sectors per file x 32 files = 1536 of 4096.\n"
+           "- **Fixed the UI text renderer, which was shearing every letter.** `draw_compact_string()`\n"
+           "  sampled only the **left 6 of the 8 columns** of each glyph\n"
+           "  (`row_data & (0x80 >> col)` for `col` 0-5) while advancing the pen by only 6px.\n"
+           "  The right side of every glyph was discarded and the following glyph then\n"
+           "  overdrew 2px of it, so compact text rendered as vertical smears across the\n"
+           "  whole shell — most visibly on the desktop watermark. It now samples all 8\n"
+           "  columns and advances 8px, the font's natural width.\n"
+           "- **Converted all 43 hardcoded 6px text-width computations** to `FONT_CW`. Any\n"
+           "  site left at 6 would have overflowed its panel by a third once the renderer\n"
+           "  started advancing 8. The one non-text use of `/ 6` — the wallpaper gradient\n"
+           "  band height — was deliberately left alone.\n"
+           "- **Rebuilt the taskbar.** The Start button was 52px wide, but its label needs\n"
+           "  40px plus the flag gutter, so the text spilled past the button border. It is\n"
+           "  now wide enough, with the label centred in the space left by the flag. The task\n"
+           "  strip moved off a hardcoded `x = 56` to a centred run between the Start button\n"
+           "  and the clock, which removes the large dead gap on wide displays. Task labels\n"
+           "  are now clamped to the button width instead of a fixed 8 characters, and the\n"
+           "  Start button shows a pressed state while the menu is open.\n"
+           "- **Rebuilt the Start menu.** The profile rail was 42px wide, but \"Admin\" needs\n"
+           "  40px at the corrected advance, so the label bled into the content column. The\n"
+           "  rail is now 56px, the panel is wider, and the avatar plus both labels are\n"
+           "  centred on the rail's own centre line. \"Launchpad\" is placed after the brand\n"
+           "  word using a measured gap rather than a magic `x + 74`.\n"
+           "- **Centralised the Start menu layout.** `rail_w`, `panel_x`, `panel_w`,\n"
+           "  `items_top` and the item count were duplicated between the renderer and the\n"
+           "  click handler — the same duplication that previously let click targets drift\n"
+           "  away from the pixels they were drawn at. They now come from a single\n"
+           "  `get_start_menu_metrics()`. The taskbar strip got the same treatment via\n"
+           "  `taskbar_strip_start()`.\n"
+           "- **Rebuilt the desktop watermark.** The build badge is right-aligned on the\n"
+           "  lower row, and the card is sized from measured text instead of hand-padded\n"
+           "  spaces that no longer lined up once the advance changed.\n"
+           "- **Rebuilt the loading screen.** The title was centred on the *screen* while\n"
+           "  being drawn inside a much narrower panel, so it sat outside the panel on any\n"
+           "  wide display; it is now anchored to the panel's content column. The \"Loading\"\n"
+           "  label was drawn across the spinner ring at the same `y` and overwrote the dots;\n"
+           "  it now sits centred beneath the ring. The panel was also enlarged and centred\n"
+           "  rather than positioned from the title's `y`.\n"
            "\n"
-           "- **Rebuilt the entire Settings layout, all eleven tabs.** Previously only System\n"
-           "  had been converted; the other ten pages were still flat left-aligned text at\n"
-           "  hardcoded `body_y + N` offsets.\n"
-           "- Settings pages now share a common layout system built on a **running cursor**:\n"
-           "  section headings render a coloured label with an accent tick and rule, and each\n"
-           "  row returns its height so content flows instead of relying on fixed offsets.\n"
-           "- **Key/value rows are right-aligned** with a dimmed label, falling back to inline\n"
-           "  placement when the window is too narrow to reserve a value column.\n"
-           "- **Grouped rows render inside cards** with a blue accent edge, giving visual\n"
-           "  hierarchy without extra chrome.\n"
-           "- **Added interactive toggles to four more pages.** Devices gained a Bluetooth\n"
-           "  switch, Network a Wi-Fi switch, and Accessibility switches for High contrast and\n"
-           "  Large text. All seven toggles across the app are now real switches with a\n"
-           "  sliding knob, coloured state text, and full-row click targets.\n"
-           "- **Some values are now live rather than hardcoded.** Devices reports the actual\n"
-           "  mouse presence, and Network/Gaming reflect the toggle and framebuffer state.\n"
-           "- **GamerOS Update is now a segmented control** (Changelog / Roadmap) above a\n"
-           "  bordered viewer body with a pinned scroll hint, replacing the mismatched pair of\n"
-           "  standalone buttons.\n"
-           "- **Removed draw/hit-test geometry drift.** `draw_window()` publishes the exact\n"
-           "  rectangles it rendered — toggles, resolution rows, and the view switch — and the\n"
-           "  click handler reads those, rather than repeating layout constants that previously\n"
-           "  drifted out of sync. Scroll extent for the changelog viewer is published the same\n"
-           "  way, replacing a second, independently-computed viewport size.\n"
-           "- **Added `tools/embed_changelog.py`** so the in-OS changelog is generated from\n"
-           "  `docs/changelogs/` instead of being a hand-maintained copy that drifts. It\n"
-           "  refuses to embed content that would exceed the filesystem's file-size limit and\n"
-           "  warns when the viewer's line budget would be exceeded.\n"
+           "## Build and Tooling\n"
+           "\n"
+           "- **Raised the changelog viewer's line budget from 256 to 320** in `main.c`, and\n"
+           "  moved the matching cap in `tools/embed_changelog.py` to the same value. The\n"
+           "  two were separate hardcoded literals, so raising only one would have left the\n"
+           "  generator warning about a truncation the viewer no longer had.\n"
            "\n"
            "## Documentation\n"
            "\n"
-           "- **Fixed broken documentation links.** `changelog_2026-xx-xx.md`,\n"
-           "  `walkthrough_src_bugfixes_2026-xx-xx.md`, and `currentbugs.md` were all linked\n"
-           "  from the README but do not exist.\n"
-           "- **Fixed the documented project layout**, which described a `src/apps` /\n"
-           "  `src/impl` / `src/intf` structure that no longer exists.\n"
-           "- **Removed a duplicated \"Advanced Options\" section** in the README.\n"
-           "- **Corrected batch script paths** in the README to match their actual location.\n"
+           "- **Split the changelog per release.** Build `1.520` (2026-10-10) stays in\n"
+           "  `changelog_2026-10-10.md`; this file records build `1.550` (2026-10-11).\n"
+           "  `tools/embed_changelog.py` was repointed at this file so the in-OS viewer keeps\n"
+           "  showing the newest release.\n"
            "\n"
            "## Notes\n"
-           "- The executive layer and user-mode subsystems remain **not wired into**\n"
-           "  `kernel_main`. They are now correct, consistent, and linkable, but still\n"
-           "  inactive. Enabling them is a deliberate follow-up decision.\n"
-           "- This changelog is the single source of truth. `tools/embed_changelog.py`\n"
-           "  generates the copy compiled into the in-OS viewer, so the two can no longer\n"
-           "  drift apart. Re-run it after editing this file.\n"
-           "- The generated ISO is compile-verified (zero warnings, zero errors, zero\n"
-           "  undefined symbols) but **not yet booted under QEMU**.\n"
+           "\n"
+           "- The 1.520 notes recorded that the ISO had never been booted. It has now: the\n"
+           "  desktop shell, taskbar, and watermark were confirmed rendering under QEMU.\n"
+           "- The font fix is global. Every compact string in the OS is 33% wider than it\n"
+           "  was, which is why the four surfaces above were rebuilt rather than patched.\n"
+           "- Start-menu and taskbar hit boxes are now derived from the same metrics the\n"
+           "  renderer uses, so a future layout change cannot silently break clicking.\n"
            "\n"
            "## Planned\n"
-           "- Boot the generated ISO under QEMU and confirm it reaches the desktop shell.\n"
-           "- Wire `executive_init()` and `user_mode_init()` into `kernel_main` now that both\n"
-           "  layers are linkable, and remove the linked-out `GOSAPP` shims.\n"
-           "- Raise `MAX_FILE_SIZE` in `fs.h`; the changelog viewer is close to its ceiling.\n"
+           "- Visually confirm the Start menu and loading screen once QEMU is available on\n"
+           "  the host, since only the desktop, taskbar, and watermark were captured so far.\n"
+           "- Investigate a host-level virtual CPU fault reported by VMware when opening the\n"
+           "  Start menu; the Start path itself audited clean for out-of-bounds access.\n"
            "- Persist Settings state so toggles survive a reboot instead of resetting.\n"
            "- Replace the polled input loop with PIT/HPET timer-driven frame pacing.\n"
            "- Complete the USB driver stack and implement ATA PIO properly; the driver is\n"

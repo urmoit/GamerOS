@@ -21,9 +21,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAIN_C = os.path.join(ROOT, "src", "core", "kernel", "main.c")
 FS_H = os.path.join(ROOT, "src", "include", "fs.h")
 
-DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-10.md")
+DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-11.md")
 
-MAX_MD_LINES = 256
+MAX_MD_LINES = 320
 
 
 def read_max_file_size():

@@ -15,12 +15,6 @@ You can download the latest public ISO release from:
 - [GamerOS Releases](https://github.com/urmoit/GamerOS/releases)
 
 Current public release:
-
-- `1.300`
-
-Upcoming release:
-
-- `1.400` - March 27, 2026
 - `1.520` - current
 
 > [!WARNING]
