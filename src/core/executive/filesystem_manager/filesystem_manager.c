@@ -47,7 +47,7 @@ static file_t* allocate_file_slot() {
     return NULL;
 }
 
-object_handle_t fs_open_file(const char* name, uint32_t flags) {
+object_handle_t exec_fs_open_file(const char* name, uint32_t flags) {
     (void)flags;  // For now, ignore flags
     // TODO: Implement file open flags (read-only, write-only, append, create, etc.)
 
@@ -64,14 +64,14 @@ object_handle_t fs_open_file(const char* name, uint32_t flags) {
     return object_create(OBJECT_TYPE_FILE, &attrs);
 }
 
-int fs_close_file(object_handle_t file_handle) {
+int exec_fs_close_file(object_handle_t file_handle) {
     if (object_get_type(file_handle) != OBJECT_TYPE_FILE) {
         return -1;
     }
     return object_destroy(file_handle);
 }
 
-int fs_read_file(object_handle_t file_handle, void* buffer, uint32_t size) {
+int exec_fs_read_file(object_handle_t file_handle, void* buffer, uint32_t size) {
     if (object_get_type(file_handle) != OBJECT_TYPE_FILE || !buffer) {
         return -1;
     }
@@ -104,7 +104,7 @@ int fs_read_file(object_handle_t file_handle, void* buffer, uint32_t size) {
     return (int)bytes_to_read;
 }
 
-int fs_write_file(object_handle_t file_handle, const void* buffer, uint32_t size) {
+int exec_fs_write_file(object_handle_t file_handle, const void* buffer, uint32_t size) {
     if (object_get_type(file_handle) != OBJECT_TYPE_FILE || !buffer || size >= MAX_FILE_SIZE) {
         return -1;
     }
@@ -126,7 +126,7 @@ int fs_write_file(object_handle_t file_handle, const void* buffer, uint32_t size
     return (int)size;
 }
 
-int fs_create_file(const char* name) {
+int exec_fs_create_file(const char* name) {
     if (!name) return -1;
 
     // Check if file already exists
@@ -158,7 +158,7 @@ int fs_create_file(const char* name) {
 // TODO: Add support for file attributes (hidden, system, read-only)
 // TODO: Implement file system journaling for crash recovery
 
-int fs_delete_file(const char* name) {
+int exec_fs_delete_file(const char* name) {
     file_t* file = find_file_by_name(name);
     if (!file) {
         return -1; // File not found
@@ -172,21 +172,21 @@ int fs_delete_file(const char* name) {
     return 0;
 }
 
-int fs_create_directory(const char* path) {
+int exec_fs_create_directory(const char* path) {
     (void)path;
     // Basic implementation - directories not fully supported yet
     // TODO: Implement directory creation with path parsing, validation, and parent directory checks
     return -1;
 }
 
-int fs_remove_directory(const char* path) {
+int exec_fs_remove_directory(const char* path) {
     (void)path;
     // Basic implementation - directories not fully supported yet
     // TODO: Implement directory removal with checks for empty directories and recursive options
     return -1;
 }
 
-int fs_get_file_info(object_handle_t file_handle, file_info_t* info) {
+int exec_fs_get_file_info(object_handle_t file_handle, file_info_t* info) {
     if (object_get_type(file_handle) != OBJECT_TYPE_FILE || !info) {
         return -1;
     }

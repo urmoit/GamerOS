@@ -60,6 +60,7 @@ void present_rect(int x, int y, int w, int h);
 int graphics_use_multiboot_framebuffer(const struct multiboot_info* mb_info);
 int graphics_is_truecolor(void);
 uint32_t graphics_get_pixel_rgb(int x, int y);
+uint32_t* graphics_get_rgb_row(int y);
 uint8_t graphics_get_bpp(void);
 int graphics_set_resolution(uint32_t width, uint32_t height);
 uint32_t graphics_get_native_width(void);
@@ -91,7 +92,6 @@ void vga_draw_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius,
 #define current_vga_width current_width
 #define current_vga_height current_height
 #define vga_framebuffer framebuffer
-#define current_color_depth 8
 
 // XP Colors
 #define XP_BLACK      0x00

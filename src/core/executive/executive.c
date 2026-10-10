@@ -47,8 +47,8 @@ void executive_init(void) {
     }
 
     // Create baseline filesystem objects so executive consumers can open them.
-    if (fs_create_file("README.TXT") != 0 ||
-        fs_create_file("NOTEPAD.TXT") != 0) {
+    if (exec_fs_create_file("README.TXT") != 0 ||
+        exec_fs_create_file("NOTEPAD.TXT") != 0) {
         executive_last_error = EXECUTIVE_ERR_FS_BOOTSTRAP;
         return;
     }

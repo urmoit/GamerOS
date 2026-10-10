@@ -1,6 +1,7 @@
 #include "../io_manager.h"
 #include <ports.h>
 #include <pic.h>
+#include <mouse.h>
 
 #define MOUSE_PORT     0x60
 #define MOUSE_STATUS   0x64
@@ -25,11 +26,7 @@ static int32_t mouse_x = 0;
 static int32_t mouse_y = 0;
 static uint8_t mouse_buttons = 0;
 
-typedef struct {
-    int32_t x, y;
-    uint8_t buttons;
-} mouse_state_t;
-
+// mouse_state_t is declared in <mouse.h> so both drivers agree on the layout.
 static mouse_state_t current_state = {0, 0, 0};
 
 void mouse_wait(uint8_t type) {

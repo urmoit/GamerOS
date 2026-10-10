@@ -7,10 +7,15 @@
 
 // Keyboard buffer
 #define KBD_BUFFER_SIZE 256
+#define KBD_DRAIN_LIMIT 256
+#define KBD_EXTENDED_MAX_AGE 4
 static char kbd_buffer[KBD_BUFFER_SIZE];
 static int kbd_read_idx = 0;
 static int kbd_write_idx = 0;
 static int is_extended = 0;
+// Poll index at which a dangling 0xE0 prefix is abandoned, so a lost follow-up
+// scancode cannot leave the next real key interpreted as extended.
+static int extended_age = 0;
 
 // US keyboard layout
 static const char kbd_layout[128] = {
@@ -78,8 +83,15 @@ void keyboard_handler(void) {
     // Extended key prefix
     if (scancode == 0xE0) {
         is_extended = 1;
+        extended_age = 0;
         return;
     }
+
+    // Abandon a prefix whose follow-up scancode never arrived.
+    if (is_extended && extended_age >= KBD_EXTENDED_MAX_AGE) {
+        is_extended = 0;
+    }
+    extended_age++;
     
     // Key release
     if (scancode & 0x80) {
@@ -138,17 +150,22 @@ void keyboard_poll(void) {
     }
 }
 
-// Initialize keyboard
+// Keyboard initialization
 void keyboard_init(void) {
     // Empty buffer
     kbd_read_idx = 0;
     kbd_write_idx = 0;
-    
-    // Clear keyboard buffer
-    while (inb(KBD_STATUS_PORT) & 0x01) {
-        inb(KBD_DATA_PORT);
+    is_extended = 0;
+    shift_pressed = 0;
+    caps_lock = 0;
+
+    // Clear pending keyboard bytes. Bounded: on noisy/absent controllers the
+    // status bit can stay set, and an unbounded drain would hang boot.
+    for (int i = 0; i < KBD_DRAIN_LIMIT; i++) {
+        if (!(inb(KBD_STATUS_PORT) & 0x01)) break;
+        (void)inb(KBD_DATA_PORT);
     }
-    
+
     // Unmask IRQ1 (keyboard) in PIC
     uint8_t mask = inb(PIC1_DATA);
     mask &= ~(1 << 1); // Clear bit 1 to unmask IRQ1

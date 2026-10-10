@@ -45,16 +45,17 @@ extern const uint8_t font_8x8[96][8];
 
 static void ui_draw_char(int x, int y, char c, uint8_t color) {
     if ((uint8_t)c < 32 || (uint8_t)c > 126) return;
-    
+
     const uint8_t* char_bitmap = font_8x8[(uint8_t)c - 32];
-    
+
     for (uint32_t row = 0; row < 8; row++) {
         uint8_t row_data = char_bitmap[row];
         for (uint32_t col = 0; col < 8; col++) {
             if (row_data & (1 << (7 - col))) {
-                if (x + col < 320 && y + row < 200) {
-                    vga_set_pixel(x + col, y + row, color);
-                }
+                // Bound against the live screen size, not a hardcoded 320x200.
+                if (x + col < 0 || y + row < 0) continue;
+                if (x + col >= (int)current_width || y + row >= (int)current_height) continue;
+                vga_set_pixel(x + col, y + row, color);
             }
         }
     }
@@ -68,7 +69,7 @@ void draw_string(int x, int y, const char* str, uint8_t color) {
             y += 10;
             current_x = x;
         } else {
-            if (current_x < 320 - 8 && y < 200 - 8) {
+            if (current_x + 8 < (int)current_width && y + 8 < (int)current_height) {
                 ui_draw_char(current_x, y, *str, color);
             }
             current_x += 8;
@@ -78,48 +79,51 @@ void draw_string(int x, int y, const char* str, uint8_t color) {
 }
 
 // Draw XP-style gradient (simulated with horizontal lines)
-static void draw_xp_gradient(uint32_t x, uint32_t y, uint32_t width, uint32_t height, 
+static void draw_xp_gradient(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
                               uint8_t color_top, uint8_t color_bottom) {
-    for (uint32_t row = 0; row < height && (y + row) < 200; row++) {
+    for (uint32_t row = 0; row < height && (y + row) < current_height; row++) {
         // Simple gradient by alternating colors
         uint8_t color = (row < height / 2) ? color_top : color_bottom;
-        for (uint32_t col = 0; col < width && (x + col) < 320; col++) {
+        for (uint32_t col = 0; col < width && (x + col) < current_width; col++) {
             vga_set_pixel(x + col, y + row, color);
         }
     }
 }
 
 // Draw XP-style button
-static void draw_xp_button(uint32_t x, uint32_t y, uint32_t width, uint32_t height, 
+static void draw_xp_button(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
                             const char* text, uint8_t is_pressed) {
+    (void)is_pressed;
     // Button background with gradient effect
     draw_xp_gradient(x, y, width, height, XP_LIGHT_BLUE, XP_TASKBAR_BG);
-    
+
     // Button border (3D effect)
     // Top and left - highlight
-    for (uint32_t i = 0; i < width && (x + i) < 320; i++) {
+    for (uint32_t i = 0; i < width && (x + i) < current_width; i++) {
         vga_set_pixel(x + i, y, XP_WHITE);
     }
-    for (uint32_t i = 0; i < height && (y + i) < 200; i++) {
+    for (uint32_t i = 0; i < height && (y + i) < current_height; i++) {
         vga_set_pixel(x, y + i, XP_WHITE);
     }
-    
+
     // Bottom and right - shadow
-    for (uint32_t i = 0; i < width && (x + i) < 320; i++) {
+    for (uint32_t i = 0; i < width && (x + i) < current_width; i++) {
         vga_set_pixel(x + i, y + height - 1, XP_BLACK);
     }
-    for (uint32_t i = 0; i < height && (y + i) < 200; i++) {
+    for (uint32_t i = 0; i < height && (y + i) < current_height; i++) {
         vga_set_pixel(x + width - 1, y + i, XP_BLACK);
     }
-    
+
     // Button text (centered)
     if (text) {
         uint32_t text_len = 0;
         const char* tmp = text;
         while (*tmp++) text_len++;
-        uint32_t text_x = x + (width - text_len * 8) / 2;
-        uint32_t text_y = y + (height - 8) / 2;
-        draw_string(text_x, text_y, text, XP_TEXT_DARK);
+        if (text_len * 8 < width) {
+            uint32_t text_x = x + (width - text_len * 8) / 2;
+            uint32_t text_y = y + (height - 8) / 2;
+            draw_string(text_x, text_y, text, XP_TEXT_DARK);
+        }
     }
 }
 
@@ -173,10 +177,10 @@ void ui_draw_tab(uint32_t x, uint32_t y, const char* text, uint8_t is_active) {
 
 void ui_draw_header(void) {
     // Draw header background (XP blue)
-    vga_fill_rect(0, 0, 320, HEADER_HEIGHT, XP_TASKBAR_BG);
+    vga_fill_rect(0, 0, current_width, HEADER_HEIGHT, XP_TASKBAR_BG);
 
     // Draw header border
-    vga_draw_rect(0, 0, 320, HEADER_HEIGHT, XP_WHITE);
+    vga_draw_rect(0, 0, current_width, HEADER_HEIGHT, XP_WHITE);
 
     // Draw Start button (XP green style)
     draw_xp_button(5, 5, 50, 20, "Start", 0);
@@ -277,7 +281,7 @@ void ui_draw_clock(void) {
 void ui_draw_window_list() {
     int start_x = 60;
     int window_spacing = 80;
-    int taskbar_y = 200 - 20;
+    int taskbar_y = (int)current_height - TASKBAR_HEIGHT;
     int current_x = start_x;
     
     for (size_t i = 0; i < (size_t)window_count && i < 3; i++) {
@@ -291,15 +295,15 @@ void ui_draw_window_list() {
 
 void ui_draw_taskbar(void) {
     // Draw taskbar background (XP blue with gradient)
-    draw_xp_gradient(0, 200 - TASKBAR_HEIGHT, 320, TASKBAR_HEIGHT, XP_TASKBAR_HIGHLIGHT, XP_TASKBAR_BG);
+    draw_xp_gradient(0, current_height - TASKBAR_HEIGHT, current_width, TASKBAR_HEIGHT, XP_TASKBAR_HIGHLIGHT, XP_TASKBAR_BG);
     
     // Draw taskbar border
-    for (uint32_t x = 0; x < 320; x++) {
-        vga_set_pixel(x, 200 - TASKBAR_HEIGHT, XP_WHITE);
+    for (uint32_t x = 0; x < current_width; x++) {
+        vga_set_pixel(x, current_height - TASKBAR_HEIGHT, XP_WHITE);
     }
     
     // Draw Start button
-    draw_xp_button(5, 200 - TASKBAR_HEIGHT + 3, 50, 20, "Start", 0);
+    draw_xp_button(5, current_height - TASKBAR_HEIGHT + 3, 50, 20, "Start", 0);
     
     // Draw window list
     ui_draw_window_list();
@@ -312,16 +316,17 @@ void ui_draw_taskbar(void) {
 void ui_draw_desktop_background(void) {
     // Fill with XP desktop blue
     vga_clear(XP_DESKTOP_BG);
-    
-    // Draw some "hills" at the bottom (simplified bliss wallpaper)
-    for (uint32_t y = 120; y < 180; y++) {
-        uint8_t color = XP_LIGHT_GREEN;
-        if (y > 150) color = XP_GREEN;
-        for (uint32_t x = 0; x < 320; x++) {
+
+    // Draw some "hills" at the bottom (simplified bliss wallpaper),
+    // anchored to the live screen height instead of a fixed 320x200 box.
+    uint32_t ground_y = current_height;
+    uint32_t hill_top = (current_height > 60) ? (current_height - 60) : 0;
+    for (uint32_t y = hill_top; y + 30 < ground_y; y++) {
+        uint8_t color = (y > ground_y - 30) ? XP_GREEN : XP_LIGHT_GREEN;
+        for (uint32_t x = 0; x < current_width; x++) {
             // Simple curved hills
-            uint32_t hill_height = 60;
-            uint32_t hill_y = 180 - hill_height + (x % 100) / 5;
-            if (y >= hill_y && y < 180) {
+            uint32_t hill_y = ground_y - 60 + (x % 100) / 5;
+            if (y >= hill_y && y < ground_y) {
                 vga_set_pixel(x, y, color);
             }
         }

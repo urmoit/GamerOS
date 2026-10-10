@@ -3,6 +3,11 @@
 
 #define SERIAL_PORT 0x3F8
 
+// Every wait below is bounded. On machines without a real UART (or when the
+// port is not wired to anything) the LSR never reports readiness, and an
+// unbounded spin would hang the kernel before it ever reaches the shell.
+#define SERIAL_WAIT_LIMIT 100000
+
 void serial_init(void) {
     outb(SERIAL_PORT + 1, 0x00); // Disable interrupts
     outb(SERIAL_PORT + 3, 0x80); // Enable DLAB
@@ -18,8 +23,12 @@ int serial_received(void) {
 }
 
 char serial_read(void) {
-    while (serial_received() == 0);
-    return inb(SERIAL_PORT);
+    for (int i = 0; i < SERIAL_WAIT_LIMIT; i++) {
+        if (serial_received()) {
+            return inb(SERIAL_PORT);
+        }
+    }
+    return 0;
 }
 
 int serial_is_transmit_empty(void) {
@@ -27,11 +36,17 @@ int serial_is_transmit_empty(void) {
 }
 
 void serial_putchar(char c) {
-    while (serial_is_transmit_empty() == 0);
-    outb(SERIAL_PORT, c);
+    // Give up rather than block forever if the transmitter never drains.
+    for (int i = 0; i < SERIAL_WAIT_LIMIT; i++) {
+        if (serial_is_transmit_empty()) {
+            outb(SERIAL_PORT, c);
+            return;
+        }
+    }
 }
 
 void serial_write_string(const char* str) {
+    if (!str) return;
     while (*str) {
         serial_putchar(*str);
         str++;

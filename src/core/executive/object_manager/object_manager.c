@@ -31,7 +31,9 @@ static object_handle_t allocate_handle(void) {
 }
 
 static object_t* get_object(object_handle_t handle) {
-    if (handle >= MAX_OBJECTS || handle == INVALID_HANDLE) {
+    // INVALID_HANDLE is 0xFFFFFFFF, which is >= MAX_OBJECTS, so the range check
+    // alone rejects it; spell both out so intent is clear.
+    if (handle == INVALID_HANDLE || handle >= MAX_OBJECTS) {
         return NULL;
     }
     return object_table[handle];

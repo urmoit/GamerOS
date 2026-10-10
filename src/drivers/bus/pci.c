@@ -56,18 +56,19 @@ void pci_init(void) {
                 command |= 0x07; // Bus Master, Memory Space, I/O Space
                 pci_write_config(bus, device, 0, 0x04, command);
 
-                char log[64];
-                // Simple string building since we don't have sprintf
-                vga_draw_string(10, 10 + (bus * 2) + (device), "Found: ", XP_COLOR_WHITE);
-                vga_draw_string(60, 10 + (bus * 2) + (device), type, XP_COLOR_WHITE);
+                // Stack the rows by device index only: the old formula mixed
+                // bus*2 + device into the row, pushing entries off screen on
+                // any bus other than 0.
+                uint32_t row = 10 + (bus * 32 + device);
+                if (row < 190) {
+                    vga_draw_string(10, (int)row, "Found: ", XP_COLOR_WHITE);
+                    vga_draw_string(60, (int)row, type, XP_COLOR_WHITE);
+                }
 
                 // Initialize specific driver
                 if (prog_if == 0x00) uhci_init(bus, device, 0);
                 else if (prog_if == 0x20) ehci_init(bus, device, 0);
                 else if (prog_if == 0x30) xhci_init(bus, device, 0);
-                
-                // Small delay to let the user see the log
-                for(int i=0; i<1000000; i++) __asm__("nop");
             }
         }
     }

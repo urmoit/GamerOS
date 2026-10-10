@@ -79,7 +79,8 @@ void ui_draw_desktop_icons(void);
 void ui_draw_taskbar(void);
 void ui_draw_clock(void);
 
-void draw_string(int x, int y, const char* str, uint8_t color);
+// draw_string is implemented in graphics.c and declared there with int
+// coordinates; do not redeclare it here with a different signature.
 
 // TODO: Add support for multiple UI themes and skins
 // TODO: Implement internationalization (i18n) for UI strings

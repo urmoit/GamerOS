@@ -8,7 +8,7 @@
 
 GamerOS is a hobby `x86_64` operating system written in C and Assembly. It includes a custom kernel, graphics stack, desktop shell, input drivers, filesystem work, and built-in apps such as Settings, Explorer, Notepad, and About.
 
-Build `1.500` is releasing April 3, 2026.
+Build `1.520` is the current release.
 
 You can download the latest public ISO release from:
 
@@ -21,7 +21,7 @@ Current public release:
 Upcoming release:
 
 - `1.400` - March 27, 2026
-- `1.500` - April 3, 2026
+- `1.520` - current
 
 > [!WARNING]
 > **ACTIVE DEVELOPMENT**: This project is under heavy development. Features may change, break, or be incomplete. The name "GamerOS" is a placeholder and subject to change.
@@ -181,12 +181,12 @@ make -C tools build-x86_64
 ```
 
 ```batch
-REM Windows batch helpers:
-build.bat         REM native Windows build entry point
-build-iso.bat     REM rebuild ISO after existing build artifacts
-run-qemu.bat      REM launch ISO in QEMU
-debug.bat         REM launch QEMU with monitor attached
-clean.bat         REM clean build outputs
+REM Windows batch helpers (run from the repository root):
+tools\build.bat         REM native Windows build entry point
+tools\build-iso.bat     REM rebuild ISO after existing build artifacts
+tools\run-qemu.bat      REM launch ISO in QEMU
+tools\debug.bat         REM launch QEMU with monitor attached
+tools\clean.bat         REM clean build outputs
 ```
 
 Main ISO output:
@@ -207,29 +207,11 @@ make -C tools build-x86_64
 REM Force a full rebuild
 make -C tools clean build-x86_64
 
-REM Use WSL Makefile layout
-make -C tools -f Makefile.wsl build-x86_64
-```
-
-</details>
-
-### Advanced Options
-
-<details>
-<summary><b>Custom build configurations</b></summary>
-
-```batch
-# Build specific target
-make -C tools build-x86_64
-
-# Verbose output
+REM Verbose output
 make -C tools build-x86_64 V=1
 
-# Force a clean rebuild
-make -C tools clean build-x86_64
-
-# Use WSL Makefile layout
-make -C tools -f Makefile.wsl build-x86_64
+REM Use the WSL Makefile layout (run from the repository root)
+make -f tools/Makefile.wsl build-x86_64
 ```
 
 </details>
@@ -239,18 +221,30 @@ make -C tools -f Makefile.wsl build-x86_64
 ```text
 GamerOS/
   src/
-    apps/         Built-in app UI and app-facing logic
-    impl/         Kernel, drivers, graphics, filesystem, architecture code
-    intf/         Shared interfaces and headers
-    resources/    Embedded assets
-    user_mode/    Experimental user-mode and subsystem code
-  targets/        Linker scripts and target boot assets
-  tools/          Makefiles and local build entry points
+    arch/x86_64/   Boot assembly (multiboot header, long mode, paging)
+    core/
+      kernel/      Kernel entry point and desktop shell, mm/string/process model
+      hal/         Hardware abstraction (port I/O)
+      executive/   Executive layer (object manager, I/O manager, filesystem, GDI)
+    drivers/
+      bus/         PCI, PIC, RTC, USB
+      input/       PS/2 keyboard and mouse
+      network/     Serial
+      storage/     ATA PIO
+      virtualization/ VMware backdoor
+    filesystem/    Filesystem with persistent metadata layout
+    graphics/      VGA/framebuffer renderer, fonts, cursor
+    include/       Shared headers
+    resources/     Embedded assets (wallpaper, cursors)
+    ui/            UI system and widget toolkit
+    user-mode/     User mode layer and subsystems
   config/
-    buildenv/     Legacy build environment
-    targets/      Target linker scripts and GRUB config
-  build/          Intermediate build output
-  dist/           Final generated images
+    buildenv/      Legacy build environment (Dockerfile)
+    targets/       Linker scripts and GRUB config
+  docs/            Design documents and changelogs
+  tools/           Makefiles and local build entry points
+  build/           Intermediate build output
+  dist/            Final generated images
 ```
 
 ## Development Notes
@@ -261,10 +255,11 @@ GamerOS/
 
 ## Important Files
 
-- [changelog_2026-xx-xx.md](changelog_2026-xx-xx.md)
-- [walkthrough_src_bugfixes_2026-xx-xx.md](walkthrough_src_bugfixes_2026-xx-xx.md)
-- [currentbugs.md](currentbugs.md)
-- [executive_layer_design.md](executive_layer_design.md)
+- [changelog_2026-04-03.md](docs/changelogs/changelog_2026-04-03.md)
+- [changelog_2026-03-27.md](docs/changelogs/changelog_2026-03-27.md)
+- [executive_layer_design.md](docs/executive_layer_design.md)
+- [user_mode_design.md](docs/user_mode_design.md)
+- [QemuTut.md](QemuTut.md)
 
 ## Contributing
 

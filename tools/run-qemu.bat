@@ -11,8 +11,11 @@ if exist "C:\Program Files\qemu\qemu-system-x86_64.exe" (
 ) else if exist "C:\qemu\qemu-system-x86_64.exe" (
     set QEMU_EXE="C:\qemu\qemu-system-x86_64.exe"
 ) else (
+    REM `if not errorlevel 1` instead of `if %errorlevel% == 0`: inside a
+    REM parenthesised block %errorlevel% is expanded at parse time and would
+    REM report the value from before `where` ran.
     where qemu-system-x86_64 >nul 2>&1
-    if %errorlevel% == 0 (
+    if not errorlevel 1 (
         set QEMU_EXE=qemu-system-x86_64
     ) else (
         echo ========================================
@@ -32,9 +35,12 @@ if exist "C:\Program Files\qemu\qemu-system-x86_64.exe" (
     )
 )
 
-REM Check if kernel ISO exists
-if not exist "dist\x86_64\kernel.iso" (
-    echo ERROR: ISO file not found at dist\x86_64\kernel.iso
+REM Resolve paths relative to the repo root so the script works from anywhere.
+set ROOT=%~dp0..
+set ISO_PATH=%ROOT%\dist\x86_64\kernel.iso
+
+if not exist "%ISO_PATH%" (
+    echo ERROR: ISO file not found at %ISO_PATH%
     echo Please build the kernel first with: build.bat
     exit /b 1
 )
@@ -42,16 +48,20 @@ if not exist "dist\x86_64\kernel.iso" (
 REM Run QEMU with debugging options to prevent immediate exit and disable SMM
 REM Serial output goes to console, default VGA display
 REM Create/overwrite log file (deletes old one if exists)
-echo Starting QEMU with ISO: dist\x86_64\kernel.iso
-if exist qemu.log (
+set LOG_PATH=%ROOT%\qemu.log
+set DEBUG_LOG_PATH=%ROOT%\qemu-debug.log
+
+echo Starting QEMU with ISO: %ISO_PATH%
+if exist "%LOG_PATH%" (
     echo Overwriting existing qemu.log
-    del qemu.log >nul 2>&1
+    del "%LOG_PATH%" >nul 2>&1
 )
 echo Creating new qemu.log file...
-echo QEMU Boot Log - %date% %time% > qemu.log
-echo ======================================== >> qemu.log
-echo Starting QEMU with ISO: dist\x86_64\kernel.iso >> qemu.log
-echo Command: %QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -d cpu_reset,int,guest_errors -D qemu-debug.log >> qemu.log
-echo. >> qemu.log
+echo QEMU Boot Log - %date% %time% > "%LOG_PATH%"
+echo ======================================== >> "%LOG_PATH%"
+echo Starting QEMU with ISO: %ISO_PATH% >> "%LOG_PATH%"
+echo Command: %QEMU_EXE% -cdrom "%ISO_PATH%" -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -d cpu_reset,int,guest_errors -D "%DEBUG_LOG_PATH%" >> "%LOG_PATH%"
+echo. >> "%LOG_PATH%"
+
 REM Run QEMU and capture output. QEMU internal debug log goes to qemu-debug.log, main output goes to qemu.log
-%QEMU_EXE% -cdrom dist\x86_64\kernel.iso -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -usb -device usb-mouse -device usb-kbd -device qemu-xhci,id=xhci -d cpu_reset,int,guest_errors -D qemu-debug.log
+%QEMU_EXE% -cdrom "%ISO_PATH%" -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -usb -device usb-mouse -device usb-kbd -device qemu-xhci,id=xhci -d cpu_reset,int,guest_errors -D "%DEBUG_LOG_PATH%"

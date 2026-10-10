@@ -10,7 +10,11 @@
 #define RTC_DAY      0x07
 #define RTC_MONTH    0x08
 #define RTC_YEAR     0x09
+#define RTC_STATUS_A 0x0A
 #define RTC_STATUS_B 0x0B
+
+#define RTC_A_UIP    0x80  // update-in-progress
+#define RTC_B_DM     0x04  // data mode: 0=BCD, 1=binary
 
 static uint8_t read_rtc_register(uint8_t reg) {
     // Preserve the NMI enable/disable bit (bit 7) when selecting CMOS register.
@@ -21,29 +25,57 @@ static uint8_t read_rtc_register(uint8_t reg) {
     return inb(CMOS_DATA);
 }
 
+// Wait for the RTC to finish an in-progress update, otherwise the registers
+// can be read mid-update and yield inconsistent values.
+static void rtc_wait_update(void) {
+    for (int guard = 0; guard < 100000; guard++) {
+        if (!(read_rtc_register(RTC_STATUS_A) & RTC_A_UIP)) return;
+    }
+}
+
+static uint8_t bcd_to_bin(uint8_t v) {
+    return (uint8_t)(((v & 0xF0) >> 4) * 10 + (v & 0x0F));
+}
+
 void get_time(uint8_t* hour, uint8_t* minute, uint8_t* second) {
     if (!hour || !minute || !second) return; // NULL check
 
-    uint8_t status_b = read_rtc_register(RTC_STATUS_B);
-    uint8_t is_binary = status_b & 0x04; // DM bit (Data Mode: 0=BCD, 1=Binary)
+    uint8_t s = 0, m = 0, h = 0;
+    // Retry a bounded number of times if the values shift between reads.
+    for (int attempt = 0; attempt < 4; attempt++) {
+        rtc_wait_update();
+        uint8_t status_b = read_rtc_register(RTC_STATUS_B);
+        uint8_t is_binary = status_b & RTC_B_DM;
 
-    *second = read_rtc_register(RTC_SECONDS);
-    *minute = read_rtc_register(RTC_MINUTES);
-    *hour = read_rtc_register(RTC_HOURS);
+        s = read_rtc_register(RTC_SECONDS);
+        m = read_rtc_register(RTC_MINUTES);
+        h = read_rtc_register(RTC_HOURS);
 
-    if (!is_binary) {
-        // Convert BCD to binary
-        *second = ((*second & 0xF0) >> 4) * 10 + (*second & 0x0F);
-        *minute = ((*minute & 0xF0) >> 4) * 10 + (*minute & 0x0F);
-        *hour = (((*hour & 0x70) >> 4) * 10 + (*hour & 0x0F)) | (*hour & 0x80); // Preserve 12/24 hour bit
+        if (!is_binary) {
+            s = bcd_to_bin(s);
+            m = bcd_to_bin(m);
+            h = (uint8_t)((((h & 0x70) >> 4) * 10 + (h & 0x0F)) | (h & 0x80));
+        }
+
+        // Confirm the values settled; if not, sample again.
+        if (s == read_rtc_register(RTC_SECONDS) &&
+            m == read_rtc_register(RTC_MINUTES) &&
+            h == read_rtc_register(RTC_HOURS)) {
+            break;
+        }
     }
+
+    *second = s;
+    *minute = m;
+    *hour = h;
 }
 
 void get_date(uint8_t* day, uint8_t* month, uint16_t* year, uint8_t* weekday) {
     if (!day || !month || !year || !weekday) return;
 
+    rtc_wait_update();
     uint8_t status_b = read_rtc_register(RTC_STATUS_B);
-    uint8_t is_binary = status_b & 0x04;
+    uint8_t is_binary = status_b & RTC_B_DM;
 
     uint8_t raw_day = read_rtc_register(RTC_DAY);
     uint8_t raw_month = read_rtc_register(RTC_MONTH);
@@ -51,10 +83,10 @@ void get_date(uint8_t* day, uint8_t* month, uint16_t* year, uint8_t* weekday) {
     uint8_t raw_weekday = read_rtc_register(RTC_WEEKDAY);
 
     if (!is_binary) {
-        raw_day = (uint8_t)((((raw_day & 0xF0) >> 4) * 10) + (raw_day & 0x0F));
-        raw_month = (uint8_t)((((raw_month & 0xF0) >> 4) * 10) + (raw_month & 0x0F));
-        raw_year = (uint8_t)((((raw_year & 0xF0) >> 4) * 10) + (raw_year & 0x0F));
-        raw_weekday = (uint8_t)((((raw_weekday & 0xF0) >> 4) * 10) + (raw_weekday & 0x0F));
+        raw_day = bcd_to_bin(raw_day);
+        raw_month = bcd_to_bin(raw_month);
+        raw_year = bcd_to_bin(raw_year);
+        raw_weekday = bcd_to_bin(raw_weekday);
     }
 
     *day = raw_day;

@@ -270,6 +270,20 @@ ui_container_t* ui_create_panel(int32_t x, int32_t y, uint32_t width, uint32_t h
 void ui_destroy_widget(ui_widget_t* widget) {
     if (!widget) return;
 
+    // Containers own their children: release them before the container itself,
+    // otherwise every window/panel teardown leaked its subtree.
+    if (widget->type == WIDGET_WINDOW || widget->type == WIDGET_PANEL) {
+        ui_container_t* container = (ui_container_t*)widget;
+        for (uint32_t i = 0; i < container->child_count; i++) {
+            ui_destroy_widget(container->children[i]);
+        }
+        if (container->children) {
+            kfree(container->children);
+            container->children = 0;
+        }
+        container->child_count = 0;
+    }
+
     // Free widget-specific data
     if (widget->text) {
         kfree(widget->text);
@@ -296,9 +310,15 @@ void ui_destroy_widget(ui_widget_t* widget) {
                 kfree(widget->data.listbox.items);
             }
             break;
-        case WIDGET_WINDOW:
-        case WIDGET_PANEL:
-            // Container cleanup handled separately
+        case WIDGET_MENU:
+            if (widget->data.menu.items) {
+                for (uint32_t i = 0; i < widget->data.menu.item_count; i++) {
+                    if (widget->data.menu.items[i]) {
+                        ui_destroy_widget(widget->data.menu.items[i]);
+                    }
+                }
+                kfree(widget->data.menu.items);
+            }
             break;
         default:
             break;
@@ -471,14 +491,20 @@ void ui_render_widget(ui_widget_t* widget) {
             }
             break;
 
-        case WIDGET_PROGRESS_BAR:
+        case WIDGET_PROGRESS_BAR: {
             // Draw progress bar background
             vga_draw_rect(widget->x, widget->y, widget->width, widget->height, widget->border_color);
-            // Draw progress fill
-            uint32_t progress_width = (widget->data.progress_bar.current_value * (widget->width - 4)) /
-                                    (widget->data.progress_bar.max_value - widget->data.progress_bar.min_value);
+            // Guard against a zero range, which would divide by zero.
+            uint32_t range = widget->data.progress_bar.max_value - widget->data.progress_bar.min_value;
+            uint32_t value = widget->data.progress_bar.current_value;
+            uint32_t progress_width = 0;
+            if (range > 0) {
+                progress_width = (value * (widget->width > 4 ? widget->width - 4 : 0)) / range;
+            }
+            if (progress_width > widget->width) progress_width = widget->width;
             vga_fill_rect(widget->x + 2, widget->y + 2, progress_width, widget->height - 4, widget->foreground_color);
             break;
+        }
 
         default:
             break;
@@ -566,11 +592,17 @@ void ui_process_keyboard_event(ui_widget_t* widget, ui_event_t* event) {
         case EVENT_KEY_PRESS:
             // Handle text input for textboxes
             if (widget->type == WIDGET_TEXTBOX && widget->data.textbox.buffer) {
-                // Simple text input (would need more sophisticated handling)
-                uint32_t len = strlen(widget->data.textbox.buffer);
-                if (len < widget->data.textbox.buffer_size - 1) {
-                    widget->data.textbox.buffer[len] = event->key_char;
-                    widget->data.textbox.buffer[len + 1] = '\0';
+                // Bounded append: the old code trusted a fixed 256-byte buffer
+                // and only checked length after strcpy-like writes.
+                char* buf = widget->data.textbox.buffer;
+                uint32_t cap = widget->data.textbox.buffer_size;
+                if (cap > 0) {
+                    uint32_t len = 0;
+                    while (len < cap && buf[len]) len++;
+                    if (len + 2 <= cap && widget->data.textbox.cursor_pos == len) {
+                        buf[len] = event->key_char;
+                        buf[len + 1] = '\0';
+                    }
                 }
             }
             break;

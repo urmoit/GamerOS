@@ -11,9 +11,9 @@ ASM_SRC = $(SRC_DIR)/arch/x86_64/boot.asm
 
 C_SRC = $(SRC_DIR)/core/kernel/main.c \
         $(SRC_DIR)/core/hal/ports.c \
+        $(SRC_DIR)/core/kernel/mm.c \
         $(SRC_DIR)/graphics/vga_graphics.c \
         $(SRC_DIR)/graphics/font.c \
-        $(SRC_DIR)/ui/apps/settings/settings_ui.c \
         $(SRC_DIR)/resources/wallpapers/background_wallpaper.c \
         $(SRC_DIR)/filesystem/fs.c \
         $(SRC_DIR)/graphics/cursor.c \
@@ -31,9 +31,9 @@ ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o
 
 C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/ports.o \
+        $(BUILD_DIR)/$(ARCH)/mm.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
         $(BUILD_DIR)/$(ARCH)/font.o \
-        $(BUILD_DIR)/$(ARCH)/apps_settings_ui.o \
         $(BUILD_DIR)/$(ARCH)/background_wallpaper.o \
         $(BUILD_DIR)/$(ARCH)/fs.o \
         $(BUILD_DIR)/$(ARCH)/cursor.o \
@@ -55,14 +55,16 @@ ISO = $(DIST_DIR)/$(ARCH)/kernel.iso
 
 # Tools - using Linux cross-compiler
 ASM = nasm
-ASMFLAGS = -f elf64
+# -I$(SRC_DIR) lets boot.asm resolve %include "graphics/font.inc" regardless of
+# the directory make was invoked from.
+ASMFLAGS = -f elf64 -I$(SRC_DIR)
 
 CC = x86_64-linux-gnu-gcc
-CFLAGS = -m64 -mno-red-zone -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -g -O2
-INCLUDES = -I$(SRC_DIR)/include -I$(SRC_DIR)/ui/apps -I$(SRC_DIR)/ui/apps/settings
+CFLAGS = -m64 -mno-red-zone -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -fomit-frame-pointer -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -O2
+INCLUDES = -I$(SRC_DIR)/include
 
 LD = x86_64-linux-gnu-ld
-LDFLAGS = -m elf_x86_64 -T $(TARGETS_DIR)/$(ARCH)/linker.ld -nostdlib
+LDFLAGS = -m elf_x86_64 -T $(TARGETS_DIR)/$(ARCH)/linker.ld -nostdlib -O2
 
 # Default target
 .PHONY: all
@@ -84,8 +86,10 @@ $(DIST_DIR)/$(ARCH):
 $(BUILD_DIR)/$(ARCH)/boot.o: $(SRC_DIR)/arch/x86_64/boot.asm | $(BUILD_DIR)/$(ARCH)
 	$(ASM) $(ASMFLAGS) -o $@ $<
 
-# Pattern rule for C files
-$(BUILD_DIR)/$(ARCH)/%.o: $(SRC_DIR)/impl/%.c | $(BUILD_DIR)/$(ARCH)
+# Pattern rule for C sources. Note: the old rule pointed at $(SRC_DIR)/impl/,
+# a directory that no longer exists, and every object also had an explicit rule
+# below, so it could never fire.
+$(BUILD_DIR)/$(ARCH)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)/$(ARCH)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
@@ -96,13 +100,13 @@ $(BUILD_DIR)/$(ARCH)/main.o: $(SRC_DIR)/core/kernel/main.c | $(BUILD_DIR)/$(ARCH
 $(BUILD_DIR)/$(ARCH)/ports.o: $(SRC_DIR)/core/hal/ports.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/mm.o: $(SRC_DIR)/core/kernel/mm.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 $(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/graphics/vga_graphics.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/font.o: $(SRC_DIR)/graphics/font.c | $(BUILD_DIR)/$(ARCH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-$(BUILD_DIR)/$(ARCH)/apps_settings_ui.o: $(SRC_DIR)/ui/apps/settings/settings_ui.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/background_wallpaper.o: $(SRC_DIR)/resources/wallpapers/background_wallpaper.c | $(BUILD_DIR)/$(ARCH)
@@ -147,15 +151,20 @@ $(KERNEL_BIN): $(KERNEL_ELF) | $(DIST_DIR)/$(ARCH)
 	x86_64-linux-gnu-objcopy -O binary $< $@
 
 # Create ISO
+# Stage inside the build tree rather than /tmp: the ISO is produced from a Unix
+# shell, but /tmp may be read-only or absent under some Windows setups.
+ISO_STAGE = $(BUILD_DIR)/$(ARCH)/iso_stage
+ISO_OUT = $(BUILD_DIR)/$(ARCH)/kernel.iso
+
 $(ISO): $(KERNEL_BIN) | $(DIST_DIR)/$(ARCH)
-	mkdir -p $(BUILD_DIR)/$(ARCH)/iso/boot/grub
-	cp -f $(KERNEL_ELF) $(BUILD_DIR)/$(ARCH)/iso/boot/kernel.elf
-	cp -f $(TARGETS_DIR)/$(ARCH)/grub.cfg $(BUILD_DIR)/$(ARCH)/iso/boot/grub/grub.cfg
-	mkdir -p /tmp/gameros_iso && cp -r $(BUILD_DIR)/$(ARCH)/iso/* /tmp/gameros_iso/
-	rm -f /tmp/kernel.iso
-	grub-mkrescue -o /tmp/kernel.iso /tmp/gameros_iso
-	cp -f /tmp/kernel.iso $@
-	rm -rf /tmp/gameros_iso /tmp/kernel.iso
+	rm -rf $(ISO_STAGE)
+	mkdir -p $(ISO_STAGE)/boot/grub
+	cp -f $(KERNEL_ELF) $(ISO_STAGE)/boot/kernel.elf
+	cp -f $(TARGETS_DIR)/$(ARCH)/grub.cfg $(ISO_STAGE)/boot/grub/grub.cfg
+	grub-mkrescue -o $(ISO_OUT) $(ISO_STAGE)
+	mkdir -p $(DIST_DIR)/$(ARCH)
+	cp -f $(ISO_OUT) $@
+	rm -rf $(ISO_STAGE) $(ISO_OUT)
 
 # Build only ISO (assumes kernel is already built)
 .PHONY: build-iso

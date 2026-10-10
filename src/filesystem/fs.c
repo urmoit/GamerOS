@@ -275,16 +275,18 @@ void fs_write_file(file_t* file, const uint8_t* data, uint32_t size) {
     file->size = size;
 
     // Real persistent write path (ATA PIO if available).
+    // MAX_FILE_SIZE is an exact multiple of the sector size, so sector_count can
+    // never exceed the reserved run; keep the clamp but never inflate file->size
+    // past the real payload length (that made the tail loop read past `data`).
     uint8_t sector[DISK_SECTOR_SIZE];
     uint32_t sector_count = (size + DISK_SECTOR_SIZE - 1) / DISK_SECTOR_SIZE;
     if (sector_count > FS_FILE_RESERVED_SECTORS) {
         sector_count = FS_FILE_RESERVED_SECTORS;
-        file->size = FS_FILE_RESERVED_SECTORS * DISK_SECTOR_SIZE;
     }
 
     for (uint32_t si = 0; si < sector_count; si++) {
         uint32_t copy_off = si * DISK_SECTOR_SIZE;
-        uint32_t left = file->size - copy_off;
+        uint32_t left = size - copy_off;
         uint32_t copy_size = left < DISK_SECTOR_SIZE ? left : DISK_SECTOR_SIZE;
         memset(sector, 0, sizeof(sector));
         memcpy(sector, data + copy_off, copy_size);

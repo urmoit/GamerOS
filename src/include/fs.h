@@ -5,7 +5,11 @@
 
 #define MAX_FILES 32
 #define MAX_FILENAME_LEN 40
-#define MAX_FILE_SIZE 12288
+// 24KB per file. The changelog viewer ships a full release changelog in one
+// file, which overflowed the old 12KB cap. Budget check with fs.c's sector
+// layout: ceil(24576/512) = 48 sectors reserved per file, and
+// MAX_FILES(32) * 48 = 1536 of MAX_DISK_SECTORS(4096) -- still fits.
+#define MAX_FILE_SIZE 24576
 #define MAX_DIRECTORIES 32
 #define MAX_STORAGE_DEVICES 8
 

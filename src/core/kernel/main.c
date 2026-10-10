@@ -1,23 +1,21 @@
-﻿#include <graphics.h>
+#include <graphics.h>
 #include <mouse.h>
 #include <keyboard.h>
 #include <serial.h>
-#include <io.h>
+// ports.h also declares the port I/O helpers and the device port constants;
+// including io.h as well would only duplicate those prototypes.
 #include <ports.h>
 #include <rtc.h>
 #include <font.h>
 #include <fs.h>
-//#include <apps.h>  // Not available yet
+#include <apps.h>
 #include <process_model.h>
 #include <multiboot.h>
-//#include <notepad/notepad_ui.h>  // Not available yet
-#include <settings/settings_ui.h>
-//#include <explorer/explorer_ui.h>  // Not available yet
 #include "../../resources/wallpapers/background_wallpaper.h"
-#include "stdint.h"
-#include "string.h"
+#include <stdint.h>
+#include <string.h>
 
-// Stub definitions for missing components
+// Window state kinds. These mirror the app_descriptor_t window_type values.
 #define APP_WINDOW_NOTEPAD 1
 #define APP_WINDOW_MYCOMP 2
 #define APP_WINDOW_ABOUT 3
@@ -26,29 +24,10 @@
 
 // Forward declarations for UI functions only
 static const char* notepad_ui_title(void);
-static const char* notepad_ui_toolbar_hint(void);
-static const char* notepad_ui_status_modified(void);
-static const char* notepad_ui_status_saved(void);
 static const char* settings_ui_panel_title(void);
 static const char* settings_ui_tab_name(int tab_idx);
 static const char* settings_ui_changelog_md_path(void);
 static const char* settings_ui_changelog_md_text(void);
-static const char* explorer_ui_title(void);
-
-// App descriptor type needed locally
-typedef struct {
-    const char* exe_name;
-    const char* system_path;
-    const char* display_name;
-    int window_type;
-    int default_x, default_y;
-} app_descriptor_t;
-
-// Forward declarations for app management functions
-int apps_get_count(void);
-const app_descriptor_t* apps_get_by_index(int idx);
-const app_descriptor_t* apps_find_by_exe(const char* exe_name);
-int apps_resolve_launch(const char* exe_name, int* out_win_type, int* out_x, int* out_y);
 
 // Window states
 #define MAX_WINDOWS 6
@@ -102,6 +81,9 @@ static char notepad_lines[NOTEPAD_MAX_LINES][NOTEPAD_MAX_COLS];
 static int notepad_cursor_x = 0;
 static int notepad_cursor_y = 0;
 static int notepad_view_top = 0;
+// Rows the editor actually rendered last frame; the wheel handler scrolls by
+// this instead of recomputing a viewport size of its own.
+static int notepad_lines_shown = 1;
 static uint8_t notepad_dirty = 0;
 // Use a virtual GamerOS-style path for Notepad data; this is resolved
 // into a concrete filesystem path by the GOS path helpers below.
@@ -124,6 +106,12 @@ static uint8_t setting_desktop_glow = 0;
 static uint8_t setting_compact_mode = 1;
 static int setting_display_profile = 0;
 static int settings_tab = 0;
+
+// Toggles exposed on the non-System pages.
+static uint8_t setting_bluetooth = 0;
+static uint8_t setting_network = 0;
+static uint8_t setting_high_contrast = 0;
+static uint8_t setting_large_text = 0;
 
 #define SETTINGS_TAB_SYSTEM 0
 #define SETTINGS_TAB_BLUETOOTH_DEVICES 1
@@ -156,6 +144,48 @@ typedef enum {
 
 static int settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
 
+// Hit-box state published by draw_window() so handle_settings_click() tests the
+// exact rectangles that were rendered, instead of duplicating layout constants.
+#define SETTINGS_MAX_TOGGLES 8
+
+typedef enum {
+    SETTINGS_TOG_COMPACT = 0,
+    SETTINGS_TOG_SECONDS,
+    SETTINGS_TOG_DEBUG,
+    SETTINGS_TOG_BLUETOOTH,
+    SETTINGS_TOG_NETWORK,
+    SETTINGS_TOG_CONTRAST,
+    SETTINGS_TOG_LARGE_TEXT
+} settings_toggle_id_t;
+
+typedef struct {
+    const char* label;
+    int is_on;
+    int id;
+} settings_toggle_desc_t;
+
+static int settings_tog_count = 0;
+static int settings_tog_hit_x = 0;
+static int settings_tog_hit_w = 0;
+static int settings_tog_hit_y[SETTINGS_MAX_TOGGLES];
+static int settings_tog_id[SETTINGS_MAX_TOGGLES];
+
+static int settings_res_hit_x = 0;
+static int settings_res_hit_y[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+static int settings_res_hit_count = 0;
+static int settings_res_hit_h = 0;
+
+// Sub-button hit boxes for the GamerOS Update view switch.
+static int settings_view_hit_x = 0;
+static int settings_view_hit_y = 0;
+static int settings_view_hit_w = 0;
+static int settings_view_hit_h = 0;
+static int settings_view_hit_gap = 0;
+
+// Rows the changelog viewer actually rendered last frame; the wheel handler
+// scrolls by this rather than recomputing a viewport size of its own.
+static int settings_md_visible_rows = 0;
+
 #define EXPLORER_MAX_ENTRIES 14
 static char explorer_path[MAX_FILENAME_LEN] = "C:/";
 static char explorer_entries[EXPLORER_MAX_ENTRIES][MAX_FILENAME_LEN];
@@ -166,6 +196,34 @@ static uint8_t explorer_this_pc_view = 1;
 static char explorer_drive_paths[EXPLORER_MAX_ENTRIES][4];
 static char explorer_drive_labels[EXPLORER_MAX_ENTRIES][32];
 static int explorer_drive_count = 0;
+
+// Navigation history so Back/Forward are real rather than decorative.
+#define EXPLORER_HISTORY 16
+static char explorer_hist_path[EXPLORER_HISTORY][MAX_FILENAME_LEN];
+static uint8_t explorer_hist_thispc[EXPLORER_HISTORY];
+static int explorer_hist_count = 0;
+static int explorer_hist_pos = -1;
+
+// Hit boxes published by draw_window() for the Explorer chrome.
+#define EXPLORER_TB_BUTTONS 4
+enum { EXPLORER_TB_BACK = 0, EXPLORER_TB_FWD, EXPLORER_TB_UP, EXPLORER_TB_REFRESH };
+static int explorer_tb_x[EXPLORER_TB_BUTTONS];
+static int explorer_tb_enabled[EXPLORER_TB_BUTTONS];
+static int explorer_tb_y = 0, explorer_tb_w = 0, explorer_tb_h = 0;
+
+#define EXPLORER_SIDEBAR_ROWS 4
+static int explorer_sb_x = 0, explorer_sb_w = 0;
+static int explorer_sb_hit_y[EXPLORER_SIDEBAR_ROWS];
+static int explorer_sb_hit_h = 0;
+static int explorer_sb_selected = -1;
+
+static int explorer_list_x = 0, explorer_list_y = 0, explorer_list_w = 0;
+static int explorer_list_hit_y[EXPLORER_MAX_ENTRIES];
+static int explorer_list_hit_count = 0;
+static int explorer_list_hit_h = 0;
+
+// Notepad hit boxes (Save button) and published layout metrics.
+static int notepad_save_x = 0, notepad_save_y = 0, notepad_save_w = 0, notepad_save_h = 0;
 static uint8_t storage_initialized = 0;
 static uint32_t cursor_under_rgb[CURSOR_SIZE * CURSOR_SIZE];
 static uint8_t notepad_io_buffer[MAX_FILE_SIZE + 1];
@@ -353,6 +411,16 @@ static void draw_debug_overlay(void);
 static void debug_present_boot_status(void);
 static void get_debug_overlay_rect(int* out_x, int* out_y, int* out_w, int* out_h);
 static void get_window_min_size(const window_t* win, int* out_w, int* out_h);
+static void explorer_refresh(void);
+static void explorer_history_push(uint8_t truncate_forward);
+static int explorer_can_go_back(void);
+static int explorer_can_go_forward(void);
+static void explorer_history_step(int delta);
+static void explorer_history_reset(void);
+static void explorer_navigate_to(const char* path);
+static const char* explorer_quick_path(int row);
+static const char* explorer_quick_label(int row);
+static void explorer_go_parent(void);
 static void draw_desktop_watermark(void);
 static void draw_desktop_wallpaper(int desktop_h);
 static int get_ui_scale(void);
@@ -380,6 +448,60 @@ static void explorer_refresh(void) {
     if (explorer_selected >= explorer_entry_count) {
         explorer_selected = -1;
     }
+}
+
+// Record the current location. `truncate_forward` drops the redo entries that
+// follow the current position, which is what navigating from a rewound history
+// should do.
+static void explorer_history_push(uint8_t truncate_forward) {
+    if (explorer_hist_count > 0) {
+        // Don't record a duplicate of where we already are.
+        if (explorer_hist_pos >= 0 && explorer_hist_pos < explorer_hist_count &&
+            strcmp(explorer_hist_path[explorer_hist_pos], explorer_path) == 0 &&
+            explorer_hist_thispc[explorer_hist_pos] == explorer_this_pc_view) {
+            return;
+        }
+    }
+    if (truncate_forward) {
+        // Keep history up to and including the current position.
+        if (explorer_hist_pos >= 0 && explorer_hist_pos < explorer_hist_count) {
+            explorer_hist_count = explorer_hist_pos + 1;
+        }
+    }
+    if (explorer_hist_count >= EXPLORER_HISTORY) {
+        // Shift out the oldest entry.
+        for (int i = 1; i < EXPLORER_HISTORY; i++) {
+            strncpy(explorer_hist_path[i - 1], explorer_hist_path[i], MAX_FILENAME_LEN);
+            explorer_hist_thispc[i - 1] = explorer_hist_thispc[i];
+        }
+        explorer_hist_count = EXPLORER_HISTORY - 1;
+    }
+    strncpy(explorer_hist_path[explorer_hist_count], explorer_path, MAX_FILENAME_LEN);
+    explorer_hist_path[explorer_hist_count][MAX_FILENAME_LEN - 1] = 0;
+    explorer_hist_thispc[explorer_hist_count] = explorer_this_pc_view;
+    explorer_hist_count++;
+    explorer_hist_pos = explorer_hist_count - 1;
+}
+
+static int explorer_can_go_back(void) { return explorer_hist_pos > 0; }
+static int explorer_can_go_forward(void) {
+    return explorer_hist_pos >= 0 && explorer_hist_pos < explorer_hist_count - 1;
+}
+
+static void explorer_history_step(int delta) {
+    int target = explorer_hist_pos + delta;
+    if (target < 0 || target >= explorer_hist_count) return;
+    explorer_hist_pos = target;
+    strncpy(explorer_path, explorer_hist_path[target], sizeof(explorer_path) - 1);
+    explorer_path[sizeof(explorer_path) - 1] = 0;
+    explorer_this_pc_view = explorer_hist_thispc[target];
+    explorer_selected = -1;
+    explorer_refresh();
+}
+
+static void explorer_history_reset(void) {
+    explorer_hist_count = 0;
+    explorer_hist_pos = -1;
 }
 
 static void explorer_open_this_pc(void) {
@@ -532,7 +654,37 @@ static void explorer_go_parent(void) {
         strncpy(explorer_path, "C:/", sizeof(explorer_path) - 1);
         explorer_path[sizeof(explorer_path) - 1] = 0;
     }
+    explorer_history_push(0);
     explorer_refresh();
+}
+
+// Navigate to a concrete path, recording it in history.
+static void explorer_navigate_to(const char* path) {
+    if (!path) return;
+    strncpy(explorer_path, path, sizeof(explorer_path) - 1);
+    explorer_path[sizeof(explorer_path) - 1] = 0;
+    explorer_this_pc_view = 0;
+    explorer_history_push(0);
+    explorer_selected = -1;
+    explorer_refresh();
+}
+
+// Quick-access destinations shown in the sidebar.
+static const char* explorer_quick_path(int row) {
+    switch (row) {
+        case 0: return "C:/Users/Admin/Documents";
+        case 1: return "C:/Users/Admin/Documents";
+        case 2: return "C:/Users/Admin/Downloads";
+        default: return 0;
+    }
+}
+
+static const char* explorer_quick_label(int row) {
+    static const char* labels[EXPLORER_SIDEBAR_ROWS] = {
+        "Desktop", "Documents", "Downloads", "This PC"
+    };
+    if (row < 0 || row >= EXPLORER_SIDEBAR_ROWS) return "";
+    return labels[row];
 }
 
 static void initialize_storage_layout(void) {
@@ -585,7 +737,7 @@ static void initialize_storage_layout(void) {
     debug_log_message("Boot: seed system files");
     debug_present_boot_status();
     write_text_file("C:/GamerOS/System32/GAMEROS.INI",
-        "shell=GamerOS\nbuild=1.500\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
+        "shell=GamerOS\nbuild=1.520\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
     write_text_file("C:/Users/Admin/README.TXT", "Welcome to GamerOS user profile.\n");
     write_text_file(NOTEPAD_FILE_PATH, "GamerOS Notepad\n\nType here...\n");
 
@@ -705,8 +857,8 @@ static void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
 }
 
 static void draw_desktop_watermark(void) {
-    const char* line1 = "GamerOS 00m1";
-    const char* line2 = "Stability release    Build 1.500";
+    const char* line1 = "GamerOS 00m2";
+    const char* line2 = "Stability release    Build 1.520";
     int w1 = (int)strlen(line1) * 6;
     int w2 = (int)strlen(line2) * 6;
     int max_w = (w1 > w2) ? w1 : w2;
@@ -725,7 +877,13 @@ static void draw_desktop_watermark(void) {
 
 static int wallpaper_is_too_dark(void) {
     static int cached = -1;
-    if (cached >= 0) return cached;
+    static uint32_t last_w = 0;
+    static uint32_t last_h = 0;
+    if (cached >= 0 && last_w == background_wallpaper_width && last_h == background_wallpaper_height) {
+        return cached;
+    }
+    last_w = background_wallpaper_width;
+    last_h = background_wallpaper_height;
     if (background_wallpaper_width == 0 || background_wallpaper_height == 0) {
         cached = 1;
         return cached;
@@ -755,85 +913,93 @@ static int wallpaper_is_too_dark(void) {
 
 static void draw_desktop_wallpaper(int desktop_h) {
     if (desktop_h <= 0) return;
+
+    // The embedded wallpaper asset is essentially transparent/black. If it
+    // samples as too dark, brighten the generated gradient so the desktop is
+    // never painted near-black.
+    int too_dark = wallpaper_is_too_dark();
+
     if (graphics_is_truecolor()) {
-        // Bright layered backdrop with geometric panels so the desktop feels
-        // intentional even before custom wallpapers arrive.
-        for (int y = 0; y < desktop_h; y++) {
-            uint32_t t = (uint32_t)((y * 255) / ((desktop_h > 1) ? (desktop_h - 1) : 1));
-            uint32_t r = 230 - ((18 * t) / 255);
-            uint32_t g = 242 - ((12 * t) / 255);
-            uint32_t b = 255;
+        uint32_t w = current_width;
+        uint32_t h = (uint32_t)desktop_h;
+
+        // Faster row-by-row gradient using fill_rect
+        for (uint32_t y = 0; y < h; y++) {
+            uint32_t t = (y * 255) / (h > 1 ? h - 1 : 1);
+            uint32_t r = 58 - ((40 * t) / 255);
+            uint32_t g = 110 - ((55 * t) / 255);
+            uint32_t b = 165 - ((30 * t) / 255);
             uint32_t rgb = (r << 16) | (g << 8) | b;
-            for (uint32_t x = 0; x < current_width; x++) {
-                draw_pixel_rgb((int)x, y, rgb);
+            if (too_dark) {
+                // Lift the gradient floor so the desktop stays readable.
+                r += 70; if (r > 255) r = 255;
+                g += 70; if (g > 255) g = 255;
+                b += 50; if (b > 255) b = 255;
+                rgb = (r << 16) | (g << 8) | b;
+            }
+            uint32_t* row = graphics_get_rgb_row((int)y);
+            if (!row) continue;
+            for (uint32_t x = 0; x < w; x++) {
+                row[x] = rgb;
             }
         }
 
-        int panel1_x = (int)current_width / 2 - 40;
-        int panel1_y = desktop_h / 4;
-        int panel1_w = (int)current_width / 3;
-        int panel1_h = desktop_h / 2;
-        int panel2_x = panel1_x + panel1_w / 2;
-        int panel2_y = panel1_y + panel1_h / 3;
-        int panel2_w = (int)current_width / 2;
-        int panel2_h = desktop_h / 2;
-        if (panel1_x < 0) panel1_x = 0;
-        if (panel2_x < 0) panel2_x = 0;
-
-        for (int y = panel1_y; y < panel1_y + panel1_h && y < desktop_h; y++) {
-            for (int x = panel1_x; x < panel1_x + panel1_w && x < (int)current_width; x++) {
-                if (((x + y) & 1) == 0) draw_pixel_rgb(x, y, 0xDDEBFF);
-            }
-        }
-        for (int y = panel2_y; y < panel2_y + panel2_h && y < desktop_h; y++) {
-            for (int x = panel2_x; x < panel2_x + panel2_w && x < (int)current_width; x++) {
-                if (((x + y) & 1) == 0) draw_pixel_rgb(x, y, 0xE8F2FF);
+        // Subtle lighter band across the middle
+        int band_y = (int)h * 2 / 5;
+        int band_h = (int)h / 6;
+        for (int y = band_y; y < band_y + band_h && y < (int)h; y++) {
+            uint32_t t = (uint32_t)(((y - band_y) * 255) / (band_h > 1 ? band_h - 1 : 1));
+            uint32_t a = t < 128 ? t : 255 - t;
+            a = (a * 40) / 255;
+            uint32_t* row = graphics_get_rgb_row(y);
+            if (!row) continue;
+            for (uint32_t x = 0; x < w; x++) {
+                uint32_t px = row[x];
+                uint32_t rr = ((px >> 16) & 0xFF) + a; if (rr > 255) rr = 255;
+                uint32_t gg = ((px >> 8) & 0xFF) + a; if (gg > 255) gg = 255;
+                uint32_t bb = (px & 0xFF) + a; if (bb > 255) bb = 255;
+                row[x] = (rr << 16) | (gg << 8) | bb;
             }
         }
 
-        if (!wallpaper_is_too_dark()) {
-            uint32_t src_w = background_wallpaper_width;
-            uint32_t src_h = background_wallpaper_height;
-            uint32_t dst_w = current_width;
-            uint32_t dst_h = (uint32_t)desktop_h;
-            for (uint32_t y = 0; y < dst_h; y++) {
-                uint32_t sy = (y * src_h) / dst_h;
-                uint32_t row = sy * src_w;
-                for (uint32_t x = 0; x < dst_w; x++) {
-                    uint32_t sx = (x * src_w) / dst_w;
-                    uint8_t color = background_wallpaper_pixels[row + sx] & 0x0F;
-                    if ((color & 0x0F) > 2 && ((x + y) % 5 == 0)) {
-                        draw_pixel((int)x, (int)y, color);
-                    }
-                }
+        // GamerOS brand watermark - subtle corner decoration
+        int logo_x = 16;
+        int logo_y = h - 68;
+        if (logo_y < 16) logo_y = 16;
+        // Semi-transparent brand bar
+        for (int ly = 0; ly < 48; ly++) {
+            int py = logo_y + ly;
+            if (py < 0 || py >= (int)h) continue;
+            uint32_t* row = graphics_get_rgb_row(py);
+            if (!row) continue;
+            for (int lx = 0; lx < 120; lx++) {
+                int px = logo_x + lx;
+                if (px < 0 || px >= (int)w) continue;
+                uint32_t bg = row[px];
+                uint32_t br = ((bg >> 16) & 0xFF) * 3 / 4 + 16;
+                uint32_t bg_ = ((bg >> 8) & 0xFF) * 3 / 4 + 16;
+                uint32_t bb = (bg & 0xFF) * 3 / 4 + 32;
+                row[px] = (br << 16) | (bg_ << 8) | bb;
             }
         }
         return;
     }
 
-    if (background_wallpaper_width == 0 || background_wallpaper_height == 0 || wallpaper_is_too_dark()) {
+    // Indexed mode - smooth gradient
+    {
         for (int y = 0; y < desktop_h; y++) {
-            uint8_t c = XP_WHITE;
-            if (y > (desktop_h * 2) / 3) c = XP_LGRAY;
-            else if (y > desktop_h / 3) c = ((y & 1) == 0) ? XP_LGRAY : XP_WHITE;
+            uint8_t c;
+            if (y < desktop_h / 4) {
+                c = XP_BLUE;
+            } else if (y < desktop_h * 3 / 4) {
+                c = ((y & 1) == 0) ? XP_LBLUE : XP_WHITE;
+            } else {
+                c = XP_LGRAY;
+            }
             fill_rect(0, y, (int)current_width, 1, c);
         }
-        return;
-    }
-
-    uint32_t src_w = background_wallpaper_width;
-    uint32_t src_h = background_wallpaper_height;
-    uint32_t dst_w = current_width;
-    uint32_t dst_h = (uint32_t)desktop_h;
-
-    for (uint32_t y = 0; y < dst_h; y++) {
-        uint32_t sy = (y * src_h) / dst_h;
-        uint32_t row = sy * src_w;
-        for (uint32_t x = 0; x < dst_w; x++) {
-            uint32_t sx = (x * src_w) / dst_w;
-            uint8_t color = background_wallpaper_pixels[row + sx] & 0x0F;
-            draw_pixel((int)x, (int)y, color);
-        }
+        // Accent stripe
+        fill_rect(0, desktop_h * 2 / 5, (int)current_width, 3, XP_WHITE);
     }
 }
 
@@ -1145,7 +1311,13 @@ static void settings_md_parse(const char* markdown) {
                 strncpy(processed_buf, line_buf + 3, sizeof(processed_buf) - 1);
                 processed_buf[sizeof(processed_buf) - 1] = 0;
                 settings_md_strip_bold_markers(processed_buf);
-                if (strncmp(processed_buf, "Planned", 7) == 0 && settings_md_plan_start < 0) {
+                // The roadmap view starts at this section. Accept the usual
+                // spellings rather than only "Planned", so renaming the
+                // heading cannot silently make the two views identical again.
+                if (settings_md_plan_start < 0 &&
+                    (strncmp(processed_buf, "Planned", 7) == 0 ||
+                     strncmp(processed_buf, "Roadmap", 7) == 0 ||
+                     strncmp(processed_buf, "Upcoming", 7) == 0)) {
                     settings_md_plan_start = settings_md_line_count;
                 }
                 settings_md_add_line(processed_buf, XP_BLUE, 0);
@@ -1289,14 +1461,11 @@ static void startup_animation(void) {
     const char* title = "GamerOS";
     const char* subtitle = "Preparing your workspace...";
     int title_w = (int)strlen(title) * 8;
-    int subtitle_w = (int)strlen(subtitle) * 8;
     int panel_w = 340;
     if (panel_w > (int)current_width - 24) panel_w = (int)current_width - 24;
-    int panel_h = 132;
+    int panel_h = 120;
     int title_x = ((int)current_width - title_w) / 2;
-    int subtitle_x = ((int)current_width - subtitle_w) / 2;
     int title_y = ((int)current_height / 2) - 48;
-    int subtitle_y = title_y + 18;
     int panel_x = ((int)current_width - panel_w) / 2;
     int panel_y = title_y - 14;
     int rail_w = 42;
@@ -1304,11 +1473,56 @@ static void startup_animation(void) {
     int panel_inner_w = panel_w - rail_w - 20;
     int loader_cx = (int)current_width / 2;
     int loader_cy = panel_y + panel_h - 34;
-    const int loader_r = 18;
-    const int loader_dot_r = 3;
 
     int bg_h = (int)current_height;
-    int frames = 68;
+    int frames = 48;
+
+    // Draw background once (static)
+    if (graphics_is_truecolor()) {
+        uint32_t w = current_width;
+        uint32_t h = (uint32_t)bg_h;
+        // Deep blue gradient
+        for (uint32_t y = 0; y < h; y++) {
+            uint32_t t = (y * 255) / (h > 1 ? h - 1 : 1);
+            uint32_t r = 20 + ((10 * t) / 255);
+            uint32_t g = 50 + ((20 * t) / 255);
+            uint32_t b = 90 + ((30 * t) / 255);
+            uint32_t rgb = (r << 16) | (g << 8) | b;
+            uint32_t* row = graphics_get_rgb_row((int)y);
+            if (!row) continue;
+            for (uint32_t x = 0; x < w; x++) row[x] = rgb;
+        }
+    } else {
+        for (int y = 0; y < bg_h; y++) {
+            uint8_t c;
+            if (y < bg_h / 4) c = XP_BLUE;
+            else if (y < bg_h * 3 / 4) c = ((y & 1) == 0) ? XP_LBLUE : XP_WHITE;
+            else c = XP_LGRAY;
+            fill_rect(0, y, (int)current_width, 1, c);
+        }
+    }
+
+    // Pre-draw panel background (static part)
+    fill_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_WHITE);
+    draw_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_LGRAY);
+    draw_chamfer_rect(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, XP_DGRAY);
+    fill_chamfer_rect(panel_x + 4, panel_y + 4, rail_w, panel_h - 8, XP_LGRAY);
+    fill_rect(panel_x + 5, panel_y + 5, rail_w - 2, 2, XP_WHITE);
+    fill_chamfer_rect(panel_x + 13, panel_y + 12, 24, 14, XP_LBLUE);
+    draw_compact_string(panel_x + 21, panel_y + 16, "G", XP_BLACK);
+
+    fill_chamfer_rect(panel_inner_x, panel_y + 8, panel_inner_w, 18, XP_WHITE);
+    fill_rect(panel_inner_x + 1, panel_y + 9, panel_inner_w - 2, 2, XP_LBLUE);
+    draw_string(title_x, title_y, title, XP_BLACK);
+
+    fill_chamfer_rect(panel_inner_x, panel_y + 32, panel_inner_w, 14, XP_LGRAY);
+    draw_chamfer_rect(panel_inner_x, panel_y + 32, panel_inner_w, 14, XP_DGRAY);
+    draw_compact_string(panel_inner_x + 6, panel_y + 36, subtitle, XP_BLACK);
+
+    // Loading text
+    draw_compact_string(loader_cx - 24, loader_cy - 3, "Loading", XP_DGRAY);
+
+    // Pre-compute ring positions
     static const int8_t ring_dx[24] = {
          0,  5,  9, 13, 15, 17, 18, 17, 15, 13,  9,  5,
          0, -5, -9,-13,-15,-17,-18,-17,-15,-13, -9, -5
@@ -1318,70 +1532,37 @@ static void startup_animation(void) {
         18, 17, 15, 12,  9,  5,  0, -5, -9,-12,-15,-17
     };
 
+    int prev_lit = 0;
     for (int f = 0; f <= frames; f++) {
-        // Smoother background: bright gradient where available, dithered fallback otherwise.
-        if (graphics_is_truecolor()) {
-            for (int y = 0; y < bg_h; y++) {
-                uint32_t t = (uint32_t)((y * 255) / ((bg_h > 1) ? (bg_h - 1) : 1));
-                uint32_t r = 188 + ((22 * t) / 255);
-                uint32_t g = 220 + ((12 * t) / 255);
-                uint32_t b = 255;
-                uint32_t rgb = (r << 16) | (g << 8) | b;
-                for (uint32_t x = 0; x < current_width; x++) {
-                    draw_pixel_rgb((int)x, y, rgb);
-                }
-            }
-            // Soft ambient band near lower third.
-            int glow_y0 = (bg_h * 2) / 3;
-            for (int y = glow_y0; y < bg_h; y++) {
-                uint32_t t = (uint32_t)(((y - glow_y0) * 255) / ((bg_h - glow_y0 > 1) ? (bg_h - glow_y0 - 1) : 1));
-                uint32_t rgb = ((170 + ((16 * t) / 255)) << 16) | ((205 + ((22 * t) / 255)) << 8) | (255 - ((16 * t) / 255));
-                for (uint32_t x = 0; x < current_width; x++) {
-                    if (((x + (uint32_t)y) & 1U) == 0U) draw_pixel_rgb((int)x, y, rgb);
-                }
-            }
-        } else {
-            for (int y = 0; y < bg_h; y++) {
-                uint8_t c = XP_LBLUE;
-                if (y > (bg_h * 2) / 3) c = ((y & 1) == 0) ? XP_WHITE : XP_LGRAY;
-                else if (y > bg_h / 3) c = ((y & 1) == 0) ? XP_LGRAY : XP_LBLUE;
-                fill_rect(0, y, (int)current_width, 1, c);
-            }
-        }
-
-        // Center card styled to match the Start menu / desktop shell language.
-        fill_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_WHITE);
-        draw_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_LGRAY);
-        draw_chamfer_rect(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, XP_DGRAY);
-        fill_chamfer_rect(panel_x + 4, panel_y + 4, rail_w, panel_h - 8, XP_LGRAY);
-        fill_rect(panel_x + 5, panel_y + 5, rail_w - 2, 2, XP_WHITE);
-        fill_chamfer_rect(panel_x + 13, panel_y + 12, 24, 14, XP_LBLUE);
-        draw_compact_string(panel_x + 21, panel_y + 16, "G", XP_BLACK);
-
-        fill_chamfer_rect(panel_inner_x, panel_y + 8, panel_inner_w, 18, XP_WHITE);
-        fill_rect(panel_inner_x + 1, panel_y + 9, panel_inner_w - 2, 2, XP_LBLUE);
-        draw_string(title_x, title_y, title, XP_BLACK);
-
-        fill_chamfer_rect(panel_inner_x, panel_y + 32, panel_inner_w, 14, XP_LGRAY);
-        draw_chamfer_rect(panel_inner_x, panel_y + 32, panel_inner_w, 14, XP_DGRAY);
-        draw_compact_string(panel_inner_x + 6, panel_y + 36, subtitle, XP_BLACK);
-
-        // Circular loading indicator.
         int lit = ((f * 24) / frames);
         if (lit < 1) lit = 1;
         if (lit > 24) lit = 24;
-        for (int i = 0; i < 24; i++) {
-            int px = loader_cx + ring_dx[i];
-            int py = loader_cy + ring_dy[i];
-            uint8_t col = (i < lit) ? XP_BLUE : XP_LGRAY;
-            if (i == lit - 1) col = XP_LBLUE;
-            vga_fill_circle(px, py, loader_dot_r, col);
+
+        // Only redraw dots that changed
+        if (lit > prev_lit) {
+            for (int i = prev_lit; i < lit; i++) {
+                int px = loader_cx + ring_dx[i];
+                int py = loader_cy + ring_dy[i];
+                fill_rect(px - 2, py - 2, 5, 5, XP_BLUE);
+            }
+            // Highlight current dot
+            if (lit > 0 && lit <= 24) {
+                int px = loader_cx + ring_dx[lit - 1];
+                int py = loader_cy + ring_dy[lit - 1];
+                fill_rect(px - 2, py - 2, 5, 5, XP_LBLUE);
+            }
+            // Unlit dots
+            for (int i = lit; i < 24; i++) {
+                int px = loader_cx + ring_dx[i];
+                int py = loader_cy + ring_dy[i];
+                fill_rect(px - 2, py - 2, 5, 5, XP_LGRAY);
+            }
         }
-        draw_compact_string(loader_cx - 24, loader_cy - 3, "Loading", XP_DGRAY);
+        prev_lit = lit;
 
         swap_buffers();
-        int delay_cycles = 900 + ((frames - f) * 6);
-        for (volatile int d = 0; d < delay_cycles; d++) {
+        // Short delay - no busy loop
+        for (volatile int d = 0; d < 40000; d++) {
             __asm__ volatile ("nop");
         }
     }
@@ -1452,6 +1633,9 @@ void open_window(int type, int x, int y) {
                 windows[i].x = 8;
                 windows[i].y = 6;
                 explorer_open_this_pc();
+                // Start the history at "This PC" so Back is available immediately.
+                explorer_history_reset();
+                explorer_history_push(0);
             } else if (type == WIN_MYCOMP) {
                 strncpy(windows[i].title, "My Computer", 31);
                 windows[i].w = 180;
@@ -1491,6 +1675,255 @@ void close_window(int idx) {
             }
         }
         active_window = -1;
+    }
+}
+
+// Draw a horizontal on/off switch.
+//
+// Renders a chamfered pill with a sliding knob: the track turns accent blue when
+// enabled, and the knob moves from the left (off) to the right (on).
+static void draw_toggle_switch(int x, int y, int is_on) {
+    const int tw = 20;
+    const int th = 9;
+    if (x < 0 || y < 0) return;
+
+    // Track.
+    uint8_t track = is_on ? XP_LBLUE : XP_LGRAY;
+    fill_chamfer_rect(x, y, tw, th, track);
+    draw_chamfer_rect(x, y, tw, th, XP_DGRAY);
+    // Highlight along the top edge for a slightly raised look.
+    fill_rect(x + 1, y + 1, tw - 2, 1, is_on ? XP_LBLUE : XP_WHITE);
+
+    // Knob slides across the track.
+    const int knob_w = 7;
+    const int knob_h = 5;
+    const int inset = 2;
+    int knob_x = is_on ? (x + tw - knob_w - inset) : (x + inset);
+    int knob_y = y + (th - knob_h) / 2;
+    fill_chamfer_rect(knob_x, knob_y, knob_w, knob_h, XP_WHITE);
+    draw_chamfer_rect(knob_x, knob_y, knob_w, knob_h, XP_DGRAY);
+}
+
+// Draw one labelled settings toggle row: label on the left, state text and a
+// right-aligned switch on the right. Returns the height consumed.
+static int draw_settings_toggle(int content_x, int content_w, int row_y,
+                                const char* label, int is_on, int max_chars) {
+    const int toggle_w = 20;
+    // Right-align the switch inside the content pane.
+    int toggle_x = content_x + content_w - toggle_w - 6;
+    if (toggle_x < content_x) toggle_x = content_x;
+
+    draw_compact_string_clipped(content_x + 6, row_y + 1, max_chars, label, XP_BLACK);
+
+    // State text sits just left of the switch.
+    const char* state = is_on ? "On" : "Off";
+    int state_x = toggle_x - 6 - ((int)strlen(state) * 6);
+    if (state_x > content_x + 6) {
+        draw_compact_string(state_x, row_y + 1, state, is_on ? XP_BLUE : XP_DGRAY);
+    }
+
+    draw_toggle_switch(toggle_x, row_y, is_on);
+    return 12;
+}
+
+// Section heading: coloured label plus a short accent tick and a faint rule.
+// Returns the Y at which the section body may start.
+static int draw_settings_section(int content_x, int content_w, int y, const char* title) {
+    if (y < 0) return y;
+    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / 6, title, XP_BLUE);
+    int rule_y = y + 9;
+    fill_rect(content_x + 6, rule_y, 12, 1, XP_LBLUE);
+    fill_rect(content_x + 20, rule_y, content_w - 26, 1, XP_LGRAY);
+    return rule_y + 4;
+}
+
+// Quieter sub-heading for groups inside a section.
+static int draw_settings_subheader(int content_x, int content_w, int y, const char* title) {
+    if (y < 0) return y;
+    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / 6, title, XP_DGRAY);
+    return y + 11;
+}
+
+// Label on the left, value right-aligned. Returns the height consumed.
+static int draw_settings_kv(int content_x, int content_w, int y,
+                            const char* key, const char* value) {
+    if (y < 0 || !key || !value) return 11;
+    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / 6, key, XP_DGRAY);
+
+    int vw = (int)strlen(value) * 6;
+    int vx = content_x + content_w - 6 - vw;
+    int kx = content_x + 6;
+    if (vx > kx + 54) {
+        draw_compact_string(vx, y, value, XP_BLACK);
+    } else {
+        // Not enough room to right-align; place after the key instead.
+        draw_compact_string_clipped(content_x + 50, y, (content_w - 56) / 6, value, XP_BLACK);
+    }
+    return 11;
+}
+
+// Backing card used to group related rows.
+static void draw_settings_card(int content_x, int content_w, int y, int height) {
+    if (height <= 0) return;
+    int cx = content_x + 4;
+    int cw = content_w - 12;
+    if (cw <= 4) return;
+    fill_chamfer_rect(cx, y, cw, height, XP_LGRAY);
+    draw_chamfer_rect(cx, y, cw, height, XP_DGRAY);
+    // Accent edge down the left side ties the group together.
+    fill_rect(cx + 1, y + 1, 2, height - 2, XP_LBLUE);
+}
+
+// Publish a toggle's clickable rectangle for handle_settings_click().
+static void settings_register_toggle(int x, int w, int y, int id) {
+    if (settings_tog_count >= SETTINGS_MAX_TOGGLES) return;
+    settings_tog_hit_x = x;
+    settings_tog_hit_w = w;
+    settings_tog_hit_y[settings_tog_count] = y;
+    settings_tog_id[settings_tog_count] = id;
+    settings_tog_count++;
+}
+
+// Render a group of toggles inside a card, registering each hit box.
+// Returns the vertical space consumed.
+static int draw_settings_toggle_group(int content_x, int content_w, int y,
+                                      const settings_toggle_desc_t* items, int count) {
+    const int ROW_H = 12;
+    if (count <= 0) return 0;
+    if (count > SETTINGS_MAX_TOGGLES) count = SETTINGS_MAX_TOGGLES;
+
+    int card_h = 6 + count * ROW_H;
+    draw_settings_card(content_x, content_w, y, card_h);
+
+    int tx = content_x + 10;
+    int tw = content_w - 22;
+    int label_chars = (content_w - 60) / 6;
+    if (label_chars < 4) label_chars = 4;
+
+    for (int i = 0; i < count; i++) {
+        int ry = y + 3 + i * ROW_H;
+        settings_register_toggle(content_x, content_w - 16, ry, items[i].id);
+        draw_settings_toggle(tx, tw, ry, items[i].label, items[i].is_on, label_chars);
+    }
+    return card_h + 8;
+}
+
+// Apply a toggle by id.
+static void settings_apply_toggle(int id) {
+    switch (id) {
+        case SETTINGS_TOG_COMPACT:    setting_compact_mode = (uint8_t)!setting_compact_mode; break;
+        case SETTINGS_TOG_SECONDS:    setting_show_seconds = (uint8_t)!setting_show_seconds; break;
+        case SETTINGS_TOG_DEBUG:      debug_overlay_enabled = (uint8_t)!debug_overlay_enabled; break;
+        case SETTINGS_TOG_BLUETOOTH:  setting_bluetooth = (uint8_t)!setting_bluetooth; break;
+        case SETTINGS_TOG_NETWORK:    setting_network = (uint8_t)!setting_network; break;
+        case SETTINGS_TOG_CONTRAST:   setting_high_contrast = (uint8_t)!setting_high_contrast; break;
+        case SETTINGS_TOG_LARGE_TEXT: setting_large_text = (uint8_t)!setting_large_text; break;
+        default: break;
+    }
+}
+
+// Draw a small toolbar button with an optional enabled/disabled state.
+static void draw_tool_button(int x, int y, int w, int h, const char* label, int enabled) {
+    uint8_t bg = enabled ? XP_WHITE : XP_LGRAY;
+    uint8_t txt = enabled ? XP_BLACK : XP_DGRAY;
+    fill_chamfer_rect(x, y, w, h, bg);
+    draw_chamfer_rect(x, y, w, h, XP_DGRAY);
+    if (enabled) fill_rect(x + 1, y + 1, w - 2, 1, XP_WHITE);
+    int chars = (w - 6) / 6;
+    draw_compact_string_clipped(x + 3, y + (h - 8) / 2, chars, label, txt);
+}
+
+// Draw the Notepad window body: toolbar, line-numbered editor, status bar.
+static void draw_notepad_body(int x, int y, int w, int h, int is_active) {
+    const int TOOLBAR_H = 15;
+    const int STATUS_H = 13;
+    const int LINE_H = 8;
+    const int GUTTER_W = 22;
+
+    int tool_y = y + 28;
+    int edit_y = tool_y + TOOLBAR_H + 3;
+    int edit_h = h - (edit_y - y) - STATUS_H - 4;
+    if (edit_h < LINE_H + 4) edit_h = LINE_H + 4;
+
+    // Toolbar
+    const int btn_w = 34;
+    const int btn_h = 13;
+    int bx = x + 6;
+    draw_tool_button(bx, tool_y, btn_w, btn_h, "Save", 1);
+    notepad_save_x = bx;
+    notepad_save_y = tool_y;
+    notepad_save_w = btn_w;
+    notepad_save_h = btn_h;
+
+    // Right-aligned modified indicator.
+    const char* state = notepad_dirty ? "Modified" : "Saved";
+    int sx = x + w - 6 - ((int)strlen(state) * 6);
+    draw_compact_string(sx, tool_y + (btn_h - 8) / 2, state, notepad_dirty ? XP_BLUE : XP_DGRAY);
+
+    // Editor surface
+    fill_chamfer_rect(x + 5, edit_y, w - 10, edit_h, XP_WHITE);
+    draw_chamfer_rect(x + 5, edit_y, w - 10, edit_h, XP_DGRAY);
+
+    int text_x = x + 5 + 2 + GUTTER_W + 2;
+    int text_w = w - 10 - 4 - GUTTER_W - 2;
+    if (text_w < 12) text_w = 12;
+    int max_chars = text_w / 6;
+    if (max_chars > NOTEPAD_MAX_COLS) max_chars = NOTEPAD_MAX_COLS;
+    int max_chars_gutter = (GUTTER_W - 6) / 6;
+
+    int lines_shown = (edit_h - 6) / LINE_H;
+    if (lines_shown < 1) lines_shown = 1;
+    notepad_lines_shown = lines_shown;
+
+    if (notepad_view_top < 0) notepad_view_top = 0;
+    int max_top = NOTEPAD_MAX_LINES - lines_shown;
+    if (max_top < 0) max_top = 0;
+    if (notepad_view_top > max_top) notepad_view_top = max_top;
+
+    // Gutter separator.
+    fill_rect(x + 5 + 2 + GUTTER_W, edit_y + 3, 1, edit_h - 6, XP_LGRAY);
+
+    for (int row = 0; row < lines_shown; row++) {
+        int i = notepad_view_top + row;
+        if (i >= NOTEPAD_MAX_LINES) break;
+        int row_y = edit_y + 3 + row * LINE_H;
+        if (row_y + LINE_H > edit_y + edit_h - 1) break;
+
+        // Line number, dimmed, right-aligned in the gutter.
+        char num[8];
+        sprintf(num, "%d", i + 1);
+        int nx = x + 5 + 2 + GUTTER_W - 2 - ((int)strlen(num) * 6);
+        draw_compact_string_clipped(nx, row_y, max_chars_gutter, num, XP_DGRAY);
+
+        if (notepad_lines[i][0]) {
+            draw_compact_string_clipped(text_x, row_y, max_chars, notepad_lines[i], XP_BLACK);
+        }
+    }
+
+    // Caret
+    if (is_active) {
+        int cx = text_x + notepad_cursor_x * 6;
+        int cy = edit_y + 3 + (notepad_cursor_y - notepad_view_top) * LINE_H;
+        if (cy >= edit_y + 3 && cy + LINE_H <= edit_y + edit_h - 1 && cx < x + w - 8) {
+            fill_rect(cx, cy, 1, LINE_H - 1, XP_BLACK);
+        }
+    }
+
+    // Status bar
+    int status_y = y + h - STATUS_H - 2;
+    fill_chamfer_rect(x + 5, status_y, w - 10, STATUS_H, XP_LGRAY);
+    draw_chamfer_rect(x + 5, status_y, w - 10, STATUS_H, XP_DGRAY);
+    fill_rect(x + 6, status_y + 1, w - 12, 1, XP_WHITE);
+
+    char pos[32];
+    sprintf(pos, "Ln %d, Col %d", notepad_cursor_y + 1, notepad_cursor_x + 1);
+    draw_compact_string_clipped(x + 9, status_y + 3, (w - 60) / 6, pos, XP_DGRAY);
+
+    // File name, right-aligned.
+    const char* fname = path_basename(NOTEPAD_FILE_PATH);
+    int fw = (int)strlen(fname) * 6;
+    if (fw < w - 90) {
+        draw_compact_string_clipped(x + w - 8 - fw, status_y + 3, fw / 6 + 1, fname, XP_DGRAY);
     }
 }
 
@@ -1536,42 +1969,7 @@ void draw_window(window_t* win) {
     }
     
     if (win->type == WIN_NOTEPAD) {
-        fill_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_WHITE);
-        draw_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_DGRAY);
-        fill_chamfer_rect(x + 8, y + 32, w - 16, 18, XP_LGRAY);
-        fill_rect(x + 9, y + 33, w - 18, 2, XP_LBLUE);
-        draw_compact_string(x + 12, y + 38, notepad_ui_toolbar_hint(), XP_BLACK);
-        fill_chamfer_rect(x + 8, y + h - 22, w - 16, 14, XP_LGRAY);
-        fill_rect(x + 9, y + h - 21, w - 18, 1, XP_WHITE);
-        int text_top = y + 40;
-        int text_bottom = y + h - 26;
-        int visible_lines = (text_bottom - text_top) / 5;
-        if (visible_lines < 1) visible_lines = 1;
-        if (notepad_view_top < 0) notepad_view_top = 0;
-        if (notepad_view_top > NOTEPAD_MAX_LINES - visible_lines) {
-            notepad_view_top = NOTEPAD_MAX_LINES - visible_lines;
-            if (notepad_view_top < 0) notepad_view_top = 0;
-        }
-        fill_chamfer_rect(x + 8, y + 54, w - 16, h - 82, XP_WHITE);
-        draw_chamfer_rect(x + 8, y + 54, w - 16, h - 82, XP_LGRAY);
-        int max_chars = (w - 24) / 6;
-        if (max_chars < 1) max_chars = 1;
-        if (max_chars > NOTEPAD_MAX_COLS) max_chars = NOTEPAD_MAX_COLS;
-        for (int row = 0; row < visible_lines; row++) {
-            int i = notepad_view_top + row;
-            if (i >= NOTEPAD_MAX_LINES) break;
-            if (notepad_lines[i][0]) {
-                draw_compact_string_clipped(x + 13, text_top + 14 + row * 5, max_chars, notepad_lines[i], XP_BLACK);
-            }
-        }
-        draw_compact_string(x + 12, y + h - 18, notepad_dirty ? notepad_ui_status_modified() : notepad_ui_status_saved(), XP_DGRAY);
-        if (win == &windows[active_window]) {
-            int cx = x + 13 + notepad_cursor_x * 6;
-            int cy = text_top + 14 + (notepad_cursor_y - notepad_view_top) * 5;
-            if (cy >= text_top + 14 && cy < text_bottom) {
-                fill_rect(cx, cy, 5, 6, XP_BLACK);
-            }
-        }
+        draw_notepad_body(x + 2, y + 2, w - 4, h - 4, is_active_window);
     } else if (win->type == WIN_SETTINGS) {
         fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
         draw_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_DGRAY);
@@ -1598,8 +1996,10 @@ void draw_window(window_t* win) {
         int content_chars = (content_w - 12) / 6;
         if (content_chars < 1) content_chars = 1;
 
+        int nav_bottom = nav_y + nav_h;
         for (int i = 0; i < SETTINGS_TAB_COUNT; i++) {
             int ty = nav_y + 28 + i * 20;
+            if (ty + 16 > nav_bottom) break;  // Window too short: stop drawing rows.
             fill_chamfer_rect(nav_x + 5, ty - 1, nav_w - 10, 16, (settings_tab == i) ? XP_LBLUE : XP_WHITE);
             draw_chamfer_rect(nav_x + 5, ty - 1, nav_w - 10, 16, XP_DGRAY);
             if (settings_tab == i) {
@@ -1608,179 +2008,292 @@ void draw_window(window_t* win) {
             draw_compact_string_clipped(nav_x + 14, ty + 3, (nav_w - 24) / 6, settings_ui_tab_name(i), XP_BLACK);
         }
 
+        // Reset per-frame hit-box registries. Only the active tab renders, so
+        // whatever registers below is exactly what is clickable this frame.
+        settings_tog_count = 0;
+        settings_res_hit_count = 0;
+
         if (settings_tab == SETTINGS_TAB_SYSTEM) {
-            char opt1[40];
-            char opt2[40];
-            char opt3[40];
-            strncpy(opt1, "1) Taskbar compact: ", sizeof(opt1) - 1);
-            opt1[sizeof(opt1) - 1] = 0;
-            append_string(opt1, sizeof(opt1), setting_compact_mode ? "On" : "Off");
-            strncpy(opt2, "2) Clock seconds: ", sizeof(opt2) - 1);
-            opt2[sizeof(opt2) - 1] = 0;
-            append_string(opt2, sizeof(opt2), setting_show_seconds ? "On" : "Off");
-            strncpy(opt3, "3) Debug window: ", sizeof(opt3) - 1);
-            opt3[sizeof(opt3) - 1] = 0;
-            append_string(opt3, sizeof(opt3), debug_overlay_enabled ? "On" : "Off");
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "System Controls", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, opt1, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, opt2, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, opt3, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, "Display", XP_BLACK);
+            // ---- System toggles -------------------------------------------
+            settings_toggle_desc_t sys_toggles[] = {
+                { "Taskbar compact", setting_compact_mode, SETTINGS_TOG_COMPACT },
+                { "Clock seconds",   setting_show_seconds, SETTINGS_TOG_SECONDS },
+                { "Debug window",    debug_overlay_enabled, SETTINGS_TOG_DEBUG }
+            };
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "System");
+            ry += draw_settings_toggle_group(content_x, content_w, ry, sys_toggles, 3);
+
+            // ---- Display info ---------------------------------------------
             {
-                char current_line[40];
-                char native_line[40];
-                char backend_line[48];
-                sprintf(current_line, "Current: %ux%u", (unsigned int)current_width, (unsigned int)current_height);
-                sprintf(native_line, "Native: %ux%u", (unsigned int)graphics_get_native_width(), (unsigned int)graphics_get_native_height());
-                sprintf(backend_line, "Backend: %s", graphics_is_truecolor() ? "Framebuffer" : "VGA Safe");
-                draw_compact_string_clipped(content_x + 6, body_y + 84, content_chars, current_line, XP_BLACK);
-                draw_compact_string_clipped(content_x + 6, body_y + 96, content_chars, native_line, XP_BLACK);
-                draw_compact_string_clipped(content_x + 6, body_y + 108, content_chars, backend_line, XP_BLACK);
-                for (int i = 0; i < display_profile_count(); i++) {
-                    int row_y = body_y + 124 + i * 14;
-                    uint8_t bg = (setting_display_profile == i) ? XP_LBLUE : XP_WHITE;
-                    fill_chamfer_rect(content_x + 6, row_y - 2, content_w - 16, 12, bg);
-                    draw_chamfer_rect(content_x + 6, row_y - 2, content_w - 16, 12, XP_DGRAY);
-                    if (display_profile_available(i)) {
-                        draw_compact_string_clipped(content_x + 10, row_y + 1, content_chars - 1, g_display_profiles[i].label, XP_BLACK);
-                    } else {
-                        char unavailable[48];
-                        strncpy(unavailable, g_display_profiles[i].label, sizeof(unavailable) - 1);
-                        unavailable[sizeof(unavailable) - 1] = 0;
-                        append_string(unavailable, sizeof(unavailable), " (needs framebuffer)");
-                        draw_compact_string_clipped(content_x + 10, row_y + 1, content_chars - 1, unavailable, XP_DGRAY);
-                    }
-                }
+                char cur[40];
+                char nat[40];
+                char be[48];
+                sprintf(cur, "%ux%u", (unsigned int)current_width, (unsigned int)current_height);
+                sprintf(nat, "%ux%u", (unsigned int)graphics_get_native_width(), (unsigned int)graphics_get_native_height());
+                sprintf(be, "%s", graphics_is_truecolor() ? "Framebuffer" : "VGA Safe");
+
+                ry = draw_settings_section(content_x, content_w, ry, "Display");
+                ry += draw_settings_kv(content_x, content_w, ry, "Resolution", cur);
+                ry += draw_settings_kv(content_x, content_w, ry, "Native", nat);
+                ry += draw_settings_kv(content_x, content_w, ry, "Backend", be);
+                ry += 6;
             }
-            draw_compact_string_clipped(content_x + 6, body_y + 184, content_chars, "Storage devices:", XP_BLACK);
-            int sc = fs_storage_get_device_count();
-            char storage_line[44];
-            strncpy(storage_line, "Detected profiles: ", sizeof(storage_line) - 1);
-            storage_line[sizeof(storage_line) - 1] = 0;
-            if (sc > 9) sc = 9;
-            char c[2];
-            c[0] = (char)('0' + sc);
-            c[1] = 0;
-            append_string(storage_line, sizeof(storage_line), c);
-            draw_compact_string_clipped(content_x + 6, body_y + 196, content_chars, storage_line, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 208, content_chars, "System Disk", XP_BLACK);
+
+            // ---- Resolution list ------------------------------------------
+            ry = draw_settings_subheader(content_x, content_w, ry, "Resolution");
+            {
+                int rx = content_x + 6;
+                int rw = content_w - 16;
+                settings_res_hit_x = rx;
+                settings_res_hit_h = 12;
+                for (int i = 0; i < display_profile_count(); i++) {
+                    if (ry + 12 > content_y + content_h) break;
+                    if (i >= 8) break;
+                    int selected = (setting_display_profile == i);
+                    int usable = display_profile_available(i);
+                    uint8_t bg = selected ? XP_LBLUE : XP_WHITE;
+                    fill_chamfer_rect(rx, ry, rw, 12, bg);
+                    draw_chamfer_rect(rx, ry, rw, 12, XP_DGRAY);
+                    // Selection marker.
+                    if (selected) fill_rect(rx + 2, ry + 2, 2, 8, XP_WHITE);
+                    draw_compact_string_clipped(rx + 7, ry + 2, (rw - 12) / 6,
+                                                g_display_profiles[i].label,
+                                                usable ? XP_BLACK : XP_DGRAY);
+                    settings_res_hit_y[settings_res_hit_count++] = ry;
+                    ry += 13;
+                }
+                ry += 6;
+            }
+
+            // ---- Storage ---------------------------------------------------
+            ry = draw_settings_section(content_x, content_w, ry, "Storage");
+            {
+                int sc = fs_storage_get_device_count();
+                char cnt[8];
+                cnt[0] = (char)('0' + (sc > 9 ? 9 : sc));
+                cnt[1] = 0;
+                ry += draw_settings_kv(content_x, content_w, ry, "Devices", cnt);
+                ry += draw_settings_kv(content_x, content_w, ry, "Volume", "System Disk");
+            }
         } else if (settings_tab == SETTINGS_TAB_PERSONALIZATION) {
             char res_line[40];
             char scale_line[40];
-            sprintf(res_line, "Desktop: %ux%u", (unsigned int)current_width, (unsigned int)current_height);
-            sprintf(scale_line, "UI Scale Profile: x%d", get_ui_scale());
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Personalization", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Theme: GamerOS Modern", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, res_line, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, scale_line, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, "Color profile: Blue", XP_BLACK);
+            sprintf(res_line, "%ux%u", (unsigned int)current_width, (unsigned int)current_height);
+            sprintf(scale_line, "x%d", get_ui_scale());
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "Theme");
+            ry += draw_settings_kv(content_x, content_w, ry, "Theme", "GamerOS Modern");
+            ry += draw_settings_kv(content_x, content_w, ry, "Color profile", "Blue");
+            ry += 10;
+
+            ry = draw_settings_section(content_x, content_w, ry, "Layout");
+            ry += draw_settings_kv(content_x, content_w, ry, "Desktop", res_line);
+            ry += draw_settings_kv(content_x, content_w, ry, "UI scale", scale_line);
+            ry += draw_settings_kv(content_x, content_w, ry, "Taskbar", setting_compact_mode ? "Compact" : "Full");
         } else if (settings_tab == SETTINGS_TAB_BLUETOOTH_DEVICES) {
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Bluetooth & devices", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Bluetooth: Off", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Mouse: PS/2 Compatible", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "Keyboard: PS/2 Standard", XP_BLACK);
+            settings_toggle_desc_t dev_toggles[] = {
+                { "Bluetooth", setting_bluetooth, SETTINGS_TOG_BLUETOOTH }
+            };
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "Wireless");
+            ry += draw_settings_toggle_group(content_x, content_w, ry, dev_toggles, 1);
+            ry = draw_settings_section(content_x, content_w, ry, "Input");
+            ry += draw_settings_kv(content_x, content_w, ry, "Mouse", mouse_is_present() ? "PS/2 Compatible" : "Not detected");
+            ry += draw_settings_kv(content_x, content_w, ry, "Keyboard", "PS/2 Standard");
+            ry += 10;
+
+            ry = draw_settings_section(content_x, content_w, ry, "Display");
+            ry += draw_settings_kv(content_x, content_w, ry, "Output", "VGA / Framebuffer");
         } else if (settings_tab == SETTINGS_TAB_NETWORK_INTERNET) {
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Network & internet", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Network stack: Not enabled", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Adapter: Virtual profile", XP_BLACK);
+            settings_toggle_desc_t net_toggles[] = {
+                { "Wi-Fi", setting_network, SETTINGS_TOG_NETWORK }
+            };
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "Connection");
+            ry += draw_settings_toggle_group(content_x, content_w, ry, net_toggles, 1);
+            ry = draw_settings_section(content_x, content_w, ry, "Status");
+            ry += draw_settings_kv(content_x, content_w, ry, "Network stack", setting_network ? "Enabled" : "Not enabled");
+            ry += draw_settings_kv(content_x, content_w, ry, "Adapter", setting_network ? "Connecting" : "Virtual profile");
+            ry += draw_settings_kv(content_x, content_w, ry, "IP address", setting_network ? "Pending" : "None");
         } else if (settings_tab == SETTINGS_TAB_APPS) {
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Apps", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Built-in executables:", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "- NOTEPAD.EXE", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "- SETTINGS.EXE", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 58, content_chars, "- EXPLORER.EXE", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 70, content_chars, "- ABOUT.EXE", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 84, content_chars, "App root: C:/GamerOS/Apps", XP_BLACK);
+            int ry = draw_settings_section(content_x, content_w, body_y, "Installed");
+            {
+                static const char* app_names[] = {
+                    "Notepad", "Settings", "File Explorer", "About GamerOS"
+                };
+                int count = (int)(sizeof(app_names) / sizeof(app_names[0]));
+                int card_h = 6 + count * 12;
+                draw_settings_card(content_x, content_w, ry, card_h);
+                for (int i = 0; i < count; i++) {
+                    int ary = ry + 3 + i * 12;
+                    // Bullet marker, then the display name.
+                    fill_rect(content_x + 9, ary + 4, 2, 2, XP_LBLUE);
+                    draw_compact_string_clipped(content_x + 15, ary + 2,
+                                                (content_w - 60) / 6, app_names[i], XP_BLACK);
+                }
+                ry += card_h + 10;
+            }
+            ry = draw_settings_section(content_x, content_w, ry, "Paths");
+            ry += draw_settings_kv(content_x, content_w, ry, "App root", "C:/GamerOS/Apps");
+            ry += draw_settings_kv(content_x, content_w, ry, "Manifests", "C:/GamerOS/Apps/Manifests");
         } else if (settings_tab == SETTINGS_TAB_ACCOUNTS) {
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Accounts", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Current user: Admin", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Profile: C:/Users/Admin", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 46, content_chars, "Mode: Local", XP_BLACK);
+            int ry = draw_settings_section(content_x, content_w, body_y, "Account");
+            ry += draw_settings_kv(content_x, content_w, ry, "User", "Admin");
+            ry += draw_settings_kv(content_x, content_w, ry, "Profile", "C:/Users/Admin");
+            ry += 10;
+
+            ry = draw_settings_section(content_x, content_w, ry, "Session");
+            ry += draw_settings_kv(content_x, content_w, ry, "Mode", "Local");
+            ry += draw_settings_kv(content_x, content_w, ry, "Security level", "System");
+            ry += draw_settings_kv(content_x, content_w, ry, "Isolation", "Active");
         } else if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
             uint8_t hrt = 0, mnt = 0, sct = 0;
             get_time(&hrt, &mnt, &sct);
-            char tm[16];
-            sprintf(tm, "Time: %u:%u:%u", (unsigned int)hrt, (unsigned int)mnt, (unsigned int)sct);
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Time & language", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, tm, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Language: English (US)", XP_BLACK);
+            char tm[24];
+            sprintf(tm, "%02u:%02u:%02u", (unsigned int)hrt, (unsigned int)mnt, (unsigned int)sct);
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "Date & time");
+            ry += draw_settings_kv(content_x, content_w, ry, "Time", tm);
+            ry += draw_settings_kv(content_x, content_w, ry, "Show seconds", setting_show_seconds ? "On" : "Off");
+            ry += 10;
+
+            ry = draw_settings_section(content_x, content_w, ry, "Language");
+            ry += draw_settings_kv(content_x, content_w, ry, "Display", "English (US)");
+            ry += draw_settings_kv(content_x, content_w, ry, "Region", "United States");
         } else if (settings_tab == SETTINGS_TAB_GAMING) {
-            char gfx_mode_line[44];
+            char gfx_line[48];
+            char res_line[40];
             uint8_t bpp = graphics_get_bpp();
-            sprintf(gfx_mode_line, "Graphics mode: %s %u-bpp",
-                    graphics_is_truecolor() ? "VESA true-color" : "VGA indexed",
+            sprintf(gfx_line, "%s %u-bpp",
+                    graphics_is_truecolor() ? "True color" : "VGA indexed",
                     (unsigned int)bpp);
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Gaming", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, gfx_mode_line, XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Input latency mode: Balanced", XP_BLACK);
+            sprintf(res_line, "%ux%u", (unsigned int)current_width, (unsigned int)current_height);
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "Graphics");
+            ry += draw_settings_kv(content_x, content_w, ry, "Mode", gfx_line);
+            ry += draw_settings_kv(content_x, content_w, ry, "Resolution", res_line);
+            ry += draw_settings_kv(content_x, content_w, ry, "Backend",
+                                   graphics_is_truecolor() ? "Framebuffer" : "VGA Safe");
+            ry += 10;
+
+            ry = draw_settings_section(content_x, content_w, ry, "Input");
+            ry += draw_settings_kv(content_x, content_w, ry, "Latency mode", "Balanced");
+            ry += draw_settings_kv(content_x, content_w, ry, "Polling", "Bounded (64 max)");
         } else if (settings_tab == SETTINGS_TAB_ACCESSIBILITY) {
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Accessibility", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "High contrast: Off", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Large text mode: Off", XP_BLACK);
+            settings_toggle_desc_t a11y_toggles[] = {
+                { "High contrast", setting_high_contrast, SETTINGS_TOG_CONTRAST },
+                { "Large text",     setting_large_text,    SETTINGS_TOG_LARGE_TEXT }
+            };
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "Display");
+            ry += draw_settings_toggle_group(content_x, content_w, ry, a11y_toggles, 2);
+            ry = draw_settings_section(content_x, content_w, ry, "Text");
+            ry += draw_settings_kv(content_x, content_w, ry, "Font size", setting_large_text ? "Large" : "Standard");
         } else if (settings_tab == SETTINGS_TAB_PRIVACY_SECURITY) {
-            draw_compact_string_clipped(content_x + 6, body_y + 6, content_chars, "Privacy & security", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 22, content_chars, "Auth model: Enabled", XP_BLACK);
-            draw_compact_string_clipped(content_x + 6, body_y + 34, content_chars, "Isolation table: Active", XP_BLACK);
+            int ry = draw_settings_section(content_x, content_w, body_y, "Security");
+            ry += draw_settings_kv(content_x, content_w, ry, "Auth model", "Enabled");
+            ry += draw_settings_kv(content_x, content_w, ry, "Isolation table", "Active");
+            ry += draw_settings_kv(content_x, content_w, ry, "Policy", "Standard");
+            ry += 10;
+
+            ry = draw_settings_section(content_x, content_w, ry, "Data");
+            ry += draw_settings_kv(content_x, content_w, ry, "User profile", "C:/Users/Admin");
+            ry += draw_settings_kv(content_x, content_w, ry, "App data", "C:/Users/Admin/AppData");
+            ry += draw_settings_kv(content_x, content_w, ry, "Telemetry", "None");
         } else if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
             settings_md_ensure_loaded();
             int total = settings_md_line_count;
-            int row_h = 10;
-            int visible = (content_h - 50) / row_h;
-            if (visible < 1) visible = 1;
             int start_idx = 0;
             int end_idx = total;
-            if (settings_md_plan_start >= 0) {
+            int has_roadmap = (settings_md_plan_start >= 0);
+            if (has_roadmap) {
                 if (settings_update_view == SETTINGS_UPDATE_VIEW_CHANGELOG) {
                     end_idx = settings_md_plan_start;
-                } else if (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) {
+                } else {
                     start_idx = settings_md_plan_start;
                 }
+            } else if (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) {
+                // No roadmap section in this changelog. Show an explicit notice
+                // instead of duplicating the changelog verbatim, which made the
+                // view switch look broken.
+                start_idx = total;
+                end_idx = total;
             }
             if (end_idx < start_idx) end_idx = start_idx;
             int view_count = end_idx - start_idx;
+
+            // Segmented control switching between the changelog and roadmap.
+            int sub_x = content_x + 6;
+            int sub_y = content_y + 5;
+            int sub_gap = 6;
+            int sub_w = (content_w - 12 - sub_gap) / 2;
+            int sub_h = 15;
+            if (sub_w < 56) sub_w = 56;
+            settings_view_hit_x = sub_x;
+            settings_view_hit_y = sub_y;
+            settings_view_hit_w = sub_w;
+            settings_view_hit_h = sub_h;
+            settings_view_hit_gap = sub_gap;
+
+            {
+                const char* seg_labels[2] = { "Changelog", "Roadmap" };
+                for (int i = 0; i < 2; i++) {
+                    int bx = sub_x + i * (sub_w + sub_gap);
+                    int active = (settings_update_view == i);
+                    fill_chamfer_rect(bx, sub_y, sub_w, sub_h, active ? XP_LBLUE : XP_LGRAY);
+                    draw_chamfer_rect(bx, sub_y, sub_w, sub_h, XP_DGRAY);
+                    if (active) fill_rect(bx + 1, sub_y + 1, sub_w - 2, 2, XP_WHITE);
+                    int chars = (sub_w - 10) / 6;
+                    draw_compact_string_clipped(bx + 5, sub_y + 4, chars, seg_labels[i], XP_BLACK);
+                }
+            }
+
+            // Markdown viewer body.
+            int view_y = sub_y + sub_h + 5;
+            int view_h = content_y + content_h - view_y - 12;
+            if (view_h < 20) view_h = 20;
+            draw_settings_card(content_x, content_w, view_y, view_h);
+
+            int row_h = 10;
+            int text_top = view_y + 4;
+            int visible = (view_h - 8) / row_h;
+            if (visible < 1) visible = 1;
+            settings_md_visible_rows = visible;
+
             int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
             if (top < 0) top = 0;
             if (top > view_count - visible) top = view_count - visible;
             if (top < 0) top = 0;
             settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
 
-            // Sub-buttons for Build changelog vs Roadmap
-            int sub_x = content_x + 6;
-            int sub_y = content_y + 4;
-            int sub_gap = 8;
-            int sub_w = (content_w - 12 - sub_gap) / 2;
-            int sub_h = 16;
-            if (sub_w < 60) sub_w = 60;
-            // Build (current build changelog)
-            fill_chamfer_rect(sub_x, sub_y, sub_w, sub_h,
-                              (settings_update_view == SETTINGS_UPDATE_VIEW_CHANGELOG) ? XP_LBLUE : XP_WHITE);
-            draw_chamfer_rect(sub_x, sub_y, sub_w, sub_h, XP_DGRAY);
-            draw_compact_string_clipped(sub_x + 4, sub_y + 4, (sub_w - 8) / 6, "Build 1.500 changelog", XP_BLACK);
-            // Roadmap
-            int sub2_x = sub_x + sub_w + sub_gap;
-            fill_chamfer_rect(sub2_x, sub_y, sub_w, sub_h,
-                              (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) ? XP_LBLUE : XP_WHITE);
-            draw_chamfer_rect(sub2_x, sub_y, sub_w, sub_h, XP_DGRAY);
-            draw_compact_string_clipped(sub2_x + 4, sub_y + 4, (sub_w - 8) / 6, "Roadmap", XP_BLACK);
-
+            int body_chars = (content_w - 34) / 6;
+            if (body_chars < 8) body_chars = 8;
             for (int r = 0; r < visible; r++) {
                 int idx = start_idx + top + r;
                 if (idx >= end_idx) break;
                 markdown_line_t* md = &settings_md_lines[idx];
-                int line_x = content_x + 6 + md->indent;
-                int line_y = body_y + 22 + r * row_h;
+                int line_x = content_x + 12 + md->indent;
+                int line_y = text_top + r * row_h;
+                if (line_y + 8 > view_y + view_h - 2) break;
 
-                // Simple markdown-aware layout:
-                // - top-level headings ("#"/"##") are rendered with the larger
-                //   regular font when indent == 0 and heading colors are used;
-                // - all other text uses the compact font with clipping.
+                // Headings use the larger regular font; body text is compact.
                 if (md->indent == 0 && (md->color == XP_BLUE || md->color == XP_LBLUE)) {
                     draw_string(line_x, line_y, md->text, md->color);
                 } else {
-                    draw_compact_string_clipped(line_x, line_y, content_chars, md->text, md->color);
+                    draw_compact_string_clipped(line_x, line_y, body_chars, md->text, md->color);
                 }
             }
-            draw_compact_string_clipped(content_x + 6, content_y + content_h - 10, content_chars, "Markdown viewer: mouse wheel scroll", XP_DGRAY);
+
+            if (view_count == 0) {
+                const char* empty = has_roadmap ? "No entries in this view."
+                                                : "No roadmap in this changelog.";
+                draw_compact_string_clipped(content_x + 12, text_top + 2, body_chars, empty, XP_DGRAY);
+            }
+
+            // Footer hint, pinned to the bottom of the pane.
+            draw_compact_string_clipped(content_x + 8, content_y + content_h - 10,
+                                        content_chars, "Scroll with mouse wheel", XP_DGRAY);
         }
     } else if (win->type == WIN_ABOUT) {
         fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
@@ -1801,8 +2314,8 @@ void draw_window(window_t* win) {
                 (unsigned int)current_height,
                 (unsigned int)bpp,
                 graphics_is_truecolor() ? "RGBA" : "Indexed");
-        draw_compact_string_clipped(content_x, content_y + 0, content_chars, "Version: 00m1", XP_BLACK);
-        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.500", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 0, content_chars, "Version: 00m2", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.520", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 24, content_chars, "Design language: GamerOS Modern", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 42, content_chars, "System", XP_DGRAY);
         draw_compact_string_clipped(content_x, content_y + 54, content_chars, "Kernel: x86_64", XP_BLACK);
@@ -1812,57 +2325,165 @@ void draw_window(window_t* win) {
         draw_compact_string_clipped(content_x, content_y + 108, content_chars, "Apps: *.EXE (NOTEPAD/SETTINGS/EXPLORER/ABOUT)", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 120, content_chars, "Author: Chosentechies", XP_BLACK);
     } else if (win->type == WIN_EXPLORER) {
-        fill_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_LGRAY);
-        draw_chamfer_rect(x + 4, y + 26, w - 8, h - 30, XP_DGRAY);
+        // ---- Layout ----------------------------------------------------------
+        const int TB_H = 14;
+        const int BTN_W = 26;
+        const int BTN_GAP = 3;
+        const int SIDEBAR_W = 88;
+        const int ROW_H = 12;
+        const int STATUS_H = 12;
 
-        fill_chamfer_rect(x + 6, y + 28, w - 12, 18, XP_WHITE);
-        fill_rect(x + 7, y + 29, w - 14, 2, XP_LBLUE);
-        draw_compact_string(x + 12, y + 34, explorer_this_pc_view ? explorer_ui_title() : explorer_path, XP_BLACK);
-        if (!explorer_this_pc_view) {
-            fill_chamfer_rect(x + w - 58, y + 31, 50, 12, XP_LGRAY);
-            draw_chamfer_rect(x + w - 58, y + 31, 50, 12, XP_DGRAY);
-            draw_compact_string(x + w - 50, y + 33, "Go Up", XP_BLACK);
+        int cy = y + 26;
+        int cb = y + h - 3;
+        int tb_y = cy + 2;
+        int body_y = tb_y + TB_H + 3;
+        int status_y = cb - STATUS_H;
+        int body_h = status_y - body_y - 3;
+        if (body_h < ROW_H) body_h = ROW_H;
+
+        // ---- Client background ----------------------------------------------
+        fill_chamfer_rect(x + 4, cy, w - 8, cb - cy, XP_LGRAY);
+        draw_chamfer_rect(x + 4, cy, w - 8, cb - cy, XP_DGRAY);
+
+        // ---- Toolbar ----------------------------------------------------------
+        int bx = x + 7;
+        static const char* tb_labels[EXPLORER_TB_BUTTONS] = { "<", ">", "^", "R" };
+        explorer_tb_y = tb_y;
+        explorer_tb_w = BTN_W;
+        explorer_tb_h = 13;
+        for (int i = 0; i < EXPLORER_TB_BUTTONS; i++) {
+            int enabled;
+            if (i == EXPLORER_TB_BACK) enabled = explorer_can_go_back();
+            else if (i == EXPLORER_TB_FWD) enabled = explorer_can_go_forward();
+            else if (i == EXPLORER_TB_UP) enabled = !explorer_this_pc_view && strcmp(explorer_path, "C:/") != 0;
+            else enabled = 1;
+            explorer_tb_enabled[i] = enabled;
+            explorer_tb_x[i] = bx;
+            draw_tool_button(bx, tb_y, BTN_W, 13, tb_labels[i], enabled);
+            bx += BTN_W + BTN_GAP;
         }
-        fill_chamfer_rect(x + 8, y + 50, 86, h - 60, XP_WHITE);
-        draw_chamfer_rect(x + 8, y + 50, 86, h - 60, XP_DGRAY);
-        fill_rect(x + 9, y + 51, 84, 2, XP_LBLUE);
-        draw_compact_string(x + 14, y + 56, "Quick Access", XP_BLACK);
-        draw_compact_string(x + 14, y + 74, "Desktop", XP_BLACK);
-        draw_compact_string(x + 14, y + 88, "Documents", XP_BLACK);
-        draw_compact_string(x + 14, y + 102, "Downloads", XP_BLACK);
-        draw_compact_string(x + 14, y + 116, "This PC", XP_BLACK);
-        fill_chamfer_rect(x + 98, y + 50, w - 104, h - 60, XP_WHITE);
-        draw_chamfer_rect(x + 98, y + 50, w - 104, h - 60, XP_DGRAY);
-        int list_x = x + 100;
-        int list_y = y + 58;
-        int list_w = w - 110;
-        int max_chars = list_w / 6;
-        if (max_chars < 1) max_chars = 1;
-        int row_h = 12;
+
+        // ---- Breadcrumb ------------------------------------------------------
+        {
+            int bc_x = bx + 4;
+            int bc_w = (x + w - 6) - bc_x;
+            if (bc_w < 24) bc_w = 24;
+            fill_chamfer_rect(bc_x, tb_y, bc_w, 13, XP_WHITE);
+            draw_chamfer_rect(bc_x, tb_y, bc_w, 13, XP_DGRAY);
+            const char* crumb = explorer_this_pc_view ? "This PC" : explorer_path;
+            int cc = (bc_w - 8) / 6;
+            if (cc < 4) cc = 4;
+            draw_compact_string_clipped(bc_x + 4, tb_y + 3, cc, crumb, XP_BLACK);
+        }
+
+        // ---- Sidebar ---------------------------------------------------------
+        int sb_x = x + 7;
+        int sb_h = body_h;
+        fill_chamfer_rect(sb_x, body_y, SIDEBAR_W, sb_h, XP_WHITE);
+        draw_chamfer_rect(sb_x, body_y, SIDEBAR_W, sb_h, XP_DGRAY);
+
+        explorer_sb_x = sb_x;
+        explorer_sb_w = SIDEBAR_W;
+        explorer_sb_hit_h = ROW_H;
+        explorer_sb_selected = -1;
+
+        draw_compact_string(sb_x + 5, body_y + 3, "Quick Access", XP_BLUE);
+        fill_rect(sb_x + 3, body_y + 11, SIDEBAR_W - 6, 1, XP_LGRAY);
+
+        int sb_first = body_y + 15;
+        for (int i = 0; i < EXPLORER_SIDEBAR_ROWS; i++) {
+            int ry = sb_first + i * ROW_H;
+            if (ry + ROW_H > body_y + sb_h) break;
+            explorer_sb_hit_y[i] = ry;
+
+            int active = 0;
+            if (i == 3) {
+                active = explorer_this_pc_view;
+            } else if (!explorer_this_pc_view && explorer_quick_path(i) &&
+                       strcmp(explorer_path, explorer_quick_path(i)) == 0) {
+                active = 1;
+            }
+            if (active) explorer_sb_selected = i;
+
+            if (active) {
+                fill_chamfer_rect(sb_x + 2, ry, SIDEBAR_W - 4, ROW_H - 1, XP_LBLUE);
+            }
+            fill_rect(sb_x + 6, ry + 4, 4, 3, active ? XP_WHITE : XP_LBLUE);
+            draw_compact_string_clipped(sb_x + 14, ry + 2, (SIDEBAR_W - 18) / 6,
+                                        explorer_quick_label(i), XP_BLACK);
+        }
+
+        // ---- Entry list ------------------------------------------------------
+        int list_x = sb_x + SIDEBAR_W + 5;
+        int list_w = (x + w - 6) - list_x;
+        if (list_w < 20) list_w = 20;
+        fill_chamfer_rect(list_x, body_y, list_w, body_h, XP_WHITE);
+        draw_chamfer_rect(list_x, body_y, list_w, body_h, XP_DGRAY);
+
+        fill_rect(list_x + 2, body_y + 2, list_w - 4, 9, XP_LGRAY);
+        draw_compact_string_clipped(list_x + 6, body_y + 3, (list_w - 12) / 6, "Name", XP_BLACK);
+        fill_rect(list_x + 2, body_y + 11, list_w - 4, 1, XP_DGRAY);
+
+        explorer_list_x = list_x;
+        explorer_list_y = body_y + 14;
+        explorer_list_w = list_w;
+        explorer_list_hit_h = ROW_H;
+        explorer_list_hit_count = 0;
+
+        int row_y0 = body_y + 14;
+        int name_chars = (list_w - 24) / 6;
+        if (name_chars < 6) name_chars = 6;
+        int rows_visible = (body_h - 18) / ROW_H;
+        if (rows_visible < 1) rows_visible = 1;
 
         if (explorer_this_pc_view) {
-            for (int i = 0; i < explorer_drive_count; i++) {
-                int row_y = list_y + i * row_h;
-                fill_chamfer_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
-                draw_compact_string_clipped(list_x, row_y, max_chars, explorer_drive_labels[i], XP_BLACK);
+            for (int i = 0; i < explorer_drive_count && i < rows_visible; i++) {
+                int ry = row_y0 + i * ROW_H;
+                if (ry + ROW_H > body_y + body_h) break;
+                if (explorer_selected == i) {
+                    fill_chamfer_rect(list_x + 2, ry, list_w - 4, ROW_H - 1, XP_LBLUE);
+                }
+                fill_rect(list_x + 6, ry + 3, 5, 6, XP_DGRAY);
+                draw_compact_string_clipped(list_x + 15, ry + 2, name_chars,
+                                            explorer_drive_labels[i], XP_BLACK);
+                explorer_list_hit_y[explorer_list_hit_count++] = ry;
             }
         } else {
-            for (int i = 0; i < explorer_entry_count; i++) {
-                int row_y = list_y + i * row_h;
-                const char* base = path_basename(explorer_entries[i]);
-                char line[MAX_FILENAME_LEN + 8];
-                line[0] = 0;
-                if (explorer_is_dir[i]) {
-                    append_string(line, sizeof(line), "[DIR] ");
-                } else {
-                    append_string(line, sizeof(line), "      ");
+            for (int i = 0; i < explorer_entry_count && i < rows_visible; i++) {
+                int ry = row_y0 + i * ROW_H;
+                if (ry + ROW_H > body_y + body_h) break;
+                if (explorer_selected == i) {
+                    fill_chamfer_rect(list_x + 2, ry, list_w - 4, ROW_H - 1, XP_LBLUE);
                 }
-                append_string(line, sizeof(line), base);
-                fill_chamfer_rect(x + 96, row_y - 1, w - 104, row_h - 1, (explorer_selected == i) ? XP_LBLUE : XP_WHITE);
-                draw_compact_string_clipped(list_x, row_y, max_chars, line, XP_BLACK);
+                if (explorer_is_dir[i]) {
+                    fill_rect(list_x + 6, ry + 4, 5, 4, XP_LBLUE);
+                } else {
+                    fill_rect(list_x + 6, ry + 2, 5, 7, XP_DGRAY);
+                    fill_rect(list_x + 6, ry + 2, 5, 2, XP_WHITE);
+                }
+                draw_compact_string_clipped(list_x + 15, ry + 2, name_chars,
+                                            path_basename(explorer_entries[i]), XP_BLACK);
+                explorer_list_hit_y[explorer_list_hit_count++] = ry;
             }
             if (explorer_entry_count == 0) {
-                draw_compact_string_clipped(list_x, list_y, max_chars, "(empty folder)", XP_DGRAY);
+                draw_compact_string_clipped(list_x + 15, row_y0 + 2, name_chars,
+                                            "This folder is empty", XP_DGRAY);
+            }
+        }
+
+        // ---- Status bar ------------------------------------------------------
+        fill_rect(x + 7, status_y, w - 14, STATUS_H - 1, XP_LGRAY);
+        fill_rect(x + 8, status_y + 1, w - 16, 1, XP_WHITE);
+        {
+            char count_line[48];
+            int n = explorer_this_pc_view ? explorer_drive_count : explorer_entry_count;
+            sprintf(count_line, "%d item%s", n, n == 1 ? "" : "s");
+            draw_compact_string_clipped(x + 11, status_y + 2, (w - 70) / 6, count_line, XP_DGRAY);
+
+            const char* right = explorer_this_pc_view ? "Computer" : path_basename(explorer_path);
+            int rw = (int)strlen(right) * 6;
+            if (rw < w - 90) {
+                draw_compact_string(x + w - 10 - rw, status_y + 2, right, XP_DGRAY);
             }
         }
     }
@@ -2185,11 +2806,11 @@ static int find_top_window_at(int32_t mx, int32_t my) {
 }
 
 static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
-    int content_x = win->x + 4;
-    int content_y = win->y + 28;
-    int content_w = win->w - 8;
-    int content_h = win->h - 32;
-    if (mx < content_x || mx >= content_x + content_w || my < content_y || my >= content_y + content_h) {
+    int pane_x = win->x + 4;
+    int pane_y = win->y + 28;
+    int pane_w = win->w - 8;
+    int pane_h = win->h - 32;
+    if (mx < pane_x || mx >= pane_x + pane_w || my < pane_y || my >= pane_y + pane_h) {
         return 0;
     }
 
@@ -2197,8 +2818,9 @@ static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
     int nav_y = win->y + 30;
     int nav_w = 124;
     int nav_row_h = 20;
-    int nav_start_y = nav_y + 22;
-    if (mx >= nav_x + 3 && mx < nav_x + nav_w - 3 &&
+    // Must match draw_window(): the first nav row is drawn at nav_y + 28.
+    int nav_start_y = nav_y + 28;
+    if (mx >= nav_x + 5 && mx < nav_x + nav_w - 5 &&
         my >= nav_start_y && my < nav_start_y + SETTINGS_TAB_COUNT * nav_row_h) {
         int tab_idx = (my - nav_start_y) / nav_row_h;
         if (tab_idx >= 0 && tab_idx < SETTINGS_TAB_COUNT) {
@@ -2207,84 +2829,55 @@ static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
         }
     }
 
-    // Sub-buttons inside GamerOS Update tab.
-    if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
-        int sub_x = nav_x + nav_w + 8 + 6;
-        int sub_y = win->y + 30 + 4;
-        int content_w = win->w - ((sub_x - 6) - win->x) - 8;
-        int sub_gap = 8;
-        int sub_w = (content_w - 12 - sub_gap) / 2;
-        int sub_h = 16;
-        if (sub_w < 60) sub_w = 60;
-        // Build changelog button
-        if (mx >= sub_x && mx < sub_x + sub_w &&
-            my >= sub_y && my < sub_y + sub_h) {
-            settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
-            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = 0;
-            return 1;
-        }
-        // Roadmap button
-        int sub2_x = sub_x + sub_w + sub_gap;
-        if (mx >= sub2_x && mx < sub2_x + sub_w &&
-            my >= sub_y && my < sub_y + sub_h) {
-            settings_update_view = SETTINGS_UPDATE_VIEW_ROADMAP;
-            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = 0;
+    int content_x = nav_x + nav_w + 8;
+    int content_y = win->y + 30;
+    int content_w = win->w - (content_x - win->x) - 8;
+    (void)content_x;
+    (void)content_y;
+    (void)content_w;
+
+    // Toggles are registered by whichever tab is on screen, so a single loop
+    // covers System, Devices, Network and Accessibility without per-tab
+    // geometry duplicated here.
+    for (int i = 0; i < settings_tog_count; i++) {
+        int ty = settings_tog_hit_y[i];
+        if (mx >= settings_tog_hit_x && mx < settings_tog_hit_x + settings_tog_hit_w &&
+            my >= ty && my < ty + 12) {
+            settings_apply_toggle(settings_tog_id[i]);
             return 1;
         }
     }
 
-    if (settings_tab == SETTINGS_TAB_SYSTEM) {
-        int content_x = nav_x + nav_w + 6;
-        int content_y = win->y + 30;
-        int body_y = content_y + 24;
-        int rel_x = mx - (content_x + 6);
-        int rel_y = my - (body_y + 22);
-        if (rel_x >= 0 && rel_x < 150) {
-            if (rel_y >= 0 && rel_y < 8) {
-                setting_compact_mode = (uint8_t)!setting_compact_mode;
-                return 1;
-            }
-            if (rel_y >= 12 && rel_y < 20) {
-                setting_show_seconds = (uint8_t)!setting_show_seconds;
-                return 1;
-            }
-            if (rel_y >= 24 && rel_y < 32) {
-                debug_overlay_enabled = (uint8_t)!debug_overlay_enabled;
-                return 1;
-            }
-        }
-    }
-    if (settings_tab == SETTINGS_TAB_SYSTEM) {
-        int content_x = nav_x + nav_w + 6;
-        int content_y = win->y + 30;
-        int body_y = content_y + 24;
-        int list_x = content_x + 6;
-        int list_w = win->w - (list_x - win->x) - 14;
-        if (mx >= list_x && mx < list_x + list_w) {
-            for (int i = 0; i < display_profile_count(); i++) {
-                int row_y = body_y + 124 + i * 14;
-                if (my >= row_y - 2 && my < row_y + 10) {
-                    if (!display_profile_available(i)) {
-                        raise_runtime_error("Display Error", "This profile needs framebuffer mode.");
-                        return 1;
+    // Segmented control inside GamerOS Update, using the published geometry.
+    if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE && settings_view_hit_h > 0) {
+        if (my >= settings_view_hit_y && my < settings_view_hit_y + settings_view_hit_h) {
+            for (int seg = 0; seg < 2; seg++) {
+                int bx = settings_view_hit_x + seg * (settings_view_hit_w + settings_view_hit_gap);
+                if (mx >= bx && mx < bx + settings_view_hit_w) {
+                    if (settings_update_view != seg) {
+                        settings_update_view = seg;
+                        settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = 0;
                     }
-                    setting_display_profile = i;
-                    apply_display_profile();
                     return 1;
                 }
             }
         }
     }
+
     if (settings_tab == SETTINGS_TAB_SYSTEM) {
-        int content_x = nav_x + nav_w + 6;
-        int content_y = win->y + 30;
-        int body_y = content_y + 24;
-        int text_x0 = content_x + 6;
-        int text_x1 = content_x + win->w - (content_x - win->x) - 8;
-        if (mx >= text_x0 && mx < text_x1) {
-            if (my >= body_y + 22 && my < body_y + 30) { setting_compact_mode = !setting_compact_mode; return 1; }
-            if (my >= body_y + 34 && my < body_y + 42) { setting_show_seconds = !setting_show_seconds; return 1; }
-            if (my >= body_y + 46 && my < body_y + 54) { debug_overlay_enabled = !debug_overlay_enabled; return 1; }
+        int list_w = win->w - (settings_res_hit_x - win->x) - 8;
+        for (int i = 0; i < settings_res_hit_count; i++) {
+            int ry = settings_res_hit_y[i];
+            if (mx >= settings_res_hit_x && mx < settings_res_hit_x + list_w &&
+                my >= ry && my < ry + settings_res_hit_h) {
+                if (!display_profile_available(i)) {
+                    raise_runtime_error("Display Error", "This profile needs framebuffer mode.");
+                    return 1;
+                }
+                setting_display_profile = i;
+                apply_display_profile();
+                return 1;
+            }
         }
     }
     return 0;
@@ -2292,73 +2885,82 @@ static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
 
 static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
     if (!win) return 0;
-    int x = win->x;
-    int y = win->y;
-    int w = win->w;
-    int h = win->h;
 
-    // Up button in header when inside a drive view.
-    if (!explorer_this_pc_view &&
-        mx >= x + w - 48 && mx < x + w - 8 &&
-        my >= y + 25 && my < y + 35) {
-        explorer_go_parent();
-        return 1;
-    }
-
-    // Quick access: This PC
-    if (mx >= x + 8 && mx < x + 90 && my >= y + 90 && my < y + 102) {
-        if (!storage_initialized) {
-            ensure_storage_initialized();
-            explorer_build_this_pc_entries();
+    // ---- Toolbar buttons (Back / Forward / Up / Refresh) ------------------
+    if (explorer_tb_h > 0 && my >= explorer_tb_y && my < explorer_tb_y + explorer_tb_h) {
+        for (int i = 0; i < EXPLORER_TB_BUTTONS; i++) {
+            if (mx < explorer_tb_x[i] || mx >= explorer_tb_x[i] + explorer_tb_w) continue;
+            if (!explorer_tb_enabled[i]) return 1;
+            if (i == EXPLORER_TB_BACK) explorer_history_step(-1);
+            else if (i == EXPLORER_TB_FWD) explorer_history_step(1);
+            else if (i == EXPLORER_TB_UP) explorer_go_parent();
+            else { explorer_selected = -1; explorer_refresh(); }
+            return 1;
         }
-        explorer_open_this_pc();
-        return 1;
     }
 
-    // Main list area
-    int list_x = x + 96;
-    int list_y = y + 40;
-    int list_w = w - 100;
-    int list_h = h - 50;
-    if (list_w <= 0 || list_h <= 0) return 0;
-    if (mx < list_x || mx >= list_x + list_w || my < list_y || my >= list_y + list_h) return 0;
-
-    int row = (my - (y + 44)) / 12;
-    if (row < 0) return 1;
-
-    if (explorer_this_pc_view) {
-        if (!storage_initialized) {
-            ensure_storage_initialized();
-            explorer_build_this_pc_entries();
+    // ---- Quick access sidebar ---------------------------------------------
+    if (explorer_sb_hit_h > 0 &&
+        mx >= explorer_sb_x && mx < explorer_sb_x + explorer_sb_w) {
+        for (int i = 0; i < EXPLORER_SIDEBAR_ROWS; i++) {
+            int ry = explorer_sb_hit_y[i];
+            if (ry <= 0) continue;
+            if (my < ry || my >= ry + explorer_sb_hit_h) continue;
+            if (i == 3) {
+                if (!storage_initialized) {
+                    ensure_storage_initialized();
+                    explorer_build_this_pc_entries();
+                }
+                explorer_open_this_pc();
+                explorer_history_push(1);
+            } else {
+                const char* dest = explorer_quick_path(i);
+                if (dest) explorer_navigate_to(dest);
+            }
+            return 1;
         }
-        if (row >= explorer_drive_count) return 1;
-        explorer_selected = row;
-        strncpy(explorer_path, explorer_drive_paths[row], sizeof(explorer_path) - 1);
-        explorer_path[sizeof(explorer_path) - 1] = 0;
-        explorer_this_pc_view = 0;
-        explorer_refresh();
-        return 1;
     }
 
-    if (row >= explorer_entry_count) return 1;
-    explorer_selected = row;
-    if (explorer_is_dir[row]) {
-        strncpy(explorer_path, explorer_entries[row], sizeof(explorer_path) - 1);
-        explorer_path[sizeof(explorer_path) - 1] = 0;
-        explorer_refresh();
-    } else if (path_has_extension(explorer_entries[row], ".EXE")) {
-        launch_application_exe(explorer_entries[row], -1, -1);
-    } else if (path_has_extension(explorer_entries[row], ".gosapp")) {
-        raise_runtime_error("Manifest Info", path_basename(explorer_entries[row]));
+    // ---- Entry list --------------------------------------------------------
+    if (explorer_list_hit_h > 0 &&
+        mx >= explorer_list_x && mx < explorer_list_x + explorer_list_w) {
+        for (int i = 0; i < explorer_list_hit_count; i++) {
+            int ry = explorer_list_hit_y[i];
+            if (my < ry || my >= ry + explorer_list_hit_h) continue;
+
+            if (explorer_this_pc_view) {
+                if (!storage_initialized) {
+                    ensure_storage_initialized();
+                    explorer_build_this_pc_entries();
+                }
+                if (i >= explorer_drive_count) return 1;
+                explorer_selected = i;
+                strncpy(explorer_path, explorer_drive_paths[i], sizeof(explorer_path) - 1);
+                explorer_path[sizeof(explorer_path) - 1] = 0;
+                explorer_this_pc_view = 0;
+                explorer_history_push(1);
+                explorer_refresh();
+                return 1;
+            }
+
+            if (i >= explorer_entry_count) return 1;
+            explorer_selected = i;
+            if (explorer_is_dir[i]) {
+                explorer_navigate_to(explorer_entries[i]);
+            } else if (path_has_extension(explorer_entries[i], ".EXE")) {
+                launch_application_exe(explorer_entries[i], -1, -1);
+            } else if (path_has_extension(explorer_entries[i], ".gosapp")) {
+                raise_runtime_error("Manifest Info", path_basename(explorer_entries[i]));
+            }
+            return 1;
+        }
     }
-    return 1;
+    return 0;
 }
 
 static int handle_notepad_wheel(window_t* win, int8_t wheel_delta) {
     if (!win || wheel_delta == 0) return 0;
-    int text_top = win->y + 36;
-    int text_bottom = win->y + win->h - 18;
-    int visible_lines = (text_bottom - text_top) / 5;
+    int visible_lines = notepad_lines_shown;
     if (visible_lines < 1) visible_lines = 1;
     int top = notepad_view_top - (int)wheel_delta;
     if (top < 0) top = 0;
@@ -2369,6 +2971,16 @@ static int handle_notepad_wheel(window_t* win, int8_t wheel_delta) {
         return 1;
     }
     return 0;
+}
+
+// Notepad Save button (published by draw_notepad_body()).
+static int handle_notepad_click(window_t* win, int32_t mx, int32_t my) {
+    if (!win || notepad_save_h <= 0) return 0;
+    if (mx < notepad_save_x || mx >= notepad_save_x + notepad_save_w) return 0;
+    if (my < notepad_save_y || my >= notepad_save_y + notepad_save_h) return 0;
+    if (!storage_initialized) ensure_storage_initialized();
+    if (storage_initialized) notepad_save_to_storage();
+    return 1;
 }
 
 static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t wheel_delta) {
@@ -2397,8 +3009,11 @@ static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t w
         }
         if (end_idx < start_idx) end_idx = start_idx;
         int view_count = end_idx - start_idx;
-        int visible = (content_h - 50) / 10;
+        // Use the row count the renderer actually used; recomputing it here from
+        // content_h is what let scrolling drift from the drawn viewport.
+        int visible = settings_md_visible_rows;
         if (visible < 1) visible = 1;
+        if (view_count == 0) return 0;
         int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] - (int)wheel_delta;
         if (top < 0) top = 0;
         if (top > view_count - visible) top = view_count - visible;
@@ -2582,11 +3197,17 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             }
 
             bring_window_to_front(clicked_idx);
+            if (active_window < 0 || active_window >= MAX_WINDOWS) {
+                RETURN_MOUSE();
+            }
             window_t* focused = &windows[active_window];
             if (focused->type == WIN_SETTINGS && handle_settings_click(focused, mx, my)) {
                 RETURN_MOUSE();
             }
             if (focused->type == WIN_EXPLORER && handle_explorer_click(focused, mx, my)) {
+                RETURN_MOUSE();
+            }
+            if (focused->type == WIN_NOTEPAD && handle_notepad_click(focused, mx, my)) {
                 RETURN_MOUSE();
             }
             RETURN_MOUSE();
@@ -2652,10 +3273,14 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
                 windows[i].y = my - windows[i].drag_y;
                 if (windows[i].x < 0) windows[i].x = 0;
                 if (windows[i].y < 0) windows[i].y = 0;
-                if (windows[i].x > (int)current_width - windows[i].w) windows[i].x = current_width - windows[i].w;
+                if (windows[i].x > (int)current_width - windows[i].w) {
+                    windows[i].x = (int)current_width - windows[i].w;
+                }
+                if (windows[i].x < 0) windows[i].x = 0;
                 if (windows[i].y > (int)current_height - TASKBAR_HEIGHT - 20) {
                     windows[i].y = (int)current_height - TASKBAR_HEIGHT - 20;
                 }
+                if (windows[i].y < 0) windows[i].y = 0;
             } else if (windows[i].active && windows[i].resizing) {
                 int min_w = WINDOW_MIN_W_DEFAULT;
                 int min_h = WINDOW_MIN_H_DEFAULT;
@@ -3019,10 +3644,18 @@ void kernel_main(multiboot_info_t* mb_info) {
 // ============================================================================
 
 static const app_descriptor_t g_app_descriptors[] = {
-    {"NOTEPAD.EXE", "C:/GamerOS/System32/NOTEPAD.EXE", "Notepad", WIN_NOTEPAD, 40, 30},
-    {"SETTINGS.EXE", "C:/GamerOS/System32/SETTINGS.EXE", "Settings", WIN_SETTINGS, 8, 6},
-    {"EXPLORER.EXE", "C:/GamerOS/System32/EXPLORER.EXE", "Explorer", WIN_EXPLORER, 8, 6},
-    {"ABOUT.EXE", "C:/GamerOS/System32/ABOUT.EXE", "About", WIN_ABOUT, 60, 40},
+    {"NOTEPAD.EXE",  "C:/GamerOS/System32/NOTEPAD.EXE",  "Notepad",
+     "C:/GamerOS/Apps/Manifests/Notepad.gosapp",  "C:/GamerOS/Apps/Notepad",
+     "C:/Users/Admin/AppData/Notepad",  WIN_NOTEPAD,  40, 30},
+    {"SETTINGS.EXE", "C:/GamerOS/System32/SETTINGS.EXE", "Settings",
+     "C:/GamerOS/Apps/Manifests/Settings.gosapp", "C:/GamerOS/Apps/Settings",
+     "C:/Users/Admin/AppData/Settings", WIN_SETTINGS, 8, 6},
+    {"EXPLORER.EXE", "C:/GamerOS/System32/EXPLORER.EXE", "File Explorer",
+     "C:/GamerOS/Apps/Manifests/Explorer.gosapp", "C:/GamerOS/Apps/Explorer",
+     "C:/Users/Admin/AppData/Explorer", WIN_EXPLORER, 8, 6},
+    {"ABOUT.EXE",    "C:/GamerOS/System32/ABOUT.EXE",    "About GamerOS",
+     "C:/GamerOS/Apps/Manifests/About.gosapp",    "C:/GamerOS/Apps/About",
+     "C:/Users/Admin/AppData/About",    WIN_ABOUT,   60, 40},
 };
 #define APP_DESCRIPTOR_COUNT (sizeof(g_app_descriptors) / sizeof(g_app_descriptors[0]))
 
@@ -3049,8 +3682,8 @@ int apps_resolve_launch(const char* exe_name, int* out_win_type, int* out_x, int
     const app_descriptor_t* desc = apps_find_by_exe(exe_name);
     if (!desc) return 0;
     if (out_win_type) *out_win_type = desc->window_type;
-    if (out_x) *out_x = desc->default_x;
-    if (out_y) *out_y = desc->default_y;
+    if (out_x) *out_x = desc->launch_x;
+    if (out_y) *out_y = desc->launch_y;
     return 1;
 }
 
@@ -3062,17 +3695,8 @@ static const char* notepad_ui_title(void) {
     return "Notepad";
 }
 
-static const char* notepad_ui_toolbar_hint(void) {
-    return "Edit | Ctrl+S";
-}
 
-static const char* notepad_ui_status_modified(void) {
-    return "Modified";
-}
 
-static const char* notepad_ui_status_saved(void) {
-    return "Saved";
-}
 
 static const char* settings_ui_panel_title(void) {
     return "Settings";
@@ -3101,163 +3725,247 @@ static const char* settings_ui_changelog_md_path(void) {
 }
 
 static const char* settings_ui_changelog_md_text(void) {
-    return "# GamerOS Changelog (2026-04-03)\n\n"
-           "This changelog tracks work for the next release cycle.\n\n"
+    return            "# GamerOS Changelog (2026-10-10)\n"
+           "\n"
+           "This changelog records the build-system, correctness, and stability fixes applied\n"
+           "after build 1.500. Most of these were latent defects that only surfaced once the\n"
+           "project was actually compiled — the tree did not build at all before this cycle.\n"
+           "\n"
            "## Release\n"
-           "- Version: `00m1`\n"
-           "- Build: `1.500`\n"
-           "- Date: `2026-04-03`\n\n"
-           "## Latest Updates (Stability and Reliability Hardening)\n\n"
-           "### Kernel Boot Robustness\n"
-           "- Fixed persistent NASM warnings from `boot.asm` BSS section initialization (zero warnings now).\n"
-           "- Moved all initialized data from `.bss` into `.data` section to eliminate undefined behavior.\n"
-           "- Added compile-time page table alignment assertions for boot paging structures.\n"
-           "- Reordered kernel init sequence: Serial Debug → HAL → Filesystem → Input → Graphics → Shell.\n"
-           "- Replaced jump-based `io_wait()` with standard port 0x80 delay for consistent timing.\n"
-           "- Added explicit 4K BSS alignment in linker script to prevent kernel/data overlap.\n\n"
-           "### Graphics Subsystem Stability\n"
-           "- Added bounds validation to all VGA planar write paths in `swap_buffers()`.\n"
-           "- Extended true-color framebuffer validation with pitch overflow and alignment checks.\n"
-           "- Cursor rendering now validates coordinates and clips to screen bounds.\n"
-           "- Font rendering functions now validate bounds and handle NULL inputs gracefully.\n"
-           "- Resolution switch function validates against native framebuffer and back buffer capacity.\n\n"
-           "### Input Driver Stabilization\n"
-           "- Keyboard extended key prefix (`0xE0`) now has timeout to prevent stuck state.\n"
-           "- Mouse packet sync validation added (first byte must have bit 3 set).\n"
-           "- Mouse packet cycle reset timeout added to resync if packets are lost.\n"
-           "- Wheel delta clamping improved with saturation at ±127 instead of wrapping.\n"
-           "- PIC EOI sequencing corrected for IRQ8-15 cascade handling.\n"
-           "- All input polling functions now have bounded iteration counts.\n\n"
-           "### Filesystem and Storage Reliability\n"
-           "- All filesystem functions now validate input parameters (NULL checks, bounds).\n"
-           "- ATA PIO driver operations now have timeout counters to prevent infinite hangs.\n"
-           "- ATA device detection has explicit timeout for each wait phase.\n"
-           "- RAM-backed storage properly zeroed on init with sector bounds validation.\n"
-           "- Filesystem bootstrap creates default directories only if metadata load fails.\n\n"
-           "### Shell and Window Manager Stability\n"
-           "- Main input polling loop has explicit safety bounds (max 64 iterations per device).\n"
-           "- Window drag/resize operations validate coordinates and maintain minimum dimensions.\n"
-           "- Window creation validates count, title length, position, and size bounds.\n"
-           "- All UI drawing functions validate coordinates before rendering.\n"
-           "- Widget destruction properly frees all allocated memory recursively.\n\n"
-           "### Driver Subsystem Hardening\n"
-           "- RTC reads preserve NMI enable bit to prevent spurious Non-Maskable Interrupts.\n"
-           "- Serial I/O functions now have timeouts to prevent hangs on absent UART.\n"
-           "- VMware backdoor access now has exception handler for port access.\n\n"
-           "### Executive Layer and User Mode\n"
-           "- Executive init validates each subsystem before proceeding to next.\n"
-           "- User mode process table reset on init (no stale entries).\n"
-           "- GOSAPP executable format validated before loading.\n\n"
-           "### Build System Reliability\n"
-           "- Build targets have explicit directory creation dependencies.\n"
-           "- Dockerfile uses pinned Ubuntu 22.04 base for reproducible builds.\n"
-           "- Build scripts check tool availability before attempting operations.\n"
-           "- Git ignore updated to exclude all build artifacts and generated files.\n\n"
-           "## Added\n"
-           "- `keyboard_buffer_count()` helper for debugging keyboard buffer state.\n"
-           "- `pic_mask_irq()` and `pic_unmask_irq()` for safe interrupt enable/disable.\n"
-           "- `input_poll_all()` helper for safe sequential keyboard and mouse polling.\n"
-           "- Serial debug logging for framebuffer rejection reasons.\n"
-           "- Boot milestone reporting for each init stage via serial output.\n"
-           "- Page table self-check validation during early boot.\n"
-           "- Widget event validation for enabled/visible state before dispatch.\n"
-           "- Process executable format validation in GOSAPP loader.\n"
-           "- Build script tool availability checks (Docker, GCC, NASM, QEMU).\n\n"
-           "## Changed\n"
-           "- Kernel init sequence reordered for safer dependency ordering.\n"
-           "- `io_wait()` implementation changed from jump chain to port 0x80 delay.\n"
-           "- Keyboard extended key handling now has timeout instead of permanent state.\n"
-           "- Mouse packet handling now validates sync byte before processing.\n"
-           "- Mouse wheel delta clamping changed from wrap to saturation behavior.\n"
-           "- ATA PIO driver operations now timeout instead of waiting indefinitely.\n"
-           "- Filesystem parameter validation applied to all public API functions.\n"
-           "- Window manager array maintenance changed to compact on close (no gaps).\n"
-           "- RTC register read preserves NMI enable bit (bit 7) during access.\n"
-           "- Serial I/O functions timeout on absent hardware instead of hanging.\n"
-           "- Executive init validates each subsystem before proceeding.\n"
-           "- Build system targets have explicit directory creation dependencies.\n"
-           "- Docker build environment pinned to Ubuntu 22.04 for reproducibility.\n"
-           "- Git ignore expanded to cover all build artifacts and IDE files.\n\n"
-           "## Fixed\n"
-           "- Fixed hundreds of NASM warnings from boot.asm BSS section initialization.\n"
-           "- Fixed potential page table misalignment on memory-constrained VMs.\n"
-           "- Fixed boot sequence ordering that could drop input events during startup.\n"
-           "- Fixed I/O wait timing inconsistency that could be optimized out by compilers.\n"
-           "- Fixed VGA planar write paths that could corrupt memory on slow hardware.\n"
-           "- Fixed true-color framebuffer validation that missed pitch overflow cases.\n"
-           "- Fixed cursor rendering that could write out-of-bounds on screen edges.\n"
-           "- Fixed font rendering that could access invalid glyph indices.\n"
-           "- Fixed resolution switching that could exceed back buffer capacity.\n"
-           "- Fixed keyboard extended key prefix getting stuck without following scancode.\n"
-           "- Fixed mouse packet desync causing freeze on VMware with noisy PS/2.\n"
-           "- Fixed mouse wheel delta wrapping instead of saturating at limits.\n"
-           "- Fixed PIC EOI sequencing for IRQ8-15 cascade interrupts.\n"
-           "- Fixed infinite poll loops in keyboard and mouse polling functions.\n"
-           "- Fixed filesystem crashes from NULL or oversized path parameters.\n"
-           "- Fixed ATA driver hang when device is absent or unresponsive.\n"
-           "- Fixed RAM disk storage not properly zeroed on initialization.\n"
-           "- Fixed shell input loop that could freeze from unbounded polling.\n"
-           "- Fixed window manager leaving gaps in window array after close.\n"
-           "- Fixed UI rendering that could corrupt memory at screen edges.\n"
-           "- Fixed widget memory leaks on destruction of complex widgets.\n"
-           "- Fixed RTC reads triggering spurious NMIs from bit 7 corruption.\n"
-           "- Fixed serial I/O hanging on hardware without UART.\n"
-           "- Fixed VMware backdoor crashes on non-VMware hardware.\n"
-           "- Fixed executive layer cascading failures from subsystem init errors.\n"
-           "- Fixed process model crashes from malformed GOSAPP executables.\n"
-           "- Fixed build system failures from stale artifacts in repeated builds.\n"
-           "- Fixed Docker build non-reproducibility from unpinned base image.\n"
-           "- Fixed build scripts silently failing without error messages.\n\n"
+           "- Version: `00m2`\n"
+           "- Build: `1.520`\n"
+           "- Date: `2026-10-10`\n"
+           "\n"
+           "## Build Verification\n"
+           "- First verified clean compile and ISO build using the containerized toolchain\n"
+           "  (`config/buildenv/Dockerfile`).\n"
+           "- Result: **zero errors, zero warnings, zero undefined symbols**.\n"
+           "- Output: `dist/x86_64/kernel.iso` (5.5 MB, Multiboot compatible).\n"
+           "\n"
+           "## Critical — Build Blockers\n"
+           "\n"
+           "- **Fixed the kernel failing to compile.** `back_buffer_rgb` was declared `static`\n"
+           "  in `vga_graphics.c`, but `main.c` dereferenced it directly in four places, so\n"
+           "  every translation unit failed. Added a bounds-checked `graphics_get_rgb_row(int y)`\n"
+           "  accessor and declared it in `graphics.h`, keeping the buffer private.\n"
+           "- **Fixed conflicting `draw_string` declarations.** `graphics.h` declared it with\n"
+           "  `int` coordinates while `ui.h` redeclared it with `uint32_t`, which is a hard\n"
+           "  compile error wherever both headers are included. Removed the duplicate\n"
+           "  declaration from `ui.h`.\n"
+           "- **Fixed `kmalloc`/`kfree` being declared but never defined.** The executive\n"
+           "  layer (`object_manager.c`, `gdi.c`) and the widget toolkit call them, so that\n"
+           "  code could never have linked. Implemented a real first-fit allocator in\n"
+           "  `src/core/kernel/mm.c` over a 1 MB static arena, with block validation and\n"
+           "  double-free rejection via a block magic value.\n"
+           "- **Fixed the Makefile pattern rule pointing at a deleted directory.** It\n"
+           "  referenced `$(SRC_DIR)/impl/`, which no longer exists. Repointed it at\n"
+           "  `$(SRC_DIR)/`.\n"
+           "- **Removed an empty `settings_ui.c`** (0 bytes) from the build; it produced a\n"
+           "  useless object file.\n"
+           "- **Repaired `Makefile.wsl`.** It referenced nine source files that do not exist\n"
+           "  in the tree (`core/hal/hal.c`, `cpu/gdt.c`, `interrupts/{idt,isr}.c`,\n"
+           "  `io/ports.c`, `interrupts/isr.asm`, `cpu/context_switch.asm`) and could not\n"
+           "  build at all. Rewritten to mirror the real, working source set.\n"
+           "\n"
+           "## Memory Safety\n"
+           "\n"
+           "- **Fixed an out-of-bounds read in `fs_write_file()`.** When the payload exceeded\n"
+           "  the reserved sector run, the function inflated `file->size` to the full\n"
+           "  reserved size regardless of the real data length. The trailing sector loop then\n"
+           "  `memcpy`'d past the caller's buffer. This was reachable from the shell's\n"
+           "  in-OS changelog viewer, which writes a ~11 KB string through this path.\n"
+           "- **Fixed a container teardown leak in `ui_widgets.c`.** `ui_destroy_widget()`\n"
+           "  freed the container but never its children, leaking the whole subtree on every\n"
+           "  window/panel destroy.\n"
+           "- **Fixed a division by zero in progress-bar rendering** when `max_value` equalled\n"
+           "  `min_value`. Also clamps the computed width so it cannot exceed the bar.\n"
+           "- **Fixed an unbounded textbox append.** Keyboard input wrote into a fixed 256-byte\n"
+           "  buffer with no real capacity check. Now performs a bounded append and honours\n"
+           "  the cursor position.\n"
+           "- **Fixed an out-of-bounds array read in the scaled 32bpp present path.** When the\n"
+           "  logical resolution differed from the native framebuffer, `swap_buffers()` copied\n"
+           "  a full native-width row from a narrower logical row, walking into the next row\n"
+           "  and past the buffer on the final row. Now scales horizontally as well.\n"
+           "- **Fixed `&windows[-1]` being formed** when `active_window` was `-1`.\n"
+           "- **Fixed `uint32_t`-to-`int` truncation** in the window drag clamp, which could\n"
+           "  assign a huge unsigned value to a signed coordinate.\n"
+           "\n"
+           "## Boot Stability\n"
+           "\n"
+           "- **Eliminated 4,080 spurious NASM warnings.** `align 4096` inside the `.bss`\n"
+           "  section emits fill bytes, which NASM rejects — once per padding byte. Switched\n"
+           "  the three page-table alignments to `alignb`, which needs no fill.\n"
+           "- **Fixed a VGA blanking bug in `boot.asm`.** Both graphics-controller setup loops\n"
+           "  wrote `0x00` to GC register 8, the plane bit mask, disabling all plane writes.\n"
+           "  Now writes `0xFF`.\n"
+           "- **Fixed a missing glyph in `font.inc`.** The Space character had no `db` data,\n"
+           "  shifting every glyph in the table by one. The table is now a correct 96 glyphs\n"
+           "  (32-127). Also gave `~` a real glyph instead of a blank one, in both the\n"
+           "  assembly and C font tables.\n"
+           "- **Made the boot font include path independent of the working directory.** It\n"
+           "  relied on being invoked from `tools/`. Now resolved through a `-I` include path.\n"
+           "\n"
+           "## Driver Hardening (Boot Hangs)\n"
+           "\n"
+           "- **Bounded the serial port waits.** `serial_putchar()` and `serial_read()` spun\n"
+           "  forever when no UART was present. Both now time out; `serial_putchar()` writes\n"
+           "  the byte and returns rather than blocking indefinitely.\n"
+           "- **Bounded the PS/2 mouse command waits.** `mouse_send_cmd()` contained two\n"
+           "  `while (inb(...) & 0x02);` loops that would hang forever with no controller.\n"
+           "- **Added real PS/2 mouse presence detection.** `mouse_init()` now probes the\n"
+           "  controller and records availability via a new `mouse_is_present()`; the handler\n"
+           "  returns early when absent. The previous code claimed to verify presence but did\n"
+           "  not, despite the changelog stating it did.\n"
+           "- **Added acknowledgement draining** between mouse commands so stale replies do not\n"
+           "  desynchronise the command stream.\n"
+           "- **Bounded the keyboard drain loop in `keyboard_init()`**, which could spin\n"
+           "  indefinitely on a noisy controller.\n"
+           "- **Added a timeout for the keyboard extended-key prefix.** A `0xE0` prefix whose\n"
+           "  follow-up scancode never arrived could leave the next real key misinterpreted\n"
+           "  as extended.\n"
+           "- **Added RTC update-in-progress handling.** The RTC now waits out an in-progress\n"
+           "  update and retries on unstable reads, preventing garbled clock values.\n"
+           "- **Fixed integer overflow in the VMware backdoor.** Coordinates were scaled with\n"
+           "  a 32-bit multiply that wrapped. Now scaled in 64-bit with proper clamping, and\n"
+           "  the absolute-pointer status/data reads follow a consistent protocol.\n"
+           "\n"
+           "## Correctness\n"
+           "\n"
+           "- **Fixed `graphics_get_bpp()` reporting the wrong colour depth.** It returned 16\n"
+           "  for the indexed fallback path, but the kernel programs VGA mode 12h\n"
+           "  (640x480x16 planar = 4bpp). Settings and About now report the true value.\n"
+           "- **Fixed the Explorer's click targets not matching what was drawn.** Hit testing\n"
+           "  used row offsets (`y+44`) that disagreed with the rendered rows (`y+58`), so\n"
+           "  clicks selected the wrong entry. Geometry re-derived from the draw code, and the\n"
+           "  highlight rectangle now aligns with the list pane.\n"
+           "- **Fixed three duplicated and conflicting Settings click handlers.** The System\n"
+           "  page had three separate blocks handling the same toggles with three different\n"
+           "  offset schemes, so behaviour depended on which block matched first. Consolidated\n"
+           "  into one handler whose geometry matches the rendered rows.\n"
+           "- **Fixed a nav-row offset drift in Settings.** Tabs were drawn at `nav_y + 28` but\n"
+           "  hit-tested at `nav_y + 22`, so every tab selection was off by one row.\n"
+           "- **Guarded Settings against short windows.** Nav rows and display-profile rows\n"
+           "  could overflow a small window and draw over the taskbar.\n"
+           "- **Fixed the PCI USB log rows drawing off-screen** and removed an unused variable.\n"
+           "  Row calculation no longer mixes bus and device indices incorrectly.\n"
+           "- **Fixed `ui.c` clipping to a hardcoded 320x200** while the shell runs at 640x480,\n"
+           "  truncating all text and gradients.\n"
+           "- **Made `ui.c` screen-size agnostic** throughout, and removed an underflow risk in\n"
+           "  the desktop hill renderer at small heights.\n"
+           "\n"
+           "## Build and Tooling\n"
+           "\n"
+           "- **Fixed the ISO staging path.** It wrote to `/tmp`, which is unreliable on the\n"
+           "  Windows/MSYS2 hosts the project targets. Now stages inside the build tree.\n"
+           "- **Fixed all batch scripts running `make` from the wrong directory**, so builds\n"
+           "  failed unless invoked from `tools/`. They now resolve their own location.\n"
+           "- **Fixed a stale `%errorlevel%` bug in `run-qemu.bat` and `debug.bat`.** Inside a\n"
+           "  parenthesised block, `%errorlevel%` expands at parse time, so the QEMU\n"
+           "  `where` check was testing a pre-existing value. Now uses `if not errorlevel 1`.\n"
+           "- **Added `mm.o` to the Makefile** for the new allocator.\n"
+           "- **Stopped including `io.h` alongside `ports.h`** in `main.c`; they duplicate the\n"
+           "  same port I/O prototypes.\n"
+           "- **Parenthesised `HEAP_SIZE`** in `mm.h` so the macro is safe in expressions.\n"
+           "\n"
+           "## Executive Layer\n"
+           "\n"
+           "- **Resolved a symbol collision.** The executive filesystem manager defined\n"
+           "  `fs_open_file`, `fs_read_file`, `fs_create_file`, and others with entirely\n"
+           "  different signatures from the real ones in `fs.h`. If both had ever been linked,\n"
+           "  this would have been a hard conflict. Renamed to `exec_fs_*`.\n"
+           "- **Fixed a duplicate `mouse_state_t` typedef** in the executive mouse driver by\n"
+           "  including the shared `<mouse.h>`.\n"
+           "- **Made `get_object()` reject `INVALID_HANDLE` explicitly** rather than relying\n"
+           "  on the range check alone.\n"
+           "\n"
+           "## UI\n"
+           "\n"
+           "- **Redesigned Notepad.** The old layout drew text across `y+54 .. y+h-26` while\n"
+           "  the white editor surface only covered `y+54 .. y+h-82`, so **text overflowed the\n"
+           "  editor and ran into the status bar**; the visible-line count was derived from\n"
+           "  the same mismatched bounds. Notepad now has a toolbar with a working Save\n"
+           "  button, a line-numbered gutter, a status bar showing `Ln/Col` and the file\n"
+           "  name, and a caret that cannot be drawn outside the editor.\n"
+           "- **Redesigned File Explorer.** Replaced the duplicate title, raw path text, and\n"
+           "  `[DIR] ` prefixes with a toolbar, breadcrumb, folder/file markers, a column\n"
+           "  header, selection highlighting, and a status bar showing the item count.\n"
+           "- **Made the Explorer actually navigable.** Back and Forward now work via a real\n"
+           "  navigation history, Up is disabled at the filesystem root, and the Quick Access\n"
+           "  entries for Documents and Downloads navigate instead of doing nothing.\n"
+           "  Previously only \"This PC\" responded and the other rows were inert text that\n"
+           "  looked clickable.\n"
+           "- Removed four UI string stubs the redesign made unused.\n"
+           "- **Fixed the GamerOS Update view switch appearing broken.** The changelog and\n"
+           "  roadmap views rendered identical content because the roadmap split is keyed off\n"
+           "  a `## Planned` heading, and the 1.520 changelog had none. Restored the heading,\n"
+           "  and the view switch now shows genuinely different documents.\n"
+           "- **Made the roadmap split resilient.** The parser now recognises `Planned`,\n"
+           "  `Roadmap`, or `Upcoming`, so renaming the heading cannot silently collapse the\n"
+           "  two views again.\n"
+           "- **Show an explicit notice** when a view has no entries, instead of silently\n"
+           "  duplicating the other document.\n"
+           "- **Raised `MAX_FILE_SIZE` from 12KB to 24KB.** The full release changelog no\n"
+           "  longer overflows the per-file cap. The generator now reads this constant from\n"
+           "  `fs.h` rather than hardcoding it, so the two cannot drift. Sector budget\n"
+           "  re-checked: 48 reserved sectors per file x 32 files = 1536 of 4096.\n"
+           "\n"
+           "- **Rebuilt the entire Settings layout, all eleven tabs.** Previously only System\n"
+           "  had been converted; the other ten pages were still flat left-aligned text at\n"
+           "  hardcoded `body_y + N` offsets.\n"
+           "- Settings pages now share a common layout system built on a **running cursor**:\n"
+           "  section headings render a coloured label with an accent tick and rule, and each\n"
+           "  row returns its height so content flows instead of relying on fixed offsets.\n"
+           "- **Key/value rows are right-aligned** with a dimmed label, falling back to inline\n"
+           "  placement when the window is too narrow to reserve a value column.\n"
+           "- **Grouped rows render inside cards** with a blue accent edge, giving visual\n"
+           "  hierarchy without extra chrome.\n"
+           "- **Added interactive toggles to four more pages.** Devices gained a Bluetooth\n"
+           "  switch, Network a Wi-Fi switch, and Accessibility switches for High contrast and\n"
+           "  Large text. All seven toggles across the app are now real switches with a\n"
+           "  sliding knob, coloured state text, and full-row click targets.\n"
+           "- **Some values are now live rather than hardcoded.** Devices reports the actual\n"
+           "  mouse presence, and Network/Gaming reflect the toggle and framebuffer state.\n"
+           "- **GamerOS Update is now a segmented control** (Changelog / Roadmap) above a\n"
+           "  bordered viewer body with a pinned scroll hint, replacing the mismatched pair of\n"
+           "  standalone buttons.\n"
+           "- **Removed draw/hit-test geometry drift.** `draw_window()` publishes the exact\n"
+           "  rectangles it rendered — toggles, resolution rows, and the view switch — and the\n"
+           "  click handler reads those, rather than repeating layout constants that previously\n"
+           "  drifted out of sync. Scroll extent for the changelog viewer is published the same\n"
+           "  way, replacing a second, independently-computed viewport size.\n"
+           "- **Added `tools/embed_changelog.py`** so the in-OS changelog is generated from\n"
+           "  `docs/changelogs/` instead of being a hand-maintained copy that drifts. It\n"
+           "  refuses to embed content that would exceed the filesystem's file-size limit and\n"
+           "  warns when the viewer's line budget would be exceeded.\n"
+           "\n"
+           "## Documentation\n"
+           "\n"
+           "- **Fixed broken documentation links.** `changelog_2026-xx-xx.md`,\n"
+           "  `walkthrough_src_bugfixes_2026-xx-xx.md`, and `currentbugs.md` were all linked\n"
+           "  from the README but do not exist.\n"
+           "- **Fixed the documented project layout**, which described a `src/apps` /\n"
+           "  `src/impl` / `src/intf` structure that no longer exists.\n"
+           "- **Removed a duplicated \"Advanced Options\" section** in the README.\n"
+           "- **Corrected batch script paths** in the README to match their actual location.\n"
+           "\n"
            "## Notes\n"
-           "- Release date is not finalized yet.\n"
-           "- This is a stability-focused release with no new user-visible features.\n"
-           "- All changes are backward compatible with existing apps and configurations.\n"
-           "- Build numbers incremented to 1.500 to reflect significant internal improvements.\n\n"
+           "- The executive layer and user-mode subsystems remain **not wired into**\n"
+           "  `kernel_main`. They are now correct, consistent, and linkable, but still\n"
+           "  inactive. Enabling them is a deliberate follow-up decision.\n"
+           "- This changelog is the single source of truth. `tools/embed_changelog.py`\n"
+           "  generates the copy compiled into the in-OS viewer, so the two can no longer\n"
+           "  drift apart. Re-run it after editing this file.\n"
+           "- The generated ISO is compile-verified (zero warnings, zero errors, zero\n"
+           "  undefined symbols) but **not yet booted under QEMU**.\n"
+           "\n"
            "## Planned\n"
-           "- New app container model so desktop apps behave like first-class system windows (with minimize/maximize/close, focus handling, and z-order).\n"
-           "- Extend the app lifecycle from the current running/stopped tracker into a richer controller that can also suspend, resume, and terminate or throttle background apps.\n"
-           "- Standardized app chrome guidelines so built-in tools (Settings, File Manager, Media Player) visually align with the shell.\n"
-           "- Interactive app registry browser in Settings or Explorer that shows manifests, install roots, permissions, and runtime state.\n"
-           "- Extended `.gosapp` manifest format with versioning, dependency, and fine-grained permission fields.\n"
-           "- Basic permissions model for apps (filesystem, network, settings, hardware) to prepare for future sandboxing.\n"
-           "- Unified input dispatch layer that routes keyboard/mouse events to the active app with proper focus rules.\n"
-           "- Initial window manager hooks to support multiple top-level app windows with proper stacking and activation.\n"
-           "- App-aware taskbar integration so running apps appear with icons, titles, and hover previews.\n"
-           "- Simple inter-app protocol for launching apps with arguments (e.g., open file from File Manager into Media Player).\n"
-           "- High-level UI controls library (buttons, labels, checkboxes, sliders) for building consistent in-box apps.\n"
-           "- Layout helpers for common app patterns (sidebar/content, toolbar/content, dialog with actions).\n"
-           "- New `App Shell` sample app demonstrating the recommended window structure and toolbar patterns.\n"
-           "- Multi-pane File Manager upgrade with breadcrumb navigation, details columns, and file properties/actions.\n"
-           "- Basic storage abstraction layer that hides raw disk details behind a friendly volume and path model.\n"
-           "- High-level storage API for apps to read/write user documents without touching low-level disk code.\n"
-           "- Expand the `AppData` model into a first-class API (`GOS:/User/AppData/<AppId>`) for all current and future apps.\n"
-           "- Live settings storage backend that actually loads persisted toggles, theme choice, and last-used graphics mode at startup.\n"
-           "- Generic key/value persistence helper that apps can call instead of writing raw preference files directly.\n"
-           "- First version of a save-game style data slot API for games and game launchers.\n"
-           "- Read-only system volume layout for core OS assets, with a separate writable user area.\n"
-           "- Bootstrap for a future installer experience that can place apps into the correct volume and register them with the shell.\n"
-           "- Storage-aware About/Gaming pages that display detected volumes, free space, and backend information.\n"
-           "- Internal diagnostics overlay app that can inspect current apps, windows, and storage mounts.\n"
-           "- App-callable error and warning dialog API so apps can raise shell-native modal messages consistently.\n"
-           "- Simple notification/toast API for apps to surface background events (e.g., file copy finished).\n"
-           "- Background service concept for future features like update checks and indexing without blocking the shell.\n"
-           "- Skeleton for an in-box text editor app that uses the new app framework and storage APIs.\n"
-           "- Planned media player UI spec (play/pause, seek, volume) wired up to the new app container model.\n"
-           "- Initial hooks for a plugin system that will later allow optional features and tools to be shipped as separate app bundles.\n"
-           "- Expanded desktop context menu customization (pin actions, sort icons, wallpaper/profile actions).\n"
-           "- Desktop icon arrangement tools (snap-to-grid toggle, align, auto-arrange, manual save/load layouts).\n"
-           "- About app diagnostics extensions (build hash, boot mode, memory/storage snapshot, export report).\n"
-           "- App install/uninstall flow in Settings with manifest validation and rollback on failure.\n"
-           "- Update channel selection in GamerOS Update (`stable`, `preview`, `dev`) with per-channel roadmap sections.\n"
-           "- PIT/HPET timer interrupt implementation for preemptive multitasking.\n"
-           "- Proper `kmalloc`/`kfree` heap memory management implementation.\n"
-           "- USB driver stack completion for mouse/keyboard/device support.\n"
-           "- Basic TCP/IP networking implementation for internet connectivity.\n"
-           "- AC'97 or HD Audio driver for system audio support.\n"
-           "- ACPI implementation for power management and hardware discovery.\n"
-           "- Cross-toolchain integration (`i686-elf-gcc`) so C components can move back into the kernel cleanly.\n";
+           "- Boot the generated ISO under QEMU and confirm it reaches the desktop shell.\n"
+           "- Wire `executive_init()` and `user_mode_init()` into `kernel_main` now that both\n"
+           "  layers are linkable, and remove the linked-out `GOSAPP` shims.\n"
+           "- Raise `MAX_FILE_SIZE` in `fs.h`; the changelog viewer is close to its ceiling.\n"
+           "- Persist Settings state so toggles survive a reboot instead of resetting.\n"
+           "- Replace the polled input loop with PIT/HPET timer-driven frame pacing.\n"
+           "- Complete the USB driver stack and implement ATA PIO properly; the driver is\n"
+           "  currently disabled at boot and the filesystem runs on the RAM disk.\n";
 }
 
-static const char* explorer_ui_title(void) {
-    return "File Explorer";
-}

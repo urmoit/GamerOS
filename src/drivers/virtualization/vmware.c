@@ -76,98 +76,58 @@ void vmware_enable_mouse(void) {
 }
 
 int vmware_get_mouse_data(vmware_mouse_data_t* data) {
-    if (!vmware_initialized || !abs_pointer_enabled) return 0;
-    
+    if (!vmware_initialized || !abs_pointer_enabled || !data) return 0;
+
     uint32_t eax, ebx, ecx, edx;
-    
-    // Check status
+
+    // Read the queue status. EAX[31:16] holds the number of words available.
     eax = VMWARE_MAGIC;
     ebx = 0;
     ecx = CMD_ABS_POINTER_STATUS;
     edx = VMWARE_PORT;
     vmware_backdoor(&eax, &ebx, &ecx, &edx);
-    
-    // EAX returns size/status. If bits 16-31 > 0, we have data.
-    // Actually, VMware documentation says EAX = 0xFFFF00xx where xx is bytes available?
-    // Let's use the simple CMD_GET_MOUSE_STATUS approach first for vmmouse?
-    // No, absolute mouse is CMD_ABS_POINTER_DATA (39)
-    
-    // Status check: EAX should roughly indicate number of words
-    if ((eax & 0xFFFF0000) == 0) return 0; // No data
-    
-    // Get Data
-    // We need to read 4 bytes/words usually: status, x, y, z
-    
-    eax = VMWARE_MAGIC;
-    ebx = 0;
-    ecx = CMD_ABS_POINTER_DATA;
-    edx = VMWARE_PORT;
-    vmware_backdoor(&eax, &ebx, &ecx, &edx);
-    
-    // Returns 4 bytes or words?
-    // Convention: 
-    // EAX = Current X (scaled 0-65535) ? No, that's regular VMMOUSE.
-    // The "Backdoor" absolute mouse actually reads count then pops data.
-    
-    // Let's try the simplest VMMOUSE v1 implementation:
-    // It returns data in 4 words.
-    // But we need to pop queue if multiple events.
-    
-    // Simplified logic:
-    // ECX = 0 (Get X) -> EAX
-    // ECX = 1 (Get Y) -> EAX
-    // Wait, the backdoor command 39 fetches one packet.
-    
-    // Let's rely on documentation logic:
-    // Packet size is 4 words.
-    
-    // Implementation of reading queue:
-    int count = (eax & 0xFFFF); 
-    if (count < 4) return 0; // Need at least header + x + y + z
-    
-    // Read Status Word
-    eax = VMWARE_MAGIC;
-    ebx = 0;
-    ecx = CMD_ABS_POINTER_DATA; 
-    edx = VMWARE_PORT;
-    vmware_backdoor(&eax, &ebx, &ecx, &edx);
-    uint32_t status = eax; // Flags
-    
-    // Read X
-    eax = VMWARE_MAGIC;
-    ebx = 0; 
-    ecx = CMD_ABS_POINTER_DATA;
-    edx = VMWARE_PORT;
-    vmware_backdoor(&eax, &ebx, &ecx, &edx);
-    uint32_t raw_x = eax;
-    
-    // Read Y
-    eax = VMWARE_MAGIC;
-    ebx = 0; 
-    ecx = CMD_ABS_POINTER_DATA;
-    edx = VMWARE_PORT;
-    vmware_backdoor(&eax, &ebx, &ecx, &edx);
-    uint32_t raw_y = eax;
-    
-    // Read Z/Buttons?
-    eax = VMWARE_MAGIC;
-    ebx = 0; 
-    ecx = CMD_ABS_POINTER_DATA;
-    edx = VMWARE_PORT;
-    vmware_backdoor(&eax, &ebx, &ecx, &edx);
-    uint32_t raw_z = eax;
-    
-    // Convert scaled coordinates (0-65535) to screen coordinates
-    data->x = (raw_x * current_vga_width) / 65535;
-    data->y = (raw_y * current_vga_height) / 65535;
-    
-    // Parse status for buttons
-    // Bit 0 = Button 1 (Left), Bit 1 = Button 2 (Right), Bit 2 = Middle
-    // GamerOS mapping: Left=0x01, Right=0x02
+
+    uint32_t words_available = (eax >> 16) & 0xFFFF;
+    if (words_available < 4) return 0; // need status + x + y + z
+
+    // Each CMD_ABS_POINTER_DATA call pops one word from the queue.
+    uint32_t packet[4];
+    for (int i = 0; i < 4; i++) {
+        eax = VMWARE_MAGIC;
+        ebx = 0;
+        ecx = CMD_ABS_POINTER_DATA;
+        edx = VMWARE_PORT;
+        vmware_backdoor(&eax, &ebx, &ecx, &edx);
+        packet[i] = eax;
+    }
+
+    uint32_t status = packet[0];
+    uint32_t raw_x = packet[1];
+    uint32_t raw_y = packet[2];
+
+    // Coordinates arrive as unsigned 0..65535. Cast before scaling so the
+    // multiply is done in 64-bit and cannot wrap.
+    uint64_t screen_w = current_vga_width ? current_vga_width : 1;
+    uint64_t screen_h = current_vga_height ? current_vga_height : 1;
+
+    int64_t scaled_x = (int64_t)(((uint64_t)raw_x * screen_w) / 65535ULL);
+    int64_t scaled_y = (int64_t)(((uint64_t)raw_y * screen_h) / 65535ULL);
+
+    if (scaled_x < 0) scaled_x = 0;
+    if (scaled_y < 0) scaled_y = 0;
+    if (scaled_x > (int64_t)screen_w) scaled_x = (int64_t)screen_w;
+    if (scaled_y > (int64_t)screen_h) scaled_y = (int64_t)screen_h;
+
+    data->x = (int32_t)scaled_x;
+    data->y = (int32_t)scaled_y;
+    data->scroll = (int32_t)packet[3];
+
+    // Status bit layout: 0x20 = left, 0x10 = right, 0x08 = middle.
     data->buttons = 0;
-    if (status & 0x20) data->buttons |= 0x01; // Left
-    if (status & 0x10) data->buttons |= 0x02; // Right
-    
+    if (status & 0x20) data->buttons |= 0x01;
+    if (status & 0x10) data->buttons |= 0x02;
+    if (status & 0x08) data->buttons |= 0x04;
+
     return 1;
 }
 

@@ -20,7 +20,9 @@ header_end:
 section .text
 bits 32
 
-%include "../src/graphics/font.inc"
+; Resolved through the -I include path supplied by tools/Makefile so that
+; assembling from any working directory works.
+%include "graphics/font.inc"
 
 VGA_GRAPHICS_BUFFER equ 0xA0000
 
@@ -128,8 +130,16 @@ set_vga_mode13h:
     mov al, cl
     out dx, al
     mov dx, 0x3CF
+    ; Register 8 is the plane bit mask: 0x00 would disable every plane write.
+    cmp ecx, 8
+    je .gc_bitmask
     mov al, 0x00
     out dx, al
+    jmp .gc_next
+.gc_bitmask:
+    mov al, 0xFF
+    out dx, al
+.gc_next:
 
 .gc_skip2:
 .gc_skip1:
@@ -286,8 +296,16 @@ set_vga_mode12h:
     mov al, cl
     out dx, al
     mov dx, 0x3CF
+    ; Register 8 is the plane bit mask: 0x00 would disable every plane write.
+    cmp ecx, 8
+    je .gc_bitmask_12h
     mov al, 0x00
     out dx, al
+    jmp .gc_next_12h
+.gc_bitmask_12h:
+    mov al, 0xFF
+    out dx, al
+.gc_next_12h:
 
 .gc_skip2_12h:
 .gc_skip1_12h:
@@ -584,13 +602,16 @@ cpu_vendor:
 multiboot_ptr:
     resd 1
 
-align 4096
+; Use `alignb` (byte granularity, no fill) rather than `align`: plain `align`
+; emits padding bytes, which NASM rejects in a BSS section and warns about once
+; per padding byte -- 4080 spurious warnings for these three tables.
+alignb 4096
 p4_table:
     resq 512
-align 4096
+alignb 4096
 p3_table:
     resq 512
-align 4096
+alignb 4096
 p2_tables:
     resq (512 * 4)
 
