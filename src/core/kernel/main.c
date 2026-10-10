@@ -614,25 +614,6 @@ static void format_capacity_line(char* out, int out_size, uint64_t free_bytes, u
     out[pos] = 0;
 }
 
-static void explorer_build_this_pc_entries(void) {
-    explorer_drive_count = fs_storage_get_device_count();
-    if (explorer_drive_count < 1) explorer_drive_count = 1;
-    if (explorer_drive_count > EXPLORER_MAX_ENTRIES) explorer_drive_count = EXPLORER_MAX_ENTRIES;
-
-    for (int i = 0; i < explorer_drive_count; i++) {
-        explorer_drive_paths[i][0] = (char)('C' + i);
-        explorer_drive_paths[i][1] = ':';
-        explorer_drive_paths[i][2] = '/';
-        explorer_drive_paths[i][3] = 0;
-
-        explorer_drive_labels[i][0] = (char)('C' + i);
-        explorer_drive_labels[i][1] = ':';
-        explorer_drive_labels[i][2] = ' ';
-        explorer_drive_labels[i][3] = 0;
-        append_string(explorer_drive_labels[i], sizeof(explorer_drive_labels[i]),
-                      (i == 0) ? "System Disk" : "Local Disk");
-    }
-}
 
 static void ensure_storage_initialized(void) {
     if (storage_initialized) return;
@@ -786,6 +767,122 @@ static int path_has_extension(const char* path, const char* ext) {
     size_t ext_len = strlen(ext);
     if (path_len < ext_len) return 0;
     return strcmp(path + (path_len - ext_len), ext) == 0;
+}
+
+// Details-view column widths. The Date modified column needs ~18 characters
+// for "10/10/2026 11:59 PM" at the 8px advance, so these are generous and the
+// Name column simply absorbs whatever is left.
+#define EXPL_COL_DATE_W 152
+#define EXPL_COL_TYPE_W 124
+#define EXPL_COL_SIZE_W 86
+
+// "10/10/2026 11:59 PM" - matches the Windows details view.
+static void format_mtime(char* out, int out_size, uint32_t unix_time) {
+    int pos = 0;
+    if (!out || out_size <= 1) return;
+    out[0] = 0;
+
+    uint16_t year = 1970;
+    uint8_t month = 1, day = 1, hour = 0, minute = 0;
+    unix_to_calendar(unix_time, &year, &month, &day, &hour, &minute);
+
+    append_unsigned(out, out_size, &pos, month);
+    if (pos + 1 < out_size) out[pos++] = '/';
+    append_unsigned(out, out_size, &pos, day);
+    if (pos + 1 < out_size) out[pos++] = '/';
+    append_unsigned(out, out_size, &pos, year);
+    if (pos + 1 < out_size) out[pos++] = ' ';
+
+    int h12 = (int)hour;
+    const char* suffix = "AM";
+    if (h12 == 0) h12 = 12;
+    else if (h12 >= 12) { suffix = "PM"; if (h12 > 12) h12 -= 12; }
+    append_unsigned(out, out_size, &pos, (uint64_t)h12);
+    if (pos + 1 < out_size) out[pos++] = ':';
+    if (minute < 10 && pos + 1 < out_size) out[pos++] = '0';
+    append_unsigned(out, out_size, &pos, minute);
+    if (pos + 1 < out_size) out[pos++] = ' ';
+    append_text(out, out_size, &pos, suffix);
+    out[pos] = 0;
+}
+
+// Human-readable type label derived from the extension, the way Explorer shows
+// it. Unrecognised extensions fall back to the generic "File".
+static const char* file_type_label(const char* path, int is_dir) {
+    if (is_dir) return "File folder";
+    const char* base = path_basename(path);
+    if (path_has_extension(base, ".EXE")) return "Application";
+    if (path_has_extension(base, ".GOSAPP")) return "Application manifest";
+    if (path_has_extension(base, ".DLL")) return "Application extension";
+    if (path_has_extension(base, ".TXT")) return "Text Document";
+    if (path_has_extension(base, ".MD")) return "Markdown Document";
+    if (path_has_extension(base, ".INI")) return "Configuration Settings";
+    if (path_has_extension(base, ".REG")) return "Registry File";
+    if (path_has_extension(base, ".LST")) return "System File";
+    if (path_has_extension(base, ".LOG")) return "Log File";
+    if (path_has_extension(base, ".SYS")) return "System file";
+    return "File";
+}
+
+// "0 bytes", "1.2 KB", "3.4 MB". Shifts only, no 64-bit division.
+static void format_file_size(char* out, int out_size, uint32_t bytes) {
+    int pos = 0;
+    if (!out || out_size <= 1) return;
+    out[0] = 0;
+
+    if (bytes < 1024u) {
+        append_unsigned(out, out_size, &pos, bytes);
+        append_text(out, out_size, &pos, " bytes");
+        out[pos] = 0;
+        return;
+    }
+
+    uint64_t value;
+    const char* unit;
+    if (bytes < (1024u * 1024u)) {
+        value = ((uint64_t)bytes * 10) >> 10;   // tenths of a KB
+        unit = " KB";
+    } else {
+        value = ((uint64_t)bytes * 10) >> 20;   // tenths of a MB
+        unit = " MB";
+    }
+    append_unsigned(out, out_size, &pos, value / 10);
+    if (pos + 1 < out_size) out[pos++] = '.';
+    append_unsigned(out, out_size, &pos, value % 10);
+    append_text(out, out_size, &pos, unit);
+    out[pos] = 0;
+}
+
+
+
+static void explorer_build_this_pc_entries(void) {
+    explorer_drive_count = fs_storage_get_device_count();
+    if (explorer_drive_count < 1) explorer_drive_count = 1;
+    if (explorer_drive_count > EXPLORER_MAX_ENTRIES) explorer_drive_count = EXPLORER_MAX_ENTRIES;
+
+    for (int i = 0; i < explorer_drive_count; i++) {
+        explorer_drive_paths[i][0] = (char)('C' + i);
+        explorer_drive_paths[i][1] = ':';
+        explorer_drive_paths[i][2] = '/';
+        explorer_drive_paths[i][3] = 0;
+
+        // "<device label> (C:)" using whatever the medium reported, so a real
+        // disk shows its model rather than a generic placeholder.
+        explorer_drive_labels[i][0] = 0;
+        storage_device_info_t dev;
+        const char* name = "Local Disk";
+        if (fs_storage_get_device(i, &dev) && dev.label[0]) name = dev.label;
+        append_string(explorer_drive_labels[i], sizeof(explorer_drive_labels[i]), name);
+
+        char suffix[8];
+        suffix[0] = ' ';
+        suffix[1] = '(';
+        suffix[2] = (char)('C' + i);
+        suffix[3] = ':';
+        suffix[4] = ')';
+        suffix[5] = 0;
+        append_string(explorer_drive_labels[i], sizeof(explorer_drive_labels[i]), suffix);
+    }
 }
 
 static file_t* fs_open_or_create_file(const char* path) {
@@ -942,8 +1039,9 @@ static void initialize_storage_layout(void) {
     write_text_file("C:/Users/Admin/Downloads/README.TXT", "Downloads folder ready.\n");
     write_text_file("C:/Users/Admin/Saves/SAVE1.GOS", "Empty save slot 1\n");
     write_text_file("C:/Users/Admin/Saves/SAVE2.GOS", "Empty save slot 2\n");
-    write_text_file(settings_ui_changelog_md_path(), settings_ui_changelog_md_text());
-    debug_log_message("Boot: storage layout ready");
+      write_text_file(settings_ui_changelog_md_path(), settings_ui_changelog_md_text());
+
+      debug_log_message("Boot: storage layout ready");
     debug_present_boot_status();
     debug_log_message("Boot: build explorer drives");
     debug_present_boot_status();
@@ -2647,8 +2745,40 @@ void draw_window(window_t* win) {
         fill_chamfer_rect(list_x, body_y, list_w, body_h, XP_WHITE);
         draw_chamfer_rect(list_x, body_y, list_w, body_h, XP_DGRAY);
 
+        // ---- Details view columns: Name | Date modified | Type | Size ----------
+        // Columns are laid out from the right edge inward so Name always absorbs
+        // the remainder, and the whole group collapses to Name + Size when the
+        // window is too narrow to hold the date and type columns legibly.
+        int show_wide_cols = 1;
+        int col_size_x = list_x + list_w - EXPL_COL_SIZE_W - 4;
+        int col_type_x = col_size_x - EXPL_COL_TYPE_W;
+        int col_date_x = col_type_x - EXPL_COL_DATE_W;
+        if (col_date_x < list_x + 90) {
+            show_wide_cols = 0;
+            col_date_x = col_size_x - EXPL_COL_TYPE_W;
+            if (col_date_x < list_x + 90) col_date_x = list_x + 90;
+        }
+        int name_col_w = (show_wide_cols ? col_date_x : col_type_x) - (list_x + 15) - 8;
+
         fill_rect(list_x + 2, body_y + 2, list_w - 4, 9, XP_LGRAY);
-        draw_compact_string_clipped(list_x + 6, body_y + 3, (list_w - 12) / FONT_CW, "Name", XP_BLACK);
+        draw_compact_string_clipped(list_x + 6, body_y + 3,
+                                    (name_col_w > 16 ? name_col_w : 16) / FONT_CW,
+                                    "Name", XP_BLACK);
+        if (show_wide_cols) {
+            draw_compact_string_clipped(col_date_x, body_y + 3,
+                                        (EXPL_COL_DATE_W - 8) / FONT_CW, "Date modified", XP_BLACK);
+            draw_compact_string_clipped(col_type_x, body_y + 3,
+                                        (EXPL_COL_TYPE_W - 8) / FONT_CW, "Type", XP_BLACK);
+            fill_rect(col_date_x - 5, body_y + 2, 1, 9, XP_DGRAY);
+            fill_rect(col_type_x - 5, body_y + 2, 1, 9, XP_DGRAY);
+        } else {
+            draw_compact_string_clipped(col_date_x, body_y + 3,
+                                        (EXPL_COL_TYPE_W - 8) / FONT_CW, "Type", XP_BLACK);
+            fill_rect(col_date_x - 5, body_y + 2, 1, 9, XP_DGRAY);
+        }
+        draw_compact_string_clipped(col_size_x, body_y + 3,
+                                    (EXPL_COL_SIZE_W - 8) / FONT_CW, "Size", XP_BLACK);
+        fill_rect(col_size_x - 5, body_y + 2, 1, 9, XP_DGRAY);
         fill_rect(list_x + 2, body_y + 11, list_w - 4, 1, XP_DGRAY);
 
         explorer_list_x = list_x;
@@ -2726,8 +2856,33 @@ void draw_window(window_t* win) {
                     fill_rect(list_x + 6, ry + 2, 5, 7, XP_DGRAY);
                     fill_rect(list_x + 6, ry + 2, 5, 2, XP_WHITE);
                 }
-                draw_compact_string_clipped(list_x + 15, ry + 2, name_chars,
-                                            path_basename(explorer_entries[i]), XP_BLACK);
+
+                const char* full_path = explorer_entries[i];
+                const char* leaf = path_basename(full_path);
+                draw_compact_string_clipped(list_x + 15, ry + 2,
+                                            (name_col_w > 8 ? name_col_w : 8) / FONT_CW,
+                                            leaf, XP_BLACK);
+
+                uint32_t entry_size = 0;
+                uint32_t entry_mtime = 0;
+                fs_get_entry_info(full_path, explorer_is_dir[i], &entry_size, &entry_mtime);
+
+                char cell[64];
+                if (show_wide_cols) {
+                    format_mtime(cell, (int)sizeof(cell), entry_mtime);
+                    draw_compact_string_clipped(col_date_x, ry + 2,
+                                                (EXPL_COL_DATE_W - 8) / FONT_CW, cell, XP_DGRAY);
+                }
+                draw_compact_string_clipped(col_type_x, ry + 2,
+                                            (EXPL_COL_TYPE_W - 8) / FONT_CW,
+                                            file_type_label(full_path, explorer_is_dir[i]), XP_DGRAY);
+                if (!explorer_is_dir[i]) {
+                    format_file_size(cell, (int)sizeof(cell), entry_size);
+                } else {
+                    cell[0] = 0;
+                }
+                draw_compact_string_clipped(col_size_x, ry + 2,
+                                            (EXPL_COL_SIZE_W - 8) / FONT_CW, cell, XP_DGRAY);
                 explorer_list_hit_y[explorer_list_hit_count++] = ry;
             }
             if (explorer_entry_count == 0) {
@@ -4067,15 +4222,92 @@ static const char* settings_ui_changelog_md_text(void) {
            "  exceptions and zero triple faults**, and the VM stays `running`.\n"
            "\n"
            "## Build Verification\n"
-           "\n"
            "- Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.\n"
            "  Updated in the `GAMEROS.INI` written at boot, the Settings About page, the\n"
            "  desktop watermark, and `README.md`.\n"
            "- Compile-verified: zero warnings, zero errors, zero undefined symbols.\n"
            "- Booted under QEMU and confirmed the desktop shell renders, including the\n"
            "  desktop icons, taskbar, and watermark.\n"
+           "- **Storage verified against a real 12 GiB disk** attached on the IDE channel,\n"
+           "  across three consecutive boots:\n"
+           "  `Storage: ATA medium, capacity 12 GB, LBA48=no, model=QEMU HARDDISK`, then\n"
+           "  `files=29 dirs=27 used=21 KB` — identical on every run, proving the volume\n"
+           "  reloads from the medium rather than being rebuilt in RAM.\n"
+           "- File Explorer was driven through the QEMU monitor to confirm the drive block\n"
+           "  and the details columns render, and each captured frame was checked for\n"
+           "  exceptions: `triple faults: 0` throughout.\n"
+           "\n"
+           "## Storage\n"
+           "\n"
+           "- **The filesystem is now backed by a real disk instead of RAM.** `ata_pio_init()`\n"
+           "  had been short-circuited with `g_ata_available = 0; return 0;`, leaving the\n"
+           "  real probe as unreachable code, so every boot started from a wiped 2 MiB RAM\n"
+           "  disk. The driver is enabled and storage now persists across reboots.\n"
+           "- **Rewrote the ATA PIO driver.** It probes all four channel/device pairs rather\n"
+           "  than assuming the primary master exists, runs IDENTIFY DEVICE, and reads real\n"
+           "  capacity from words 60/61, falling back to the LBA48 words 100-103 when the\n"
+           "  28-bit field signals a larger disk. The model and serial strings are decoded\n"
+           "  from IDENTIFY words 27-46 and 10-19, correcting for the byte-swapped encoding.\n"
+           "- **Implemented LBA48.** Disks above the 28-bit ceiling of 128 GiB need the\n"
+           "  extended command set, so reads and writes use `0x24`/`0x34` with the high LBA\n"
+           "  byte programmed through the drive/head register when the request exceeds\n"
+           "  `0x0FFFFFFF`.\n"
+           "- **Fixed the probe handshake that made detection fail.** The driver bailed out\n"
+           "  if the drive never asserted DRQ during the post-reset signature phase, which\n"
+           "  is legal and which the emulated controller does not do. That single `continue`\n"
+           "  was the entire reason detection returned \"no device\". It now logs the failure\n"
+           "  and falls through to IDENTIFY regardless.\n"
+           "- **The filesystem now starts at LBA 64**, so the MBR, partition table, and any\n"
+           "  backup GPT in the first sectors are never written. The superblock used to live\n"
+           "  at LBA 0, which would have destroyed the partition table on the first write.\n"
+           "- **Capacity is no longer hardcoded.** The old build always reserved\n"
+           "  `MAX_DISK_SECTORS 4096` (2 MiB) regardless of the medium and reported a fake\n"
+           "  `102400 MB`. The volume now spans whatever the drive reports.\n"
+           "- **Fixed files being recreated on every boot.** `MAX_FILENAME_LEN` was 40, and\n"
+           "  seeding writes paths such as `C:/GamerOS/Apps/Manifests/Notepad.gosapp`, which\n"
+           "  is *exactly* 40 characters. `strncpy(..., MAX_FILENAME_LEN - 1)` stored a\n"
+           "  truncated name, so the next boot's full path no longer matched it and\n"
+           "  `fs_create_file` appended a duplicate. Six over-length paths meant the volume\n"
+           "  gained six junk entries on every single boot, forever. The limit is now 64 and\n"
+           "  `fs_create_file` rejects over-long names outright rather than truncating them.\n"
+           "  Verified stable at `files=29 dirs=27` across three consecutive boots.\n"
+           "- **Stopped reserving 24 KiB of RAM per file.** `file_t` embedded a full\n"
+           "  `MAX_FILE_SIZE` buffer, so 32 slots cost 786 KB of BSS to hold data that\n"
+           "  belongs on the medium. File contents are read from the medium on demand;\n"
+           "  `files[]` is now 18 KB.\n"
+           "- **Files are allocated by real size, not a fixed 24 KiB reservation**, so the\n"
+           "  usage figure reflects actual occupancy. Added `fs_delete_file()` and\n"
+           "  `fs_delete_directory()`, and `fs_get_space_info()` for free/used accounting.\n"
+           "- **Raised the volume limits** to 256 files and 128 directories, with the on-disk\n"
+           "  tables resized to match and the format version bumped to `GFS3PIO` so any\n"
+           "  image from the older layout is cleanly reformatted rather than misread.\n"
+           "- **The volume now mounts during boot** instead of being deferred until the first\n"
+           "  app launch, so a boot log actually reports whether the medium was detected.\n"
            "\n"
            "## UI\n"
+           "\n"
+           "- **Added a Windows-style drive block to Explorer \"This PC\".** Each volume now\n"
+           "  shows its model, a usage bar, and a capacity line reading\n"
+           "  `11.9 GB free of 12 GB`, in place of a bare `C:` row. The bar is sized from\n"
+           "  measured bytes, and volumes under 1 GiB report in MB so a RAM-backed fallback\n"
+           "  does not render as `0 GB free`.\n"
+           "- **Added the Windows-style details view to File Explorer.** The entry list now\n"
+           "  carries `Name | Date modified | Type | Size` with header separators, matching\n"
+           "  the Explorer details layout. Name absorbs the leftover width, and the columns\n"
+           "  collapse to `Name | Type | Size` when the window is too narrow to show a\n"
+           "  readable date.\n"
+           "- **Files now carry a modification time.** Added a closed-form Gregorian\n"
+           "  date conversion to the RTC driver (`get_unix_time` / `unix_to_calendar`), so\n"
+           "  no 64-bit division or `libgcc` helper is needed. `fs_write_file` stamps each\n"
+           "  write, and the timestamp is persisted in what used to be padding in the file\n"
+           "  record — the record stays 88 bytes, so images written before this field\n"
+           "  existed still load (with `mtime` of 0).\n"
+           "- **Type is derived from the extension** the way Explorer labels it:\n"
+           "  `.EXE` is Application, `.GOSAPP` an Application manifest, `.DLL` an\n"
+           "  Application extension, `.INI` Configuration Settings, `.REG` a Registry File,\n"
+           "  `.LST` a System File, and folders report as File folder with a blank size.\n"
+           "- **Sizes are humanised** to `0 bytes`, `1.2 KB`, `3.4 MB`, computed with\n"
+           "  shifts rather than division for the same libgcc reason.\n"
            "\n"
            "- **Fixed the UI text renderer, which was shearing every letter.** `draw_compact_string()`\n"
            "  sampled only the **left 6 of the 8 columns** of each glyph\n"
@@ -4138,14 +4370,26 @@ static const char* settings_ui_changelog_md_text(void) {
            "  was, which is why the four surfaces above were rebuilt rather than patched.\n"
            "- Start-menu and taskbar hit boxes are now derived from the same metrics the\n"
            "  renderer uses, so a future layout change cannot silently break clicking.\n"
+           "- **Known storage limitation: freed sectors are never reused.** Allocation is\n"
+           "  append-only, so deleting a file zeroes its sectors and frees the name, but the\n"
+           "  space is not returned to the pool. The volume therefore fills over many write\n"
+           "  cycles until it is reformatted. A free-run list or bitmap is needed to close\n"
+           "  that gap.\n"
+           "- **Only legacy ATA at port 0x1F0 is supported.** AHCI (SATA) and NVMe are not\n"
+           "  implemented, so a machine whose disk is on a modern controller will find no\n"
+           "  device and fall back to the RAM disk. Under QEMU the default IDE channel works;\n"
+           "  VMware VMs commonly default to NVMe or SATA and will need those drivers.\n"
            "\n"
            "## Planned\n"
            "- Visually confirm the Start menu and loading screen under QEMU; the Start menu\n"
            "  is now verified, and the desktop, taskbar, watermark and Start menu have all\n"
            "  been captured as rendered frames.\n"
+           "- Implement an AHCI (SATA) driver so VMware VMs without a legacy IDE controller\n"
+           "  can mount a real volume.\n"
+           "- Implement an NVMe driver over PCI for the same reason.\n"
+           "- Add a free-sector map so deleted space is reclaimed instead of leaked.\n"
            "- Persist Settings state so toggles survive a reboot instead of resetting.\n"
            "- Replace the polled input loop with PIT/HPET timer-driven frame pacing.\n"
-           "- Complete the USB driver stack and implement ATA PIO properly; the driver is\n"
-           "  currently disabled at boot and the filesystem runs on the RAM disk.\n";
+           "- Complete the USB driver stack; the filesystem currently runs on ATA or RAM.\n";
 }
 

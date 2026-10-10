@@ -1,6 +1,7 @@
 #include <fs.h>
 #include <ata_pio.h>
 #include <stdint.h>
+#include <rtc.h>
 #include <string.h>
 
 #define DISK_SECTOR_SIZE ATA_SECTOR_SIZE
@@ -50,7 +51,10 @@ typedef struct {
     uint32_t sector_count;
     uint64_t lba;
     uint8_t in_use;
-    uint8_t reserved[7];
+    // mtime reuses what was padding, so the record stays 88 bytes and images
+    // written before this field existed still load (mtime reads as 0).
+    uint8_t reserved[3];
+    uint32_t mtime;
 } fs_disk_file_record_t;
 
 typedef struct {
@@ -128,6 +132,7 @@ static void fs_save_metadata(void) {
             rec.sector_count = files[idx].sector_count;
             rec.lba = files[idx].lba;
             rec.in_use = files[idx].in_use;
+            rec.mtime = files[idx].mtime;
             memcpy(&sector[r * sizeof(fs_disk_file_record_t)], &rec, sizeof(rec));
         }
         (void)fs_disk_write_sector(FS_FILE_TABLE_START + si, sector);
@@ -176,6 +181,7 @@ static int fs_load_metadata(void) {
             files[idx].lba = rec.lba;
             files[idx].disk_sector = (uint32_t)rec.lba;
             files[idx].in_use = rec.in_use;
+            files[idx].mtime = rec.mtime;
         }
     }
 
@@ -358,6 +364,7 @@ void fs_write_file(file_t* file, const uint8_t* data, uint32_t size) {
     if (needed < file->sector_count) file->sector_count = needed;
 
     file->size = size;
+    file->mtime = get_unix_time();
     fs_save_metadata();
 }
 
@@ -452,6 +459,32 @@ uint32_t fs_get_file_size(const char* path) {
     file_t* file = fs_open_file(path);
     if (!file) return 0;
     return file->size;
+}
+
+uint32_t fs_get_file_mtime(const char* path) {
+    file_t* file = fs_open_file(path);
+    if (!file) return 0;
+    return file->mtime;
+}
+
+int fs_get_entry_info(const char* path, int is_dir, uint32_t* out_size, uint32_t* out_mtime) {
+    if (!path) return 0;
+    if (is_dir) {
+        // Folders have no payload; stamp them with the current clock so the
+        // column is never blank.
+        if (out_size) *out_size = 0;
+        if (out_mtime) *out_mtime = get_unix_time();
+        return 1;
+    }
+    file_t* file = fs_open_file(path);
+    if (!file) {
+        if (out_size) *out_size = 0;
+        if (out_mtime) *out_mtime = 0;
+        return 0;
+    }
+    if (out_size) *out_size = file->size;
+    if (out_mtime) *out_mtime = file->mtime;
+    return 1;
 }
 
 int fs_list_entries(const char* directory, char out_names[][MAX_FILENAME_LEN], uint8_t out_is_dir[], int max_entries) {

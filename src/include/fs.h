@@ -30,6 +30,7 @@ typedef struct {
     uint32_t disk_sector;      // kept for compatibility with older callers
     uint64_t lba;              // absolute start LBA on the medium
     uint32_t sector_count;     // sectors currently allocated to this file
+    uint32_t mtime;            // Unix seconds; drives the "Date modified" column
 } file_t;
 
 typedef enum {
@@ -78,6 +79,11 @@ int fs_delete_directory(const char* path);
 int fs_directory_exists(const char* path);
 int fs_file_exists(const char* path);
 uint32_t fs_get_file_size(const char* path);
+uint32_t fs_get_file_mtime(const char* path);
+// Metadata for one entry, so the details view can render a whole row without
+// reopening the file. is_dir selects the folder interpretation when the name is
+// not a known file.
+int fs_get_entry_info(const char* path, int is_dir, uint32_t* out_size, uint32_t* out_mtime);
 int fs_list_entries(const char* directory, char out_names[][MAX_FILENAME_LEN], uint8_t out_is_dir[], int max_entries);
 int fs_storage_get_device_count(void);
 int fs_storage_get_device(int index, storage_device_info_t* out);

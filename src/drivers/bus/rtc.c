@@ -95,6 +95,56 @@ void get_date(uint8_t* day, uint8_t* month, uint16_t* year, uint8_t* weekday) {
     *year = (uint16_t)(2000 + raw_year);
 }
 
+// Days since 1970-01-01 for a proleptic Gregorian date. Closed-form
+// (no loop, no division by a runtime value) so it is safe without libgcc.
+static int32_t days_from_civil(int32_t y, int32_t m, int32_t d) {
+    y -= (m <= 2) ? 1 : 0;
+    const int32_t era = (y >= 0 ? y : y - 399) / 400;
+    const int32_t yoe = y - era * 400;                                   // [0, 399]
+    const int32_t doy = (153 * (m + ((m > 2) ? -3 : 9)) + 2) / 5 + d - 1;
+    const int32_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;          // [0, 146096]
+    return era * 146097 + doe - 719468;
+}
+
+static void civil_from_days(int32_t z, int32_t* out_y, int32_t* out_m, int32_t* out_d) {
+    z += 719468;
+    const int32_t era = (z >= 0 ? z : z - 146096) / 146097;
+    const int32_t doe = z - era * 146097;                                // [0, 146096]
+    const int32_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const int32_t y = yoe + era * 400;
+    const int32_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);         // [0, 365]
+    const int32_t mp = (5 * doy + 2) / 153;                              // [0, 11]
+    const int32_t d = doy - (153 * mp + 2) / 5 + 1;                     // [1, 31]
+    const int32_t m = mp + ((mp < 10) ? 3 : -9);                        // [1, 12]
+    *out_y = y + ((m <= 2) ? 1 : 0);
+    *out_m = m;
+    *out_d = d;
+}
+
+uint32_t get_unix_time(void) {
+    uint8_t hour = 0, minute = 0, second = 0;
+    uint8_t day = 1, month = 1, weekday = 0;
+    uint16_t year = 2000;
+    get_time(&hour, &minute, &second);
+    get_date(&day, &month, &year, &weekday);
+    int32_t days = days_from_civil((int32_t)year, (int32_t)month, (int32_t)day);
+    return (uint32_t)days * 86400u + (uint32_t)hour * 3600u +
+           (uint32_t)minute * 60u + (uint32_t)second;
+}
+
+void unix_to_calendar(uint32_t unix_time, uint16_t* out_year, uint8_t* out_month,
+                      uint8_t* out_day, uint8_t* out_hour, uint8_t* out_minute) {
+    uint32_t day_secs = unix_time % 86400u;
+    int32_t days = (int32_t)(unix_time / 86400u);
+    int32_t y = 1970, m = 1, d = 1;
+    civil_from_days(days, &y, &m, &d);
+    if (out_year)  *out_year  = (uint16_t)y;
+    if (out_month) *out_month = (uint8_t)m;
+    if (out_day)   *out_day   = (uint8_t)d;
+    if (out_hour)  *out_hour  = (uint8_t)(day_secs / 3600u);
+    if (out_minute)*out_minute= (uint8_t)((day_secs % 3600u) / 60u);
+}
+
 // TODO: Implement time setting functionality
 // TODO: Add alarm and periodic interrupt support
 // TODO: Implement daylight saving time handling
