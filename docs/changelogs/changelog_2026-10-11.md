@@ -36,6 +36,59 @@ and boot screen — on top of that fix.
   instruction that cannot fault for any other reason.
 - **Verified fixed under QEMU 11.0.1:** opening the Start menu now raises **zero
   exceptions and zero triple faults**, and the VM stays `running`.
+- The time zone dropdown and its mouse-wheel scrolling were confirmed working
+  under VMware. Wheel input could not be exercised through QEMU's monitor at
+  all — `mouse_button` only exposes left, middle and right, with no wheel
+  command — so that path was verified on real hardware input instead.
+
+## Time Zones
+
+- **Added a Time section to Settings, replacing the read-only "Date & time"
+  rows.** The Time & Language tab now shows the local time for the selected zone,
+  the zone name, its UTC offset, and whether daylight saving is currently in
+  effect.
+- **Added a scrollable time zone dropdown with 74 zones.** It is a combo box: a
+  single row showing the current zone, a `(74 zones)` count and a drop arrow,
+  which expands to a windowed list of eight rows. The list is longer than the
+  pane, so the mouse wheel scrolls it; up/down buttons are shown as well and
+  only when there is somewhere to scroll. Clicking an entry applies it and
+  closes the list, and clicking anywhere else in the pane dismisses it, the way
+  a combo box behaves. Row geometry is published by the renderer and read back
+  by the click and wheel handlers, the same way the other Settings controls stay
+  aligned.
+- **The selection changes the clock.** The taskbar clock and the Settings time
+  now read from the selected zone instead of taking raw RTC time. The RTC is
+  treated as UTC; local time is UTC plus the zone offset, with daylight saving
+  applied where the zone observes it. Verified end to end: forcing Kiritimati
+  (+14:00) at 15:14 UTC produced 05:14 local the following day.
+- **Daylight saving is implemented, not just offsets.** Four transition rules
+  are modelled: US/Canada (2nd Sunday March to 1st Sunday November at 02:00
+  local), European (last Sunday March to last Sunday October at 01:00 UTC),
+  Australian (1st Sunday October to 1st Sunday April), and New Zealand (last
+  Sunday September to 1st Sunday April). Zones that do not observe it — Hawaii,
+  Arizona, Moscow, India, Japan, China — hold a constant offset all year.
+- **Fixed southern-hemisphere daylight saving covering the wrong months.** The
+  daylight window spans New Year, and testing against Sydney exposed that
+  testing "at or after this year's start OR before next year's end" marked the
+  whole April-September gap as daylight time. The window is now anchored to the
+  previous year whenever the instant falls in the January-April tail.
+- **Verified with 17 timezone assertions** covering both hemispheres in summer
+  and winter, non-observing zones holding steady year round, and the US
+  transitions to the minute: one minute before spring-forward is still EST, and
+  the transition instant is already EDT.
+- **The selection persists** to `C:/GamerOS/Registry/TIMEZONE.INI` and is reloaded
+  at boot, so the clock keeps the chosen zone across a restart.
+
+## Correctness
+
+- **Fixed `sprintf` having no field-width or zero-padding support.** The parser
+  jumped straight from `%` to the conversion character, so any specifier with a
+  width such as `%02u` fell into the default branch and emitted the format text
+  literally instead of the number. The Time settings rendered
+  `\x02u:\x02u:\x02u` where the time should have been. `sprintf` now parses a
+  zero-pad flag and a width, and applies them to `%d`, `%i`, `%u`, `%x`, `%X`,
+  and `%s`, with the sign counted toward the width for signed conversions.
+  Anything else in the OS that used `%02u` was silently broken in the same way.
 
 ## Build Verification
 - Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.

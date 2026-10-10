@@ -19,8 +19,9 @@ C_SRC = $(SRC_DIR)/core/kernel/main.c \
         $(SRC_DIR)/graphics/cursor.c \
         $(SRC_DIR)/drivers/input/keyboard.c \
         $(SRC_DIR)/drivers/input/mouse.c \
-        $(SRC_DIR)/drivers/bus/rtc.c \
-        $(SRC_DIR)/drivers/bus/pic.c \
+  $(SRC_DIR)/drivers/bus/rtc.c \
+  $(SRC_DIR)/drivers/rtc/timezone.c \
+  $(SRC_DIR)/drivers/bus/pic.c \
         $(SRC_DIR)/drivers/network/serial.c \
         $(SRC_DIR)/drivers/storage/ata_pio.c \
         $(SRC_DIR)/core/kernel/string.c \
@@ -40,6 +41,7 @@ C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/keyboard.o \
         $(BUILD_DIR)/$(ARCH)/mouse.o \
         $(BUILD_DIR)/$(ARCH)/rtc.o \
+  $(BUILD_DIR)/$(ARCH)/timezone.o \
         $(BUILD_DIR)/$(ARCH)/pic.o \
         $(BUILD_DIR)/$(ARCH)/serial.o \
         $(BUILD_DIR)/$(ARCH)/ata_pio.o \
@@ -124,8 +126,12 @@ $(BUILD_DIR)/$(ARCH)/keyboard.o: $(SRC_DIR)/drivers/input/keyboard.c | $(BUILD_D
 $(BUILD_DIR)/$(ARCH)/mouse.o: $(SRC_DIR)/drivers/input/mouse.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-$(BUILD_DIR)/$(ARCH)/rtc.o: $(SRC_DIR)/drivers/bus/rtc.c | $(BUILD_DIR)/$(ARCH)
+  $(BUILD_DIR)/$(ARCH)/rtc.o: $(SRC_DIR)/drivers/bus/rtc.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+  $(BUILD_DIR)/$(ARCH)/timezone.o: $(SRC_DIR)/drivers/rtc/timezone.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 
 $(BUILD_DIR)/$(ARCH)/pic.o: $(SRC_DIR)/drivers/bus/pic.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<

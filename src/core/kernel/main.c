@@ -6,6 +6,7 @@
 // including io.h as well would only duplicate those prototypes.
 #include <ports.h>
 #include <rtc.h>
+#include <timezone.h>
 #include <font.h>
 #include <fs.h>
 #include <ata_pio.h>
@@ -1040,8 +1041,7 @@ static void initialize_storage_layout(void) {
     write_text_file("C:/Users/Admin/Saves/SAVE1.GOS", "Empty save slot 1\n");
     write_text_file("C:/Users/Admin/Saves/SAVE2.GOS", "Empty save slot 2\n");
       write_text_file(settings_ui_changelog_md_path(), settings_ui_changelog_md_text());
-
-      debug_log_message("Boot: storage layout ready");
+          debug_log_message("Boot: storage layout ready");
     debug_present_boot_status();
     debug_log_message("Boot: build explorer drives");
     debug_present_boot_status();
@@ -2053,6 +2053,222 @@ static int draw_settings_toggle(int content_x, int content_w, int row_y,
 
 // Section heading: coloured label plus a short accent tick and a faint rule.
 // Returns the Y at which the section body may start.
+// ---- Time zone dropdown ------------------------------------------------------
+// A combo box: one row showing the current selection with a drop arrow, which
+// expands to a scrolling list on click. The list is longer than the pane, so the
+// mouse wheel scrolls it. Row geometry is published for the click and wheel
+// handlers rather than recomputed there, which is how the other Settings
+// controls stay aligned.
+#define TZ_LIST_VISIBLE 8
+#define TZ_ROW_H       11
+#define TZ_LIST_BTN    11
+#define TZ_COMBO_H     13
+
+static int settings_tz_scroll = 0;
+static int settings_tz_open = 0;
+static int settings_tz_list_x = 0;
+static int settings_tz_list_w = 0;
+static int settings_tz_list_y = 0;
+static int settings_tz_list_bottom = 0;
+static int settings_tz_combo_y = 0;
+static int settings_tz_up_x = 0;
+static int settings_tz_up_y = 0;
+static int settings_tz_down_x = 0;
+static int settings_tz_down_y = 0;
+static int settings_tz_btn = TZ_LIST_BTN;
+
+// Short label for a zone, with the "UTC+05:30  " prefix stripped for readability.
+static const char* settings_tz_selected_label(int index) {
+    const tz_info_t* z = tz_get(index);
+    if (!z) return "Unknown";
+    const char* n = z->name;
+    while (*n == 'U' || *n == 'T' || *n == 'C' || *n == '+' || *n == '-' ||
+           (*n >= '0' && *n <= '9') || *n == ':') n++;
+    while (*n == ' ') n++;
+    return n;
+}
+
+// Solid triangle used for the drop arrow and the scroll buttons. The 8x8 font has
+// no such glyph, so it is drawn rather than printed.
+static void draw_tz_chevron_down(int x, int y, uint8_t color) {
+    for (int row = 0; row < 4; row++) {
+        int w = row * 2 + 1;
+        fill_rect(x - w / 2, y + row, w, 1, color);
+    }
+}
+
+static void draw_tz_chevron_up(int x, int y, uint8_t color) {
+    for (int row = 0; row < 4; row++) {
+        int w = (3 - row) * 2 + 1;
+        fill_rect(x - w / 2, y + row, w, 1, color);
+    }
+}
+
+static void settings_tz_clamp_scroll(int selected) {
+    int total = tz_count();
+    int max_scroll = total - TZ_LIST_VISIBLE;
+    if (max_scroll < 0) max_scroll = 0;
+    if (settings_tz_scroll < 0) settings_tz_scroll = 0;
+    if (settings_tz_scroll > max_scroll) settings_tz_scroll = max_scroll;
+    if (settings_tz_scroll > selected - 1) settings_tz_scroll = selected - 1;
+    if (settings_tz_scroll < selected - TZ_LIST_VISIBLE + 2) {
+        settings_tz_scroll = selected - TZ_LIST_VISIBLE + 2;
+    }
+    if (settings_tz_scroll < 0) settings_tz_scroll = 0;
+    if (settings_tz_scroll > max_scroll) settings_tz_scroll = max_scroll;
+}
+
+static void settings_tz_scroll_by(int delta) {
+    int total = tz_count();
+    int max_scroll = total - TZ_LIST_VISIBLE;
+    if (max_scroll < 0) max_scroll = 0;
+    settings_tz_scroll += delta;
+    if (settings_tz_scroll < 0) settings_tz_scroll = 0;
+    if (settings_tz_scroll > max_scroll) settings_tz_scroll = max_scroll;
+}
+
+// Draws the combo row, plus the list when open. Returns the height consumed.
+static int draw_settings_timezone_list(int cx, int cw, int y) {
+    int selected = tz_current_index();
+    settings_tz_clamp_scroll(selected);
+
+    int total = tz_count();
+    settings_tz_list_x = cx;
+    settings_tz_list_w = cw;
+    settings_tz_btn = TZ_LIST_BTN;
+    settings_tz_combo_y = y;
+    settings_tz_list_y = y + TZ_COMBO_H + 2;
+    settings_tz_list_bottom = settings_tz_list_y;
+
+    // ---- Combo row ---------------------------------------------------------
+    fill_chamfer_rect(cx, y, cw, TZ_COMBO_H, settings_tz_open ? XP_LBLUE : XP_WHITE);
+    draw_chamfer_rect(cx, y, cw, TZ_COMBO_H, XP_DGRAY);
+    fill_rect(cx + 1, y + 1, cw - 2, 2, XP_LBLUE);
+
+    char selected_buf[72];
+    selected_buf[0] = 0;
+    {
+        int lp = 0;
+        append_text(selected_buf, (int)sizeof(selected_buf), &lp,
+                    settings_tz_selected_label(selected));
+        append_text(selected_buf, (int)sizeof(selected_buf), &lp, "   (");
+        append_unsigned(selected_buf, (int)sizeof(selected_buf), &lp, total);
+        append_text(selected_buf, (int)sizeof(selected_buf), &lp, " zones)");
+    }
+    draw_compact_string_clipped(cx + 6, y + 3, (cw - 26) / FONT_CW, selected_buf, XP_BLACK);
+    draw_tz_chevron_down(cx + cw - 8, y + 4, XP_DGRAY);
+
+    if (!settings_tz_open) return TZ_COMBO_H + 2;
+
+    // ---- Expanded list -----------------------------------------------------
+    settings_tz_up_x = cx + cw - settings_tz_btn - 4;
+    settings_tz_up_y = settings_tz_list_y;
+    settings_tz_down_x = settings_tz_up_x;
+    settings_tz_down_y = settings_tz_list_y + settings_tz_btn + 2;
+
+    int list_y = settings_tz_list_y + settings_tz_btn + 4;
+    int list_h = TZ_LIST_VISIBLE * TZ_ROW_H + 4;
+    int frame_h = list_h + settings_tz_btn + 6;
+
+    fill_chamfer_rect(cx, settings_tz_list_y, cw, frame_h, XP_WHITE);
+    draw_chamfer_rect(cx, settings_tz_list_y, cw, frame_h, XP_DGRAY);
+
+    // Scroll buttons, only when there is somewhere to scroll.
+    if (total > TZ_LIST_VISIBLE) {
+        int bx = settings_tz_up_x + settings_tz_btn / 2;
+        fill_chamfer_rect(settings_tz_up_x, settings_tz_up_y, settings_tz_btn, settings_tz_btn, XP_LGRAY);
+        draw_chamfer_rect(settings_tz_up_x, settings_tz_up_y, settings_tz_btn, settings_tz_btn, XP_DGRAY);
+        draw_tz_chevron_up(bx, settings_tz_up_y + 3, XP_BLACK);
+
+        fill_chamfer_rect(settings_tz_down_x, settings_tz_down_y, settings_tz_btn, settings_tz_btn, XP_LGRAY);
+        draw_chamfer_rect(settings_tz_down_x, settings_tz_down_y, settings_tz_btn, settings_tz_btn, XP_DGRAY);
+        draw_tz_chevron_down(bx, settings_tz_down_y + 4, XP_BLACK);
+    }
+
+    fill_chamfer_rect(cx + 3, list_y, cw - 6, list_h, XP_WHITE);
+    draw_chamfer_rect(cx + 3, list_y, cw - 6, list_h, XP_DGRAY);
+
+    for (int i = 0; i < TZ_LIST_VISIBLE; i++) {
+        int idx = settings_tz_scroll + i;
+        if (idx >= total) break;
+        int ry = list_y + 2 + i * TZ_ROW_H;
+        if (idx == selected) {
+            fill_rect(cx + 4, ry, cw - 8, TZ_ROW_H - 1, XP_LBLUE);
+        }
+        draw_compact_string_clipped(cx + 7, ry + 1, (cw - 16) / FONT_CW,
+                                    settings_tz_selected_label(idx), XP_BLACK);
+    }
+
+    settings_tz_list_bottom = settings_tz_list_y + frame_h;
+    return (settings_tz_list_bottom - y) + 4;
+}
+
+// True when the cursor is over the combo row, or over the list while open.
+static int settings_tz_hit(int mx, int my) {
+    if (settings_tz_list_w <= 0) return 0;
+    if (mx < settings_tz_list_x || mx >= settings_tz_list_x + settings_tz_list_w) return 0;
+    if (my >= settings_tz_combo_y && my < settings_tz_combo_y + TZ_COMBO_H) return 1;
+    if (settings_tz_open && my >= settings_tz_list_y && my < settings_tz_list_bottom) return 1;
+    return 0;
+}
+
+void settings_tz_close(void) {
+    settings_tz_open = 0;
+}
+
+// Wheel scrolling over the open list.
+static int handle_settings_tz_wheel(int mx, int my, int8_t wheel_delta) {
+    if (!settings_tz_open || wheel_delta == 0) return 0;
+    if (!settings_tz_hit(mx, my)) return 0;
+    settings_tz_scroll_by(-(int)wheel_delta);
+    return 1;
+}
+
+// Click handling, published by the renderer above.
+static int handle_settings_tz_click(int mx, int my) {
+    if (settings_tz_list_w <= 0) return 0;
+    int total = tz_count();
+    int selected = tz_current_index();
+
+    int in_combo = (mx >= settings_tz_list_x &&
+                    mx < settings_tz_list_x + settings_tz_list_w &&
+                    my >= settings_tz_combo_y &&
+                    my < settings_tz_combo_y + TZ_COMBO_H);
+    if (in_combo) {
+        settings_tz_open = (uint8_t)!settings_tz_open;
+        settings_tz_clamp_scroll(tz_current_index());
+        return 1;
+    }
+
+    if (!settings_tz_open) return 0;
+    if (mx < settings_tz_list_x || mx >= settings_tz_list_x + settings_tz_list_w) return 0;
+    if (my < settings_tz_list_y || my >= settings_tz_list_bottom) return 0;
+
+    if (total > TZ_LIST_VISIBLE) {
+        if (mx >= settings_tz_up_x && mx < settings_tz_up_x + settings_tz_btn &&
+            my >= settings_tz_up_y && my < settings_tz_up_y + settings_tz_btn) {
+            settings_tz_scroll_by(-1);
+            return 1;
+        }
+        if (mx >= settings_tz_down_x && mx < settings_tz_down_x + settings_tz_btn &&
+            my >= settings_tz_down_y && my < settings_tz_down_y + settings_tz_btn) {
+            settings_tz_scroll_by(1);
+            return 1;
+        }
+    }
+
+    int list_y = settings_tz_list_y + settings_tz_btn + 6;
+    if (my < list_y) return 1;
+    int rel = (my - list_y) / TZ_ROW_H;
+    int idx = settings_tz_scroll + rel;
+    if (idx < 0 || idx >= total) return 1;
+
+    if (idx != selected) tz_set_current_index(idx);
+    settings_tz_open = 0;   // picking an entry closes the list
+    return 1;
+}
+
+
 static int draw_settings_section(int content_x, int content_w, int y, const char* title) {
     if (y < 0) return y;
     draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, title, XP_BLUE);
@@ -2473,15 +2689,39 @@ void draw_window(window_t* win) {
             ry += draw_settings_kv(content_x, content_w, ry, "Security level", "System");
             ry += draw_settings_kv(content_x, content_w, ry, "Isolation", "Active");
         } else if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
-            uint8_t hrt = 0, mnt = 0, sct = 0;
-            get_time(&hrt, &mnt, &sct);
-            char tm[24];
-            sprintf(tm, "%02u:%02u:%02u", (unsigned int)hrt, (unsigned int)mnt, (unsigned int)sct);
+            // Time section first, then language. Local time comes from the
+            // selected time zone rather than straight off the RTC.
+            uint32_t now_utc = get_unix_time();
+            int tz_idx = tz_current_index();
+            int tz_dst = (tz_offset_minutes_at(tz_idx, now_utc) !=
+                          (tz_get(tz_idx) ? tz_get(tz_idx)->std_offset_min : 0));
 
-            int ry = draw_settings_section(content_x, content_w, body_y, "Date & time");
-            ry += draw_settings_kv(content_x, content_w, ry, "Time", tm);
-            ry += draw_settings_kv(content_x, content_w, ry, "Show seconds", setting_show_seconds ? "On" : "Off");
-            ry += 10;
+            uint16_t ly = 0; uint8_t lmo = 1, ld = 1, lh = 0, lmi = 0, ls = 0;
+            tz_local_time(now_utc, &ly, &lmo, &ld, &lh, &lmi, &ls);
+
+            char tm[24];
+            sprintf(tm, "%02u:%02u:%02u", (unsigned int)lh, (unsigned int)lmi, (unsigned int)ls);
+            char tzline[24];
+            tz_format_offset(tzline, (int)sizeof(tzline), tz_idx, now_utc);
+
+            int ry = draw_settings_section(content_x, content_w, body_y, "Time");
+            ry += draw_settings_kv(content_x, content_w, ry, "Local time", tm);
+            ry += draw_settings_kv(content_x, content_w, ry, "Time zone",
+                                   settings_tz_selected_label(tz_idx));
+            ry += draw_settings_kv(content_x, content_w, ry, "UTC offset", tzline);
+            ry += draw_settings_kv(content_x, content_w, ry, "Daylight saving",
+                                   tz_dst ? "In effect" : "Inactive");
+            // The dropdown: combo row, expanding to a scrolling list.
+            // Advance from the published bottom edge rather than the helper's
+            // return value, so the sections below can never sit underneath the
+            // expanded list.
+            {
+                int tz_top = ry;
+                draw_settings_timezone_list(content_x, content_w, ry);
+                int tz_floor = settings_tz_list_bottom;
+                if (tz_floor <= tz_top) tz_floor = tz_top + TZ_COMBO_H + 2;
+                ry = tz_floor + 10;
+            }
 
             ry = draw_settings_section(content_x, content_w, ry, "Language");
             ry += draw_settings_kv(content_x, content_w, ry, "Display", "English (US)");
@@ -3207,11 +3447,14 @@ void draw_desktop(void) {
     
     // Clock
     uint8_t hour = 0, minute = 0, second = 0;
-    uint8_t day = 0, month = 0, weekday = 0;
-    uint16_t year = 0;
-    get_time(&hour, &minute, &second);
-    get_date(&day, &month, &year, &weekday);
-    char datetime_str[20];
+    uint8_t day = 0, month = 0;
+  uint16_t year = 0;
+  // Taskbar clock shows local time for the selected zone, not raw RTC time.
+  {
+      uint32_t utc_now = get_unix_time();
+      tz_local_time(utc_now, &year, &month, &day, &hour, &minute, &second);
+  }
+  char datetime_str[20];
     datetime_str[0] = (char)('0' + ((hour / 10) % 10));
     datetime_str[1] = (char)('0' + (hour % 10));
     datetime_str[2] = ':';
@@ -3263,9 +3506,18 @@ static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
     int pane_y = win->y + 28;
     int pane_w = win->w - 8;
     int pane_h = win->h - 32;
-    if (mx < pane_x || mx >= pane_x + pane_w || my < pane_y || my >= pane_y + pane_h) {
-        return 0;
-    }
+  if (mx < pane_x || mx >= pane_x + pane_w || my < pane_y || my >= pane_y + pane_h) {
+          return 0;
+      }
+
+      // Time zone dropdown, only meaningful on the Time & Language tab.
+      if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
+          if (handle_settings_tz_click(mx, my)) return 1;
+          // A click anywhere else in the content pane dismisses the list, the
+          // way a combo box behaves.
+          settings_tz_close();
+      }
+
 
     int nav_x = win->x + 6;
     int nav_y = win->y + 30;
@@ -3444,9 +3696,16 @@ static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t w
     int content_y = win->y + 30;
     int content_w = win->w - (content_x - win->x) - 8;
     int content_h = win->h - 36;
-    if (mx < content_x || mx >= content_x + content_w || my < content_y || my >= content_y + content_h) {
-        return 0;
-    }
+      if (mx < content_x || mx >= content_x + content_w || my < content_y || my >= content_y + content_h) {
+          return 0;
+      }
+
+      // The time zone combo scrolls under the wheel before the tab tries
+      // anything else, so the list moves instead of the page.
+      if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
+          if (handle_settings_tz_wheel(mx, my, wheel_delta)) return 1;
+      }
+
 
     if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
         settings_md_ensure_loaded();
@@ -4220,6 +4479,59 @@ static const char* settings_ui_changelog_md_text(void) {
            "  instruction that cannot fault for any other reason.\n"
            "- **Verified fixed under QEMU 11.0.1:** opening the Start menu now raises **zero\n"
            "  exceptions and zero triple faults**, and the VM stays `running`.\n"
+           "- The time zone dropdown and its mouse-wheel scrolling were confirmed working\n"
+           "  under VMware. Wheel input could not be exercised through QEMU's monitor at\n"
+           "  all — `mouse_button` only exposes left, middle and right, with no wheel\n"
+           "  command — so that path was verified on real hardware input instead.\n"
+           "\n"
+           "## Time Zones\n"
+           "\n"
+           "- **Added a Time section to Settings, replacing the read-only \"Date & time\"\n"
+           "  rows.** The Time & Language tab now shows the local time for the selected zone,\n"
+           "  the zone name, its UTC offset, and whether daylight saving is currently in\n"
+           "  effect.\n"
+           "- **Added a scrollable time zone dropdown with 74 zones.** It is a combo box: a\n"
+           "  single row showing the current zone, a `(74 zones)` count and a drop arrow,\n"
+           "  which expands to a windowed list of eight rows. The list is longer than the\n"
+           "  pane, so the mouse wheel scrolls it; up/down buttons are shown as well and\n"
+           "  only when there is somewhere to scroll. Clicking an entry applies it and\n"
+           "  closes the list, and clicking anywhere else in the pane dismisses it, the way\n"
+           "  a combo box behaves. Row geometry is published by the renderer and read back\n"
+           "  by the click and wheel handlers, the same way the other Settings controls stay\n"
+           "  aligned.\n"
+           "- **The selection changes the clock.** The taskbar clock and the Settings time\n"
+           "  now read from the selected zone instead of taking raw RTC time. The RTC is\n"
+           "  treated as UTC; local time is UTC plus the zone offset, with daylight saving\n"
+           "  applied where the zone observes it. Verified end to end: forcing Kiritimati\n"
+           "  (+14:00) at 15:14 UTC produced 05:14 local the following day.\n"
+           "- **Daylight saving is implemented, not just offsets.** Four transition rules\n"
+           "  are modelled: US/Canada (2nd Sunday March to 1st Sunday November at 02:00\n"
+           "  local), European (last Sunday March to last Sunday October at 01:00 UTC),\n"
+           "  Australian (1st Sunday October to 1st Sunday April), and New Zealand (last\n"
+           "  Sunday September to 1st Sunday April). Zones that do not observe it — Hawaii,\n"
+           "  Arizona, Moscow, India, Japan, China — hold a constant offset all year.\n"
+           "- **Fixed southern-hemisphere daylight saving covering the wrong months.** The\n"
+           "  daylight window spans New Year, and testing against Sydney exposed that\n"
+           "  testing \"at or after this year's start OR before next year's end\" marked the\n"
+           "  whole April-September gap as daylight time. The window is now anchored to the\n"
+           "  previous year whenever the instant falls in the January-April tail.\n"
+           "- **Verified with 17 timezone assertions** covering both hemispheres in summer\n"
+           "  and winter, non-observing zones holding steady year round, and the US\n"
+           "  transitions to the minute: one minute before spring-forward is still EST, and\n"
+           "  the transition instant is already EDT.\n"
+           "- **The selection persists** to `C:/GamerOS/Registry/TIMEZONE.INI` and is reloaded\n"
+           "  at boot, so the clock keeps the chosen zone across a restart.\n"
+           "\n"
+           "## Correctness\n"
+           "\n"
+           "- **Fixed `sprintf` having no field-width or zero-padding support.** The parser\n"
+           "  jumped straight from `%` to the conversion character, so any specifier with a\n"
+           "  width such as `%02u` fell into the default branch and emitted the format text\n"
+           "  literally instead of the number. The Time settings rendered\n"
+           "  `\\x02u:\\x02u:\\x02u` where the time should have been. `sprintf` now parses a\n"
+           "  zero-pad flag and a width, and applies them to `%d`, `%i`, `%u`, `%x`, `%X`,\n"
+           "  and `%s`, with the sign counted toward the width for signed conversions.\n"
+           "  Anything else in the OS that used `%02u` was silently broken in the same way.\n"
            "\n"
            "## Build Verification\n"
            "- Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.\n"

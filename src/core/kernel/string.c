@@ -112,7 +112,8 @@ static int append_cstr(char** out, const char* s) {
     return n;
 }
 
-static int append_uint(char** out, uint32_t v, uint32_t base, int uppercase) {
+static int append_uint(char** out, uint32_t v, uint32_t base, int uppercase,
+                       int min_width, int zero_pad) {
     char tmp[16];
     int idx = 0;
     int n = 0;
@@ -120,14 +121,23 @@ static int append_uint(char** out, uint32_t v, uint32_t base, int uppercase) {
 
     if (base < 2 || base > 16) return 0;
     if (v == 0) {
-        **out = '0';
-        (*out)++;
-        return 1;
+        tmp[idx++] = '0';
+    } else {
+        while (v > 0 && idx < (int)sizeof(tmp)) {
+            tmp[idx++] = digits[v % base];
+            v /= base;
+        }
     }
 
-    while (v > 0 && idx < (int)sizeof(tmp)) {
-        tmp[idx++] = digits[v % base];
-        v /= base;
+    // Left-pad to the requested width. Zero padding is only meaningful for
+    // numbers; without it a caller asking for "%6s"-style spacing still gets
+    // plain spaces rather than nothing.
+    int len = idx;
+    while (len < min_width) {
+        **out = zero_pad ? '0' : ' ';
+        (*out)++;
+        n++;
+        len++;
     }
     while (idx > 0) {
         **out = tmp[--idx];
@@ -154,6 +164,18 @@ int sprintf(char* dest, const char* fmt, ...) {
         fmt++;
         if (*fmt == '\0') break;
 
+        // Field width and zero padding, e.g. %02d or %8s. These were not
+        // handled at all before, so "%02u" fell through to the default branch
+        // and emitted the specifier text literally.
+        int zero_pad = 0;
+        int width = 0;
+        while (*fmt == '0') { zero_pad = 1; fmt++; }
+        while (*fmt >= '0' && *fmt <= '9') {
+            width = width * 10 + (*fmt - '0');
+            fmt++;
+        }
+        if (width > 64) width = 64;   // guard against a runaway destination
+
         switch (*fmt) {
             case '%':
                 written += append_char(&out, '%');
@@ -173,25 +195,25 @@ int sprintf(char* dest, const char* fmt, ...) {
                 int v = __builtin_va_arg(args, int);
                 if (v < 0) {
                     written += append_char(&out, '-');
-                    written += append_uint(&out, (uint32_t)(-v), 10, 0);
+                    written += append_uint(&out, (uint32_t)(-v), 10, 0, width - 1, zero_pad);
                 } else {
-                    written += append_uint(&out, (uint32_t)v, 10, 0);
+                    written += append_uint(&out, (uint32_t)v, 10, 0, width, zero_pad);
                 }
                 break;
             }
             case 'u': {
                 uint32_t v = __builtin_va_arg(args, uint32_t);
-                written += append_uint(&out, v, 10, 0);
+                written += append_uint(&out, v, 10, 0, width, zero_pad);
                 break;
             }
             case 'x': {
                 uint32_t v = __builtin_va_arg(args, uint32_t);
-                written += append_uint(&out, v, 16, 0);
+                written += append_uint(&out, v, 16, 0, width, zero_pad);
                 break;
             }
             case 'X': {
                 uint32_t v = __builtin_va_arg(args, uint32_t);
-                written += append_uint(&out, v, 16, 1);
+                written += append_uint(&out, v, 16, 1, width, zero_pad);
                 break;
             }
             default:
