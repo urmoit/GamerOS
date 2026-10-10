@@ -13,6 +13,30 @@ and boot screen — on top of that fix.
 - Date: `2026-10-11`
 - Status: **Unreleased.** Work in progress; still being verified.
 
+## Critical — Triple Fault Opening the Start Menu
+
+- **Fixed a triple fault that killed the guest the moment the Start button was
+  clicked.** `boot.asm` enabled `CR4.PAE` but never set `CR4.OSFXSR` (bit 9) or
+  `CR4.OSXMMEXCPT` (bit 10) before entering long mode. In IA-32e, executing an
+  SSE instruction with `OSFXSR` clear raises `#UD`. Because the IDT is not
+  populated for these faults, that `#UD` became `#GP` -> `#DF` -> **triple
+  fault**, and the CPU shut down. This is what VMware was reporting as
+  "a fault has occurred causing a virtual CPU to enter the shutdown state".
+- **This was a latent landmine, not a Start-menu bug.** Any GCC-generated SSE
+  opcode anywhere in the kernel would have killed it. `-O2` emits `pxor` +
+  `movaps` for any initialisation wider than a 64-bit store, so the moment a
+  struct crossed 16 bytes the kernel would die. Growing
+  `start_menu_metrics_t` from 5 to 10 fields pushed it to 40 bytes and tipped GCC
+  into emitting `pxor %xmm0,%xmm0` at the top of `draw_start_menu()` — which is
+  why the crash appeared to belong to the Start menu.
+- **Diagnosed from QEMU's exception trace**, not guessed: `-d int,cpu_reset` gave
+  the sequence `#UD -> #GP(0x32) -> #DF -> Triple fault` at `RIP=0x109e00`, which
+  `addr2line` resolved to `draw_start_menu()` at `main.c:2663`, and `info
+  registers` showed `CR4=0x20` (PAE only, `OSFXSR` clear) against a `pxor`
+  instruction that cannot fault for any other reason.
+- **Verified fixed under QEMU 11.0.1:** opening the Start menu now raises **zero
+  exceptions and zero triple faults**, and the VM stays `running`.
+
 ## Build Verification
 
 - Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.
@@ -87,10 +111,9 @@ and boot screen — on top of that fix.
   renderer uses, so a future layout change cannot silently break clicking.
 
 ## Planned
-- Visually confirm the Start menu and loading screen once QEMU is available on
-  the host, since only the desktop, taskbar, and watermark were captured so far.
-- Investigate a host-level virtual CPU fault reported by VMware when opening the
-  Start menu; the Start path itself audited clean for out-of-bounds access.
+- Visually confirm the Start menu and loading screen under QEMU; the Start menu
+  is now verified, and the desktop, taskbar, watermark and Start menu have all
+  been captured as rendered frames.
 - Persist Settings state so toggles survive a reboot instead of resetting.
 - Replace the polled input loop with PIT/HPET timer-driven frame pacing.
 - Complete the USB driver stack and implement ATA PIO properly; the driver is

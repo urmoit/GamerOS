@@ -550,8 +550,15 @@ boot_main32:
 
     lgdt [gdt64_descriptor]
 
+    ; CR4 must have PAE for paging, and OSFXSR/OSXMMEXCPT before any SSE
+    ; instruction runs. In long mode an SSE opcode with OSFXSR clear raises
+    ; #UD, and with an unusable IDT that becomes #GP -> #DF -> triple fault.
+    ; The compiler emits pxor/movaps for anything wider than a 64-bit store
+    ; (e.g. zero-initialising a 40-byte struct), so these bits are mandatory.
     mov eax, cr4
-    or eax, 1 << 5
+    or eax, 1 << 5         ; CR4.PAE
+    or eax, 1 << 9         ; CR4.OSFXSR  - allow SSE in long mode
+    or eax, 1 << 10        ; CR4.OSXMMEXCPT - report #XM via the IDT
     mov cr4, eax
 
     mov eax, p4_table
