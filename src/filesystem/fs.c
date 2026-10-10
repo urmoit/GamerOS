@@ -4,37 +4,53 @@
 #include <string.h>
 
 #define DISK_SECTOR_SIZE ATA_SECTOR_SIZE
-#define MAX_DISK_SECTORS 4096
+
+// LBA 0 holds the MBR and 1..3 the primary partition table; some layouts also
+// keep a backup GPT in the first sectors. The filesystem starts after the first
+// 64 sectors (one legacy track) and never writes below it, so an existing
+// partition table on the medium survives.
+#define FS_RESERVED_SECTORS 64
+
 #define FS_FILE_RESERVED_SECTORS ((MAX_FILE_SIZE + DISK_SECTOR_SIZE - 1) / DISK_SECTOR_SIZE)
 
-#define FS_SUPERBLOCK_SECTOR 0
-#define FS_FILE_TABLE_START 1
-#define FS_FILE_TABLE_SECTORS 4
+// RAM fallback when no ATA device answers: 2 MiB. This buffer is statically
+// allocated, so it costs BSS on every boot even when a real disk is present;
+// keep it small and treat the reported capacity as honest-but-tiny.
+#define FS_RAM_TOTAL_SECTORS 4096
+
+#define FS_SUPERBLOCK_SECTOR FS_RESERVED_SECTORS
+#define FS_FILE_TABLE_START (FS_SUPERBLOCK_SECTOR + 1)
+#define FS_FILE_TABLE_SECTORS 64
 #define FS_DIR_TABLE_START (FS_FILE_TABLE_START + FS_FILE_TABLE_SECTORS)
-#define FS_DIR_TABLE_SECTORS 3
+#define FS_DIR_TABLE_SECTORS 24
 #define FS_DATA_START_SECTOR (FS_DIR_TABLE_START + FS_DIR_TABLE_SECTORS)
 
-#define FS_MAGIC "GFS1PIO"
-#define FS_VERSION 1
+// File record is 88 bytes with the 64-char name field, so 5 fit per sector and
+// 256 files need 52; dir record is 72 bytes, 7 per sector, 128 dirs need 19.
+#define FS_MAGIC "GFS3PIO"
+#define FS_VERSION 3
 
-// Fallback RAM store if ATA is unavailable.
-static uint8_t disk_storage[MAX_DISK_SECTORS * DISK_SECTOR_SIZE];
+static uint8_t disk_storage[FS_RAM_TOTAL_SECTORS * DISK_SECTOR_SIZE];
 static uint8_t g_fs_ata_enabled = 0;
+static uint64_t g_fs_total_sectors = FS_RAM_TOTAL_SECTORS;
 
 typedef struct {
     char magic[8];
     uint32_t version;
-    uint32_t next_disk_sector;
+    uint64_t next_disk_sector;
+    uint64_t total_sectors;
     uint32_t reserved0;
-    uint8_t padding[DISK_SECTOR_SIZE - 20];
+    uint32_t reserved1;
+    uint8_t padding[DISK_SECTOR_SIZE - 32];
 } fs_superblock_t;
 
 typedef struct {
     char name[MAX_FILENAME_LEN];
     uint32_t size;
-    uint32_t disk_sector;
+    uint32_t sector_count;
+    uint64_t lba;
     uint8_t in_use;
-    uint8_t reserved[15];
+    uint8_t reserved[7];
 } fs_disk_file_record_t;
 
 typedef struct {
@@ -47,29 +63,39 @@ static file_t files[MAX_FILES];
 static directory_t directories[MAX_DIRECTORIES];
 static storage_device_info_t storage_devices[MAX_STORAGE_DEVICES];
 static int storage_device_count = 0;
-static uint32_t next_disk_sector = 0; // Track allocated disk sectors
+static uint64_t next_disk_sector = FS_DATA_START_SECTOR;
 
-static int fs_disk_read_sector(uint32_t lba, uint8_t* out) {
-    if (!out || lba >= MAX_DISK_SECTORS) return 0;
+static int fs_disk_read_sector(uint64_t lba, uint8_t* out) {
+    if (!out) return 0;
+    if (lba >= g_fs_total_sectors) return 0;
     if (g_fs_ata_enabled) return ata_pio_read_sector(lba, out);
     memcpy(out, &disk_storage[lba * DISK_SECTOR_SIZE], DISK_SECTOR_SIZE);
     return 1;
 }
 
-static int fs_disk_write_sector(uint32_t lba, const uint8_t* in) {
-    if (!in || lba >= MAX_DISK_SECTORS) return 0;
+static int fs_disk_write_sector(uint64_t lba, const uint8_t* in) {
+    if (!in) return 0;
+    if (lba >= g_fs_total_sectors) return 0;
     if (g_fs_ata_enabled) return ata_pio_write_sector(lba, in);
     memcpy(&disk_storage[lba * DISK_SECTOR_SIZE], in, DISK_SECTOR_SIZE);
     return 1;
+}
+
+// Sectors are appended at the end of the data region, so the data area starts
+// at FS_DATA_START_SECTOR and grows upward.
+static uint64_t fs_used_sectors(void) {
+    if (next_disk_sector <= FS_DATA_START_SECTOR) return 0;
+    return next_disk_sector - FS_DATA_START_SECTOR;
 }
 
 static void fs_reset_tables(void) {
     for (size_t i = 0; i < MAX_FILES; i++) {
         files[i].in_use = 0;
         files[i].size = 0;
+        files[i].lba = 0;
+        files[i].sector_count = 0;
         files[i].disk_sector = 0;
         memset(files[i].name, 0, MAX_FILENAME_LEN);
-        memset(files[i].data, 0, MAX_FILE_SIZE);
     }
     for (size_t i = 0; i < MAX_DIRECTORIES; i++) {
         directories[i].in_use = 0;
@@ -81,9 +107,10 @@ static void fs_reset_tables(void) {
 static void fs_save_metadata(void) {
     fs_superblock_t sb;
     memset(&sb, 0, sizeof(sb));
-    memcpy(sb.magic, FS_MAGIC, sizeof(sb.magic));
+    memcpy(sb.magic, FS_MAGIC, 8);
     sb.version = FS_VERSION;
     sb.next_disk_sector = next_disk_sector;
+    sb.total_sectors = g_fs_total_sectors;
 
     (void)fs_disk_write_sector(FS_SUPERBLOCK_SECTOR, (const uint8_t*)&sb);
 
@@ -98,7 +125,8 @@ static void fs_save_metadata(void) {
             memset(&rec, 0, sizeof(rec));
             strncpy(rec.name, files[idx].name, MAX_FILENAME_LEN - 1);
             rec.size = files[idx].size;
-            rec.disk_sector = files[idx].disk_sector;
+            rec.sector_count = files[idx].sector_count;
+            rec.lba = files[idx].lba;
             rec.in_use = files[idx].in_use;
             memcpy(&sector[r * sizeof(fs_disk_file_record_t)], &rec, sizeof(rec));
         }
@@ -130,7 +158,7 @@ static int fs_load_metadata(void) {
     fs_reset_tables();
     next_disk_sector = sb.next_disk_sector;
     if (next_disk_sector < FS_DATA_START_SECTOR) next_disk_sector = FS_DATA_START_SECTOR;
-    if (next_disk_sector >= MAX_DISK_SECTORS) next_disk_sector = FS_DATA_START_SECTOR;
+    if (next_disk_sector > g_fs_total_sectors) next_disk_sector = FS_DATA_START_SECTOR;
 
     uint8_t sector[DISK_SECTOR_SIZE];
     for (uint32_t si = 0; si < FS_FILE_TABLE_SECTORS; si++) {
@@ -144,7 +172,9 @@ static int fs_load_metadata(void) {
             strncpy(files[idx].name, rec.name, MAX_FILENAME_LEN - 1);
             files[idx].name[MAX_FILENAME_LEN - 1] = 0;
             files[idx].size = rec.size;
-            files[idx].disk_sector = rec.disk_sector;
+            files[idx].sector_count = rec.sector_count;
+            files[idx].lba = rec.lba;
+            files[idx].disk_sector = (uint32_t)rec.lba;
             files[idx].in_use = rec.in_use;
         }
     }
@@ -197,6 +227,7 @@ void fs_init() {
     fs_reset_tables();
     for (size_t i = 0; i < MAX_STORAGE_DEVICES; i++) {
         memset(storage_devices[i].name, 0, sizeof(storage_devices[i].name));
+        memset(storage_devices[i].label, 0, sizeof(storage_devices[i].label));
         storage_devices[i].type = STORAGE_HDD;
         storage_devices[i].capacity_mb = 0;
         storage_devices[i].online = 0;
@@ -204,98 +235,129 @@ void fs_init() {
     storage_device_count = 0;
 
     g_fs_ata_enabled = (uint8_t)ata_pio_init();
-    memset(disk_storage, 0, sizeof(disk_storage));
-    if (fs_load_metadata()) {
-        // Keep existing persisted filesystem image.
+    if (g_fs_ata_enabled) {
+        g_fs_total_sectors = ata_pio_get_capacity_sectors();
+        if (g_fs_total_sectors <= FS_DATA_START_SECTOR) g_fs_total_sectors = FS_DATA_START_SECTOR + FS_RAM_TOTAL_SECTORS;
     } else {
+        g_fs_total_sectors = FS_RAM_TOTAL_SECTORS;
+    }
+
+    memset(disk_storage, 0, sizeof(disk_storage));
+
+    if (!fs_load_metadata()) {
         next_disk_sector = FS_DATA_START_SECTOR;
 
         fs_create_directory("C:/");
         fs_create_directory("C:/GamerOS");
         fs_create_directory("C:/GamerOS/System32");
         fs_create_directory("C:/Users");
+        fs_create_directory("C:/Users/Admin");
+        fs_create_directory("C:/Users/Admin/Documents");
+        fs_create_directory("C:/Users/Admin/Downloads");
         fs_create_directory("C:/Program Files");
         fs_create_directory("C:/Apps");
     }
 
-    // Keep the shell on a single stable logical volume while storage init and
-    // app launching are still being hardened for VMware.
-    strncpy(storage_devices[0].name, g_fs_ata_enabled ? "System Disk" : "RAM System Disk",
-            sizeof(storage_devices[0].name) - 1);
-    storage_devices[0].name[sizeof(storage_devices[0].name) - 1] = 0;
-    storage_devices[0].type = g_fs_ata_enabled ? STORAGE_HDD : STORAGE_RAMDISK;
-    storage_devices[0].capacity_mb = g_fs_ata_enabled ? 102400 : 256;
-    storage_devices[0].online = 1;
+    // One logical volume, labelled from whatever the medium reports.
+    storage_device_info_t* dev = &storage_devices[0];
+    memset(dev, 0, sizeof(*dev));
+    if (g_fs_ata_enabled) {
+        const char* model = ata_pio_get_model();
+        strncpy(dev->label, (model && model[0]) ? model : "GamerOS Volume",
+                sizeof(dev->label) - 1);
+    } else {
+        strncpy(dev->label, "GamerOS Volume (RAM)", sizeof(dev->label) - 1);
+    }
+    strncpy(dev->name, "System Disk", sizeof(dev->name) - 1);
+    dev->type = g_fs_ata_enabled ? STORAGE_HDD : STORAGE_RAMDISK;
+    dev->persistent = g_fs_ata_enabled;
+    dev->total_bytes = g_fs_total_sectors * DISK_SECTOR_SIZE;
+    dev->used_bytes = fs_used_sectors() * DISK_SECTOR_SIZE;
+    dev->free_bytes = dev->total_bytes - dev->used_bytes;
+    dev->capacity_mb = (uint32_t)(dev->total_bytes >> 20);
+    dev->online = 1;
 
     storage_device_count = 1;
 }
 
 file_t* fs_create_file(const char* name) {
-    if (!name) return 0; // NULL check
+    if (!name || !name[0]) return 0;
+    // Refuse rather than truncate. A silently shortened name would not match
+    // the original path on the next boot, and the file would be recreated
+    // forever.
+    if (strlen(name) >= MAX_FILENAME_LEN) return 0;
+    if (fs_open_file(name)) return 0;   // already exists
+
     for (size_t i = 0; i < MAX_FILES; i++) {
-        if (!files[i].in_use) {
-            // Check if file already exists
-            if (fs_open_file(name)) {
-                return 0; // File already exists
-            }
-
-            strncpy(files[i].name, name, MAX_FILENAME_LEN - 1);
-            files[i].name[MAX_FILENAME_LEN - 1] = '\0'; // Ensure null termination
-            files[i].in_use = 1;
-            files[i].size = 0;
-            if (next_disk_sector + FS_FILE_RESERVED_SECTORS >= MAX_DISK_SECTORS) {
-                files[i].in_use = 0;
-                return 0;
-            }
-            files[i].disk_sector = next_disk_sector;
-            next_disk_sector += FS_FILE_RESERVED_SECTORS;
-            fs_save_metadata();
-
-            return &files[i];
-        }
+        if (files[i].in_use) continue;
+        strncpy(files[i].name, name, MAX_FILENAME_LEN - 1);
+        files[i].name[MAX_FILENAME_LEN - 1] = '\0';
+        files[i].in_use = 1;
+        files[i].size = 0;
+        files[i].lba = 0;
+        files[i].sector_count = 0;
+        files[i].disk_sector = 0;
+        fs_save_metadata();
+        return &files[i];
     }
-    return 0; // No space left
+    return 0;
 }
 
 file_t* fs_open_file(const char* name) {
-    if (!name) return 0; // NULL check
+    if (!name) return 0;
     for (size_t i = 0; i < MAX_FILES; i++) {
         if (files[i].in_use && strcmp(files[i].name, name) == 0) {
             return &files[i];
         }
     }
-    return 0; // File not found
+    return 0;
+}
+
+// Append-only allocator: a file's sectors are taken from the end of the data
+// area. Growing a file therefore moves it to a fresh run and abandons the old
+// one, so freed space is not reused until the volume is reformatted. That
+// fragmentation is a known limitation of this stage.
+static int fs_alloc_run(uint32_t needed, uint64_t* out_lba) {
+    if (needed == 0) { *out_lba = 0; return 1; }
+    if (needed > FS_FILE_RESERVED_SECTORS) return 0;
+    if (next_disk_sector + needed > g_fs_total_sectors) return 0;   // volume full
+    *out_lba = next_disk_sector;
+    next_disk_sector += needed;
+    return 1;
 }
 
 void fs_write_file(file_t* file, const uint8_t* data, uint32_t size) {
-    if (!file || !file->in_use || !data || size > MAX_FILE_SIZE) return;
+    if (!file || !file->in_use || (!data && size > 0)) return;
+    if (size > MAX_FILE_SIZE) size = MAX_FILE_SIZE;
 
-    // Keep memory cache for fast reads and UI code.
-    memcpy(file->data, data, size);
-    file->size = size;
+    uint32_t needed = (size + DISK_SECTOR_SIZE - 1) / DISK_SECTOR_SIZE;
 
-    // Real persistent write path (ATA PIO if available).
-    // MAX_FILE_SIZE is an exact multiple of the sector size, so sector_count can
-    // never exceed the reserved run; keep the clamp but never inflate file->size
-    // past the real payload length (that made the tail loop read past `data`).
+    if (needed > file->sector_count) {
+        uint64_t lba = 0;
+        if (!fs_alloc_run(needed, &lba)) return;   // out of space: leave file untouched
+        file->lba = lba;
+        file->disk_sector = (uint32_t)lba;
+        file->sector_count = needed;
+    }
+
     uint8_t sector[DISK_SECTOR_SIZE];
-    uint32_t sector_count = (size + DISK_SECTOR_SIZE - 1) / DISK_SECTOR_SIZE;
-    if (sector_count > FS_FILE_RESERVED_SECTORS) {
-        sector_count = FS_FILE_RESERVED_SECTORS;
+    for (uint32_t si = 0; si < needed; si++) {
+        uint32_t off = si * DISK_SECTOR_SIZE;
+        uint32_t left = size - off;
+        uint32_t chunk = left < DISK_SECTOR_SIZE ? left : DISK_SECTOR_SIZE;
+        memset(sector, 0, sizeof(sector));
+        if (chunk) memcpy(sector, data + off, chunk);
+        (void)fs_disk_write_sector(file->lba + si, sector);
     }
 
-    for (uint32_t si = 0; si < sector_count; si++) {
-        uint32_t copy_off = si * DISK_SECTOR_SIZE;
-        uint32_t left = size - copy_off;
-        uint32_t copy_size = left < DISK_SECTOR_SIZE ? left : DISK_SECTOR_SIZE;
+    // Release any tail sectors the file no longer needs after a shrink.
+    for (uint32_t si = needed; si < file->sector_count; si++) {
         memset(sector, 0, sizeof(sector));
-        memcpy(sector, data + copy_off, copy_size);
-        (void)fs_disk_write_sector(file->disk_sector + si, sector);
+        (void)fs_disk_write_sector(file->lba + si, sector);
     }
-    for (uint32_t si = sector_count; si < FS_FILE_RESERVED_SECTORS; si++) {
-        memset(sector, 0, sizeof(sector));
-        (void)fs_disk_write_sector(file->disk_sector + si, sector);
-    }
+    if (needed < file->sector_count) file->sector_count = needed;
+
+    file->size = size;
     fs_save_metadata();
 }
 
@@ -305,32 +367,19 @@ void fs_read_file(file_t* file, uint8_t* buffer, uint32_t size) {
     uint32_t bytes_to_read = (size < file->size) ? size : file->size;
     uint32_t copied = 0;
     uint8_t sector[DISK_SECTOR_SIZE];
-    while (copied < bytes_to_read) {
+
+    while (copied < bytes_to_read && copied / DISK_SECTOR_SIZE < file->sector_count) {
         uint32_t si = copied / DISK_SECTOR_SIZE;
         uint32_t in_sector = copied % DISK_SECTOR_SIZE;
-        if (si >= FS_FILE_RESERVED_SECTORS) break;
-        if (!fs_disk_read_sector(file->disk_sector + si, sector)) break;
+        if (!fs_disk_read_sector(file->lba + si, sector)) break;
         uint32_t chunk = DISK_SECTOR_SIZE - in_sector;
         if (chunk > (bytes_to_read - copied)) chunk = bytes_to_read - copied;
         memcpy(buffer + copied, sector + in_sector, chunk);
         copied += chunk;
     }
 
-    if (copied < bytes_to_read) {
-        // Fallback if disk read failed mid-way.
-        memcpy(buffer + copied, file->data + copied, bytes_to_read - copied);
-    }
-
     if (size > bytes_to_read) {
         memset(buffer + bytes_to_read, 0, size - bytes_to_read);
-    }
-
-    if (bytes_to_read > 0 && bytes_to_read <= MAX_FILE_SIZE) {
-        // Refresh cache from persisted data.
-        memcpy(file->data, buffer, bytes_to_read);
-        if (file->size > bytes_to_read) {
-            memset(file->data + bytes_to_read, 0, file->size - bytes_to_read);
-        }
     }
 }
 
@@ -339,13 +388,50 @@ int fs_create_directory(const char* path) {
     if (strlen(path) >= MAX_FILENAME_LEN) return 0;
     if (fs_directory_exists(path)) return 1;
     for (size_t i = 0; i < MAX_DIRECTORIES; i++) {
-        if (!directories[i].in_use) {
-            directories[i].in_use = 1;
-            strncpy(directories[i].path, path, MAX_FILENAME_LEN - 1);
-            directories[i].path[MAX_FILENAME_LEN - 1] = 0;
-            fs_save_metadata();
-            return 1;
+        if (directories[i].in_use) continue;
+        directories[i].in_use = 1;
+        strncpy(directories[i].path, path, MAX_FILENAME_LEN - 1);
+        directories[i].path[MAX_FILENAME_LEN - 1] = 0;
+        fs_save_metadata();
+        return 1;
+    }
+    return 0;
+}
+
+int fs_delete_file(const char* path) {
+    if (!path) return 0;
+    for (size_t i = 0; i < MAX_FILES; i++) {
+        if (!files[i].in_use) continue;
+        if (!paths_equal(files[i].name, path)) continue;
+
+        // Zero the payload so a later allocation cannot expose stale bytes.
+        uint8_t sector[DISK_SECTOR_SIZE];
+        for (uint32_t si = 0; si < files[i].sector_count; si++) {
+            memset(sector, 0, sizeof(sector));
+            (void)fs_disk_write_sector(files[i].lba + si, sector);
         }
+
+        files[i].in_use = 0;
+        files[i].size = 0;
+        files[i].lba = 0;
+        files[i].sector_count = 0;
+        files[i].disk_sector = 0;
+        memset(files[i].name, 0, MAX_FILENAME_LEN);
+        fs_save_metadata();
+        return 1;
+    }
+    return 0;
+}
+
+int fs_delete_directory(const char* path) {
+    if (!path) return 0;
+    for (size_t i = 0; i < MAX_DIRECTORIES; i++) {
+        if (!directories[i].in_use) continue;
+        if (!paths_equal(directories[i].path, path)) continue;
+        directories[i].in_use = 0;
+        memset(directories[i].path, 0, MAX_FILENAME_LEN);
+        fs_save_metadata();
+        return 1;
     }
     return 0;
 }
@@ -353,9 +439,7 @@ int fs_create_directory(const char* path) {
 int fs_directory_exists(const char* path) {
     if (!path) return 0;
     for (size_t i = 0; i < MAX_DIRECTORIES; i++) {
-        if (directories[i].in_use && paths_equal(directories[i].path, path)) {
-            return 1;
-        }
+        if (directories[i].in_use && paths_equal(directories[i].path, path)) return 1;
     }
     return 0;
 }
@@ -405,12 +489,28 @@ int fs_storage_get_device(int index, storage_device_info_t* out) {
     return 1;
 }
 
-// Function to sync filesystem to disk (simulate persistence)
-void fs_sync() {
-    fs_save_metadata();
+int fs_get_space_info(fs_space_info_t* out) {
+    if (!out) return 0;
+    memset(out, 0, sizeof(*out));
+
+    out->total_sectors = g_fs_total_sectors;
+    out->used_sectors = fs_used_sectors();
+    out->free_sectors = g_fs_total_sectors - FS_DATA_START_SECTOR - out->used_sectors;
+    out->total_bytes = g_fs_total_sectors * DISK_SECTOR_SIZE;
+    out->used_bytes = out->used_sectors * DISK_SECTOR_SIZE;
+    out->free_bytes = out->free_sectors * DISK_SECTOR_SIZE;
+    out->persistent = g_fs_ata_enabled;
+
+    for (size_t i = 0; i < MAX_FILES; i++) if (files[i].in_use) out->file_count++;
+    for (size_t i = 0; i < MAX_DIRECTORIES; i++) if (directories[i].in_use) out->dir_count++;
+
+    if (storage_device_count > 0) {
+        storage_devices[0].used_bytes = out->used_bytes;
+        storage_devices[0].free_bytes = out->free_bytes;
+    }
+    return 1;
 }
 
-// TODO: Implement directory creation, removal, and listing
-// TODO: Add file permissions and access control
-// TODO: Implement file system journaling for crash recovery
-// TODO: Add support for file attributes (hidden, system, read-only)
+void fs_sync(void) {
+    fs_save_metadata();
+}

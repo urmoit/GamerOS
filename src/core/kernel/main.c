@@ -8,6 +8,7 @@
 #include <rtc.h>
 #include <font.h>
 #include <fs.h>
+#include <ata_pio.h>
 #include <apps.h>
 #include <process_model.h>
 #include <multiboot.h>
@@ -197,6 +198,11 @@ static int settings_view_hit_gap = 0;
 static int settings_md_visible_rows = 0;
 
 #define EXPLORER_MAX_ENTRIES 14
+// "This PC" renders one block per volume in the style of a Windows drive list:
+// name, usage bar, and "X.X GB free of YYY GB". These rows are taller than the
+// single-line rows used for files and folders.
+#define EXPLORER_DRIVE_ROW_H 34
+#define EXPLORER_BAR_H       7
 static char explorer_path[MAX_FILENAME_LEN] = "C:/";
 static char explorer_entries[EXPLORER_MAX_ENTRIES][MAX_FILENAME_LEN];
 static uint8_t explorer_is_dir[EXPLORER_MAX_ENTRIES];
@@ -547,6 +553,67 @@ static void explorer_open_this_pc(void) {
     explorer_entry_count = 0;
 }
 
+// Tenths of a GiB, computed with shifts only. The kernel links without libgcc,
+// so 64-bit division is unavailable here and must not be introduced.
+static uint64_t bytes_to_gb_tenths(uint64_t bytes) {
+    return (bytes * 10) >> 30;
+}
+
+static void append_unsigned(char* out, int out_size, int* pos, uint64_t v) {
+    char tmp[24];
+    int n = 0;
+    if (v == 0) tmp[n++] = '0';
+    while (v > 0 && n < (int)sizeof(tmp)) {
+        tmp[n++] = (char)('0' + (int)(v % 10));
+        v /= 10;
+    }
+    while (n > 0 && *pos + 1 < out_size) {
+        out[(*pos)++] = tmp[--n];
+    }
+}
+
+static void append_text(char* out, int out_size, int* pos, const char* s) {
+    if (!s) return;
+    while (*s && *pos + 1 < out_size) out[(*pos)++] = *s++;
+}
+
+// "47.0 GB free of 474 GB", matching the Windows drive list. Volumes smaller
+// than 1 GiB are reported in MB, otherwise a RAM-backed fallback would render
+// as "0.0 GB free of 0 GB".
+static void format_capacity_line(char* out, int out_size, uint64_t free_bytes, uint64_t total_bytes) {
+    int pos = 0;
+    if (!out || out_size <= 1) return;
+    out[0] = 0;
+
+    const uint64_t one_gib = 1ULL << 30;
+
+    if (total_bytes < one_gib) {
+        uint64_t free_mb = free_bytes >> 20;
+        uint64_t total_mb = total_bytes >> 20;
+        append_unsigned(out, out_size, &pos, free_mb);
+        append_text(out, out_size, &pos, " MB free of ");
+        if (total_mb == 0 && total_bytes > 0) total_mb = 1;
+        append_unsigned(out, out_size, &pos, total_mb);
+        append_text(out, out_size, &pos, " MB");
+        out[pos] = 0;
+        return;
+    }
+
+    uint64_t free_tenths = bytes_to_gb_tenths(free_bytes);
+    append_unsigned(out, out_size, &pos, free_tenths / 10);
+    if (pos + 1 < out_size) out[pos++] = '.';
+    append_unsigned(out, out_size, &pos, free_tenths % 10);
+    append_text(out, out_size, &pos, " GB free of ");
+
+    uint64_t total_tenths = bytes_to_gb_tenths(total_bytes);
+    uint64_t total_whole = total_tenths / 10;
+    if (total_whole == 0 && total_bytes > 0) total_whole = 1;
+    if ((total_tenths % 10) != 0) total_whole++;   // round partial GB up
+    append_unsigned(out, out_size, &pos, total_whole);
+    append_text(out, out_size, &pos, " GB");
+    out[pos] = 0;
+}
+
 static void explorer_build_this_pc_entries(void) {
     explorer_drive_count = fs_storage_get_device_count();
     if (explorer_drive_count < 1) explorer_drive_count = 1;
@@ -572,6 +639,64 @@ static void ensure_storage_initialized(void) {
     debug_log_message("Boot: storage init begin");
     debug_present_boot_status();
     initialize_storage_layout();
+
+    // Report what the medium actually reported, so a boot log proves whether
+    // capacity detection worked rather than just asserting it did.
+    {
+        fs_space_info_t space;
+        if (fs_get_space_info(&space)) {
+            serial_write_string("Storage: ");
+            serial_write_string(space.persistent ? "ATA medium" : "RAM fallback");
+            serial_write_string(", capacity ");
+            char cap[24];
+            uint64_t whole_gb = (space.total_bytes + (1ULL << 29)) >> 30;
+            int cp = 0;
+            if (whole_gb == 0) cap[cp++] = '0';
+            while (whole_gb > 0 && cp < (int)sizeof(cap)) {
+                cap[cp++] = (char)('0' + (int)(whole_gb % 10));
+                whole_gb /= 10;
+            }
+            while (cp > 0) serial_putchar(cap[--cp]);
+            serial_write_string(" GB, LBA48=");
+            serial_write_string(ata_pio_has_lba48() ? "yes" : "no");
+            if (ata_pio_get_model()[0]) {
+                serial_write_string(", model=");
+                serial_write_string(ata_pio_get_model());
+            }
+            serial_write_string("\nStorage: files=");
+            char num[16];
+            int np = 0;
+            uint32_t fc = space.file_count;
+            if (fc == 0) num[np++] = '0';
+            while (fc > 0 && np < (int)sizeof(num)) {
+                num[np++] = (char)('0' + (int)(fc % 10));
+                fc /= 10;
+            }
+            while (np > 0) serial_putchar(num[--np]);
+            serial_write_string(" dirs=");
+            uint32_t dc = space.dir_count;
+            np = 0;
+            if (dc == 0) num[np++] = '0';
+            while (dc > 0 && np < (int)sizeof(num)) {
+                num[np++] = (char)('0' + (int)(dc % 10));
+                dc /= 10;
+            }
+            while (np > 0) serial_putchar(num[--np]);
+            serial_write_string(", used=");
+            {
+                uint64_t used_kb = space.used_bytes >> 10;
+                np = 0;
+                if (used_kb == 0) num[np++] = '0';
+                while (used_kb > 0 && np < (int)sizeof(num)) {
+                    num[np++] = (char)('0' + (int)(used_kb % 10));
+                    used_kb /= 10;
+                }
+                while (np > 0) serial_putchar(num[--np]);
+            }
+            serial_write_string(" KB\n");
+        }
+    }
+
     storage_initialized = 1;
     settings_md_loaded = 0;
     debug_log_message("Boot: storage init complete");
@@ -2535,19 +2660,57 @@ void draw_window(window_t* win) {
         int row_y0 = body_y + 14;
         int name_chars = (list_w - 24) / FONT_CW;
         if (name_chars < 6) name_chars = 6;
-        int rows_visible = (body_h - 18) / ROW_H;
+        int row_pitch = explorer_this_pc_view ? EXPLORER_DRIVE_ROW_H : ROW_H;
+        explorer_list_hit_h = row_pitch;
+        int rows_visible = (body_h - 18) / row_pitch;
         if (rows_visible < 1) rows_visible = 1;
 
         if (explorer_this_pc_view) {
             for (int i = 0; i < explorer_drive_count && i < rows_visible; i++) {
-                int ry = row_y0 + i * ROW_H;
-                if (ry + ROW_H > body_y + body_h) break;
+                int ry = row_y0 + i * EXPLORER_DRIVE_ROW_H;
+                if (ry + EXPLORER_DRIVE_ROW_H > body_y + body_h) break;
+
                 if (explorer_selected == i) {
-                    fill_chamfer_rect(list_x + 2, ry, list_w - 4, ROW_H - 1, XP_LBLUE);
+                    fill_chamfer_rect(list_x + 2, ry, list_w - 4, EXPLORER_DRIVE_ROW_H - 2, XP_LBLUE);
                 }
-                fill_rect(list_x + 6, ry + 3, 5, 6, XP_DGRAY);
-                draw_compact_string_clipped(list_x + 15, ry + 2, name_chars,
+
+                // Drive badge.
+                fill_rect(list_x + 6, ry + 3, 7, 6, XP_DGRAY);
+                fill_rect(list_x + 6, ry + 3, 7, 2, XP_WHITE);
+
+                draw_compact_string_clipped(list_x + 18, ry + 2, name_chars,
                                             explorer_drive_labels[i], XP_BLACK);
+
+                // Usage bar: filled portion = used, remainder = free.
+                fs_space_info_t space;
+                storage_device_info_t dev;
+                int bar_x = list_x + 18;
+                int bar_w = list_w - 30;
+                if (bar_w < 20) bar_w = 20;
+                int bar_y = ry + 13;
+
+                if (fs_storage_get_device(i, &dev) && bar_w > 0) {
+                    uint64_t total = dev.total_bytes;
+                    uint64_t used = dev.used_bytes;
+                    if (used > total) used = total;
+                    int used_px = (total > 0) ? (int)((used * bar_w) / total) : 0;
+                    if (used_px < 0) used_px = 0;
+                    if (used_px > bar_w) used_px = bar_w;
+
+                    fill_rect(bar_x, bar_y, bar_w, EXPLORER_BAR_H, XP_WHITE);
+                    draw_chamfer_rect(bar_x, bar_y, bar_w, EXPLORER_BAR_H, XP_DGRAY);
+                    if (used_px > 0) {
+                        fill_rect(bar_x + 1, bar_y + 1, used_px - 1, EXPLORER_BAR_H - 2, XP_BLUE);
+                    }
+                }
+
+                if (fs_get_space_info(&space)) {
+                    char line[64];
+                    format_capacity_line(line, (int)sizeof(line), space.free_bytes, space.total_bytes);
+                    draw_compact_string_clipped(bar_x, bar_y + EXPLORER_BAR_H + 4,
+                                                (bar_w + 4) / FONT_CW, line, XP_DGRAY);
+                }
+
                 explorer_list_hit_y[explorer_list_hit_count++] = ry;
             }
         } else {
@@ -3663,9 +3826,12 @@ void kernel_main(multiboot_info_t* mb_info) {
     debug_log_message("Boot: windows init ok");
     startup_animation();
     debug_log_message("Boot: startup animation done");
-    debug_present_boot_status();
-    debug_log_message("Boot: storage deferred");
-    debug_log_message("Boot: entering main loop");
+      debug_present_boot_status();
+      // Mount the volume during boot. Deferring this until the first app launch
+      // meant a boot log could not tell you whether the medium was detected at
+      // all, and made persistence impossible to verify headlessly.
+      ensure_storage_initialized();
+      debug_log_message("Boot: entering main loop");
     debug_present_boot_status();
 
     // VMware stability mode: use polling-only input in the main loop.
