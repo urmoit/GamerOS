@@ -28,9 +28,26 @@ void draw_compact_string(int x, int y, const char* str, uint8_t color);
 void draw_compact_string_clipped(int x, int y, int max_chars, const char* str, uint8_t color);
 int  compact_text_width(const char* str);
 void append_string(char* dest, size_t dest_cap, const char* src);
+void append_text(char* out, int out_size, int* pos, const char* s);
+void append_unsigned(char* out, int out_size, int* pos, uint64_t v);
 void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color);
 void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color);
 void draw_tool_button(int x, int y, int w, int h, const char* label, int enabled);
+
+// ---- Shell state an app configures -----------------------------------------
+// Debug overlay, shown by the Settings System page's "Debug window" toggle.
+int  shell_debug_overlay_enabled(void);
+void shell_set_debug_overlay(int enabled);
+
+// Current desktop UI scale, as a whole multiplier.
+int  shell_ui_scale(void);
+
+// Display profiles the Settings System page lists and applies.
+int         shell_display_profile_count(void);
+int         shell_display_profile_available(int idx);
+const char* shell_display_profile_label(int idx);
+int         shell_display_profile_current(void);
+void        shell_set_display_profile(int idx);
 
 // ---- Paths ------------------------------------------------------------------
 const char* path_basename(const char* path);

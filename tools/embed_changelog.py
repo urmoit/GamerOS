@@ -2,14 +2,14 @@
 """Embed a markdown changelog into main.c as a C string literal.
 
 The in-OS "GamerOS Update" viewer reads C:/GamerOS/CHANGELOG.md, which is
-written at boot from settings_ui_changelog_md_text(). That string used to be
+written at boot from settings_app_changelog_text(). That string used to be
 hand-maintained and drifted out of sync with docs/changelogs/.
 
 This regenerates it from the markdown file so there is a single source of truth:
 
     python tools/embed_changelog.py
 
-Replaces the body of settings_ui_changelog_md_text() in src/core/kernel/main.c.
+Replaces the body of settings_app_changelog_text() in the Settings app.
 """
 
 import io
@@ -18,11 +18,14 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MAIN_C = os.path.join(ROOT, "src", "core", "kernel", "main.c")
+# The changelog now lives with the Settings app that renders it.
+MAIN_C = os.path.join(ROOT, "src", "ui", "apps", "settings", "settings_ui.c")
 FS_H = os.path.join(ROOT, "src", "include", "fs.h")
 MARKDOWN_H = os.path.join(ROOT, "src", "ui", "markdown", "markdown.h")
 
-DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-11.md")
+# The changelog the in-OS viewer should show. Build 1.570 is the current
+# in-progress log; the 1.550 release notes stay in the repo for history.
+DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-12.md")
 
 
 def read_max_file_size():
@@ -46,7 +49,7 @@ def read_md_max_lines():
     raise RuntimeError("MD_MAX_LINES not found in %s" % MARKDOWN_H)
 
 START_RE = re.compile(
-    r'^static const char\* settings_ui_changelog_md_text\(void\) \{$'
+    r'^const char\* settings_app_changelog_text\(void\) \{$'
 )
 END_RE = re.compile(r'^\}$')
 
@@ -81,6 +84,11 @@ def main():
     if lines and lines[-1] == "":
         lines.pop()
 
+    # HTML comments are authoring markers ("new entries go below this line"),
+    # not content. The markdown viewer has no support for them, so they would
+    # render as a paragraph of visible text.
+    lines = [l for l in lines if not l.strip().startswith("<!--")]
+
     max_file_size = read_max_file_size()
     size_bytes = len(raw.encode("utf-8"))
 
@@ -104,7 +112,7 @@ def main():
             start = i
             break
     if start is None:
-        print("error: settings_ui_changelog_md_text() not found in main.c")
+        print("error: settings_app_changelog_text() not found in " + MAIN_C)
         return 1
 
     end = None
@@ -113,7 +121,7 @@ def main():
             end = j
             break
     if end is None:
-        print("error: could not find end of settings_ui_changelog_md_text()")
+        print("error: could not find end of settings_app_changelog_text()")
         return 1
 
     literal = to_c_literal(lines)

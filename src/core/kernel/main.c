@@ -16,6 +16,7 @@
 #include <notepad_app.h>
 #include <process_model.h>
 #include <multiboot.h>
+#include <settings_ui.h>
 #include "../../resources/wallpapers/background_wallpaper.h"
 #include <stdint.h>
 #include <string.h>
@@ -26,12 +27,6 @@
 #define APP_WINDOW_ABOUT 3
 #define APP_WINDOW_SETTINGS 4
 #define APP_WINDOW_EXPLORER 5
-
-// Forward declarations for UI functions only
-static const char* settings_ui_panel_title(void);
-static const char* settings_ui_tab_name(int tab_idx);
-static const char* settings_ui_changelog_md_path(void);
-static const char* settings_ui_changelog_md_text(void);
 
 // Window states
 #define MAX_WINDOWS 6
@@ -93,82 +88,9 @@ static char error_popup_title[40];
 static char error_popup_message[160];
 static uint8_t warned_mouse_packet = 0;
 static uint8_t warned_mouse_bounds = 0;
-static uint8_t setting_show_seconds = 0;
-static uint8_t setting_desktop_glow = 0;
-static uint8_t setting_compact_mode = 1;
+// Selected display profile. Owned by the shell because it drives the graphics
+// mode; the Settings app configures it through shell_set_display_profile().
 static int setting_display_profile = 0;
-static int settings_tab = 0;
-
-// Toggles exposed on the non-System pages.
-static uint8_t setting_bluetooth = 0;
-static uint8_t setting_network = 0;
-static uint8_t setting_high_contrast = 0;
-static uint8_t setting_large_text = 0;
-
-#define SETTINGS_TAB_SYSTEM 0
-#define SETTINGS_TAB_BLUETOOTH_DEVICES 1
-#define SETTINGS_TAB_NETWORK_INTERNET 2
-#define SETTINGS_TAB_PERSONALIZATION 3
-#define SETTINGS_TAB_APPS 4
-#define SETTINGS_TAB_ACCOUNTS 5
-#define SETTINGS_TAB_TIME_LANGUAGE 6
-#define SETTINGS_TAB_GAMING 7
-#define SETTINGS_TAB_ACCESSIBILITY 8
-#define SETTINGS_TAB_PRIVACY_SECURITY 9
-#define SETTINGS_TAB_GAMEROS_UPDATE 10
-#define SETTINGS_TAB_COUNT 11
-static int settings_scroll_top[SETTINGS_TAB_COUNT] = {0};
-// The Settings changelog is parsed and drawn by src/ui/markdown/markdown.c.
-static uint8_t settings_md_loaded = 0;
-// started silently dropping the tail.
-
-typedef enum {
-    SETTINGS_UPDATE_VIEW_CHANGELOG = 0,
-    SETTINGS_UPDATE_VIEW_ROADMAP = 1
-} settings_update_view_t;
-
-static int settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
-
-// Hit-box state published by draw_window() so handle_settings_click() tests the
-// exact rectangles that were rendered, instead of duplicating layout constants.
-#define SETTINGS_MAX_TOGGLES 8
-
-typedef enum {
-    SETTINGS_TOG_COMPACT = 0,
-    SETTINGS_TOG_SECONDS,
-    SETTINGS_TOG_DEBUG,
-    SETTINGS_TOG_BLUETOOTH,
-    SETTINGS_TOG_NETWORK,
-    SETTINGS_TOG_CONTRAST,
-    SETTINGS_TOG_LARGE_TEXT
-} settings_toggle_id_t;
-
-typedef struct {
-    const char* label;
-    int is_on;
-    int id;
-} settings_toggle_desc_t;
-
-static int settings_tog_count = 0;
-static int settings_tog_hit_x = 0;
-static int settings_tog_hit_w = 0;
-static int settings_tog_hit_y[SETTINGS_MAX_TOGGLES];
-static int settings_tog_id[SETTINGS_MAX_TOGGLES];
-
-static int settings_res_hit_x = 0;
-static int settings_res_hit_y[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-static int settings_res_hit_count = 0;
-static int settings_res_hit_h = 0;
-
-// Sub-button hit boxes for the GamerOS Update view switch.
-static int settings_view_hit_x = 0;
-static int settings_view_hit_y = 0;
-static int settings_view_hit_w = 0;
-static int settings_view_hit_h = 0;
-static int settings_view_hit_gap = 0;
-
-// Rows the changelog viewer actually rendered last frame; the wheel handler
-// scrolls by this rather than recomputing a viewport size of its own.
 
 #define EXPLORER_MAX_ENTRIES 14
 // "This PC" renders one block per volume in the style of a Windows drive list:
@@ -366,7 +288,7 @@ static file_t* gos_fs_create_file(const char* gos_path) {
 }
 
 static int taskbar_clock_width(void) {
-    int time_chars = setting_show_seconds ? 8 : 5; // HH:MM:SS or HH:MM
+    int time_chars = settings_app_show_seconds() ? 8 : 5; // HH:MM:SS or HH:MM
     int date_chars = 10; // DD/MM/YYYY
     return ((time_chars + 1 + date_chars) * FONT_CW) + 8;
 }
@@ -402,10 +324,12 @@ typedef struct {
     int clock_x, clock_y, clock_w;
 } dock_layout_t;
 
+// The taskbar's shape and density are user choices owned by the Settings app
+// (src/ui/apps/settings); the shell only reads them back through these helpers.
 static void dock_compute_layout(dock_layout_t* d) {
     if (!d) return;
 
-    int taskbtn_w = setting_compact_mode ? TASKBTN_W : (TASKBTN_W + 16);
+    int taskbtn_w = settings_app_taskbar_compact() ? TASKBTN_W : (TASKBTN_W + 16);
     int clock_w = taskbar_clock_width();
 
     int inner_h = (TASKBTN_H > START_BTN_H) ? TASKBTN_H : START_BTN_H;
@@ -421,6 +345,27 @@ static void dock_compute_layout(dock_layout_t* d) {
     int task_count = 0;
     for (int i = 0; i < MAX_WINDOWS && task_count < max_count; i++) {
         if (windows[i].active) task_count++;
+    }
+
+    if (settings_app_taskbar_style() == TASKBAR_STYLE_WINDOWS) {
+        // Classic taskbar: a full-width bar flush with the bottom edge instead
+        // of a centred panel. The items keep the same left-to-right order, so
+        // Start stays on the left and the clock stays in the tray area.
+        d->x = 0;
+        d->y = (int)current_height - h;
+        if (d->y < 0) d->y = 0;
+        d->w = (int)current_width;
+        d->h = h;
+        d->start_x = DOCK_PAD_X;
+        d->start_y = d->y + DOCK_PAD_Y;
+        d->taskbtn_w = taskbtn_w;
+        d->taskbtn_y = d->y + DOCK_PAD_Y;
+        d->task_x = d->start_x + START_BTN_W + DOCK_GAP_ITEMS;
+        d->task_count = task_count;
+        d->clock_w = clock_w;
+        d->clock_x = d->w - DOCK_PAD_X - clock_w;
+        d->clock_y = d->y + DOCK_PAD_Y;
+        return;
     }
 
     int run_w = task_count * taskbtn_w;
@@ -504,8 +449,6 @@ static void launch_application_exe(const char* exe_name, int fallback_x, int fal
 static void launch_settings_tab(int tab_idx);
 void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color);
 void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color);
-static void settings_md_parse(const char* markdown);
-static void settings_md_ensure_loaded(void);
 void open_window(int type, int x, int y);
 
 static void explorer_refresh(void) {
@@ -586,7 +529,7 @@ static uint64_t bytes_to_gb_tenths(uint64_t bytes) {
     return (bytes * 10) >> 30;
 }
 
-static void append_unsigned(char* out, int out_size, int* pos, uint64_t v) {
+void append_unsigned(char* out, int out_size, int* pos, uint64_t v) {
     char tmp[24];
     int n = 0;
     if (v == 0) tmp[n++] = '0';
@@ -599,7 +542,7 @@ static void append_unsigned(char* out, int out_size, int* pos, uint64_t v) {
     }
 }
 
-static void append_text(char* out, int out_size, int* pos, const char* s) {
+void append_text(char* out, int out_size, int* pos, const char* s) {
     if (!s) return;
     while (*s && *pos + 1 < out_size) out[(*pos)++] = *s++;
 }
@@ -706,7 +649,7 @@ static void ensure_storage_initialized(void) {
     }
 
     storage_initialized = 1;
-    settings_md_loaded = 0;
+    settings_app_reload_changelog();
     debug_log_message("Boot: storage init complete");
     debug_present_boot_status();
 }
@@ -1023,7 +966,7 @@ static void initialize_storage_layout(void) {
     debug_log_message("Boot: seed system files");
     debug_present_boot_status();
     write_text_file("C:/GamerOS/System32/GAMEROS.INI",
-        "shell=GamerOS\nbuild=1.560\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
+        "shell=GamerOS\nbuild=1.570\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
     write_text_file("C:/Users/Admin/README.TXT", "Welcome to GamerOS user profile.\n");
     write_text_file(NOTEPAD_FILE_PATH, "GamerOS Notepad\n\nType here...\n");
 
@@ -1066,7 +1009,7 @@ static void initialize_storage_layout(void) {
     write_text_file("C:/Users/Admin/Downloads/README.TXT", "Downloads folder ready.\n");
     write_text_file("C:/Users/Admin/Saves/SAVE1.GOS", "Empty save slot 1\n");
     write_text_file("C:/Users/Admin/Saves/SAVE2.GOS", "Empty save slot 2\n");
-      write_text_file(settings_ui_changelog_md_path(), settings_ui_changelog_md_text());
+      write_text_file(settings_app_changelog_path(), settings_app_changelog_text());
           debug_log_message("Boot: storage layout ready");
     debug_present_boot_status();
     debug_log_message("Boot: build explorer drives");
@@ -1154,7 +1097,7 @@ void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
 static void draw_desktop_watermark(void) {
     const char* brand = "GamerOS 00m2";
     const char* tag = "Stability release";
-    const char* build = "Build 1.560";
+    const char* build = "Build 1.570";
 
     int brand_w = compact_text_width(brand);
     int tag_w = compact_text_width(tag);
@@ -1173,7 +1116,15 @@ static void draw_desktop_watermark(void) {
     int card_w = inner_w + pad_x * 2 + accent_w;
     int card_h = 26;
     int x = (int)current_width - card_w - 10;
-    int y = (int)current_height - DOCK_RESERVED_H - card_h - 10;
+    // Sit above whatever the taskbar actually is rather than above the space it
+    // might take: the Windows bar is flush with the bottom edge, so anchoring to
+    // the real dock geometry moves the card down with it and keeps the gap
+    // constant. The floating dock leaves room underneath it, so in that style
+    // the card can drop a little closer to the bottom edge.
+    dock_layout_t wm_dock;
+    dock_compute_layout(&wm_dock);
+    int y = wm_dock.y - card_h - 10;
+    if (settings_app_taskbar_style() == TASKBAR_STYLE_MACOS_DOCK) y += 6;
     if (x < 6) x = 6;
     if (y < 6) y = 6;
 
@@ -1575,39 +1526,9 @@ static void launch_application_exe(const char* exe_name, int fallback_x, int fal
 
 static void launch_settings_tab(int tab_idx) {
     launch_application_exe("SETTINGS.EXE", -1, -1);
-    if (tab_idx >= 0 && tab_idx < SETTINGS_TAB_COUNT) {
-        settings_tab = tab_idx;
-    }
+    // The page index belongs to the Settings app; the shell only asks for it.
+    settings_app_select_tab(tab_idx);
 }
-
-static void settings_md_parse(const char* markdown) {
-    md_parse(markdown);
-    if (md_was_truncated()) {
-        debug_log_message("Settings changelog: document truncated");
-    }
-}
-
-static void settings_md_ensure_loaded(void) {
-    if (settings_md_loaded) return;
-    settings_md_loaded = 1;
-
-    if (!storage_initialized) {
-        settings_md_parse(settings_ui_changelog_md_text());
-        return;
-    }
-
-    file_t* md_file = fs_open_file(settings_ui_changelog_md_path());
-    if (!md_file || md_file->size == 0) {
-        settings_md_parse(settings_ui_changelog_md_text());
-        return;
-    }
-
-    static uint8_t md_buffer[MAX_FILE_SIZE + 1];
-    memset(md_buffer, 0, sizeof(md_buffer));
-    fs_read_file(md_file, md_buffer, MAX_FILE_SIZE);
-    settings_md_parse((const char*)md_buffer);
-}
-
 
 static void startup_animation(void) {
     const char* title = "GamerOS";
@@ -1794,12 +1715,12 @@ void open_window(int type, int x, int y) {
                 windows[i].w = 210;
                 windows[i].h = 152;
             } else if (type == WIN_SETTINGS) {
-                strncpy(windows[i].title, settings_ui_panel_title(), 31);
+                strncpy(windows[i].title, settings_app_title(), 31);
                 windows[i].w = (int)current_width - 16;
                 windows[i].h = (int)current_height - DOCK_RESERVED_H - 22;
                 windows[i].x = 8;
                 windows[i].y = 6;
-                for (int si = 0; si < SETTINGS_TAB_COUNT; si++) settings_scroll_top[si] = 0;
+                settings_app_reset_scroll();
             } else if (type == WIN_EXPLORER) {
                 strncpy(windows[i].title, "File Explorer", 31);
                 windows[i].w = (int)current_width - 16;
@@ -1849,366 +1770,6 @@ void close_window(int idx) {
             }
         }
         active_window = -1;
-    }
-}
-
-// Draw a horizontal on/off switch.
-//
-// Renders a chamfered pill with a sliding knob: the track turns accent blue when
-// enabled, and the knob moves from the left (off) to the right (on).
-static void draw_toggle_switch(int x, int y, int is_on) {
-    const int tw = 20;
-    const int th = 9;
-    if (x < 0 || y < 0) return;
-
-    // Track.
-    uint8_t track = is_on ? XP_LBLUE : XP_LGRAY;
-    fill_chamfer_rect(x, y, tw, th, track);
-    draw_chamfer_rect(x, y, tw, th, XP_DGRAY);
-    // Highlight along the top edge for a slightly raised look.
-    fill_rect(x + 1, y + 1, tw - 2, 1, is_on ? XP_LBLUE : XP_WHITE);
-
-    // Knob slides across the track.
-    const int knob_w = 7;
-    const int knob_h = 5;
-    const int inset = 2;
-    int knob_x = is_on ? (x + tw - knob_w - inset) : (x + inset);
-    int knob_y = y + (th - knob_h) / 2;
-    fill_chamfer_rect(knob_x, knob_y, knob_w, knob_h, XP_WHITE);
-    draw_chamfer_rect(knob_x, knob_y, knob_w, knob_h, XP_DGRAY);
-}
-
-// Draw one labelled settings toggle row: label on the left, state text and a
-// right-aligned switch on the right. Returns the height consumed.
-static int draw_settings_toggle(int content_x, int content_w, int row_y,
-                                const char* label, int is_on, int max_chars) {
-    const int toggle_w = 20;
-    // Right-align the switch inside the content pane.
-    int toggle_x = content_x + content_w - toggle_w - 6;
-    if (toggle_x < content_x) toggle_x = content_x;
-
-    draw_compact_string_clipped(content_x + 6, row_y + 1, max_chars, label, XP_BLACK);
-
-    // State text sits just left of the switch.
-    const char* state = is_on ? "On" : "Off";
-    int state_x = toggle_x - 6 - ((int)strlen(state) * FONT_CW);
-    if (state_x > content_x + 6) {
-        draw_compact_string(state_x, row_y + 1, state, is_on ? XP_BLUE : XP_DGRAY);
-    }
-
-    draw_toggle_switch(toggle_x, row_y, is_on);
-    return 12;
-}
-
-// Section heading: coloured label plus a short accent tick and a faint rule.
-// Returns the Y at which the section body may start.
-// ---- Time zone dropdown ------------------------------------------------------
-// A combo box: one row showing the current selection with a drop arrow, which
-// expands to a scrolling list on click. The list is longer than the pane, so the
-// mouse wheel scrolls it. Row geometry is published for the click and wheel
-// handlers rather than recomputed there, which is how the other Settings
-// controls stay aligned.
-#define TZ_LIST_VISIBLE 8
-#define TZ_ROW_H       11
-#define TZ_LIST_BTN    11
-#define TZ_COMBO_H     13
-
-static int settings_tz_scroll = 0;
-static int settings_tz_open = 0;
-static int settings_tz_list_x = 0;
-static int settings_tz_list_w = 0;
-static int settings_tz_list_y = 0;
-static int settings_tz_list_bottom = 0;
-static int settings_tz_combo_y = 0;
-static int settings_tz_up_x = 0;
-static int settings_tz_up_y = 0;
-static int settings_tz_down_x = 0;
-static int settings_tz_down_y = 0;
-static int settings_tz_btn = TZ_LIST_BTN;
-
-// Short label for a zone, with the "UTC+05:30  " prefix stripped for readability.
-static const char* settings_tz_selected_label(int index) {
-    const tz_info_t* z = tz_get(index);
-    if (!z) return "Unknown";
-    const char* n = z->name;
-    while (*n == 'U' || *n == 'T' || *n == 'C' || *n == '+' || *n == '-' ||
-           (*n >= '0' && *n <= '9') || *n == ':') n++;
-    while (*n == ' ') n++;
-    return n;
-}
-
-// Solid triangle used for the drop arrow and the scroll buttons. The 8x8 font has
-// no such glyph, so it is drawn rather than printed.
-static void draw_tz_chevron_down(int x, int y, uint8_t color) {
-    for (int row = 0; row < 4; row++) {
-        int w = row * 2 + 1;
-        fill_rect(x - w / 2, y + row, w, 1, color);
-    }
-}
-
-static void draw_tz_chevron_up(int x, int y, uint8_t color) {
-    for (int row = 0; row < 4; row++) {
-        int w = (3 - row) * 2 + 1;
-        fill_rect(x - w / 2, y + row, w, 1, color);
-    }
-}
-
-static void settings_tz_clamp_scroll(int selected) {
-    int total = tz_count();
-    int max_scroll = total - TZ_LIST_VISIBLE;
-    if (max_scroll < 0) max_scroll = 0;
-    if (settings_tz_scroll < 0) settings_tz_scroll = 0;
-    if (settings_tz_scroll > max_scroll) settings_tz_scroll = max_scroll;
-    if (settings_tz_scroll > selected - 1) settings_tz_scroll = selected - 1;
-    if (settings_tz_scroll < selected - TZ_LIST_VISIBLE + 2) {
-        settings_tz_scroll = selected - TZ_LIST_VISIBLE + 2;
-    }
-    if (settings_tz_scroll < 0) settings_tz_scroll = 0;
-    if (settings_tz_scroll > max_scroll) settings_tz_scroll = max_scroll;
-}
-
-static void settings_tz_scroll_by(int delta) {
-    int total = tz_count();
-    int max_scroll = total - TZ_LIST_VISIBLE;
-    if (max_scroll < 0) max_scroll = 0;
-    settings_tz_scroll += delta;
-    if (settings_tz_scroll < 0) settings_tz_scroll = 0;
-    if (settings_tz_scroll > max_scroll) settings_tz_scroll = max_scroll;
-}
-
-// Draws the combo row, plus the list when open. Returns the height consumed.
-static int draw_settings_timezone_list(int cx, int cw, int y) {
-    int selected = tz_current_index();
-    settings_tz_clamp_scroll(selected);
-
-    int total = tz_count();
-    settings_tz_list_x = cx;
-    settings_tz_list_w = cw;
-    settings_tz_btn = TZ_LIST_BTN;
-    settings_tz_combo_y = y;
-    settings_tz_list_y = y + TZ_COMBO_H + 2;
-    settings_tz_list_bottom = settings_tz_list_y;
-
-    // ---- Combo row ---------------------------------------------------------
-    fill_chamfer_rect(cx, y, cw, TZ_COMBO_H, settings_tz_open ? XP_LBLUE : XP_WHITE);
-    draw_chamfer_rect(cx, y, cw, TZ_COMBO_H, XP_DGRAY);
-    fill_rect(cx + 1, y + 1, cw - 2, 2, XP_LBLUE);
-
-    char selected_buf[72];
-    selected_buf[0] = 0;
-    {
-        int lp = 0;
-        append_text(selected_buf, (int)sizeof(selected_buf), &lp,
-                    settings_tz_selected_label(selected));
-        append_text(selected_buf, (int)sizeof(selected_buf), &lp, "   (");
-        append_unsigned(selected_buf, (int)sizeof(selected_buf), &lp, total);
-        append_text(selected_buf, (int)sizeof(selected_buf), &lp, " zones)");
-    }
-    draw_compact_string_clipped(cx + 6, y + 3, (cw - 26) / FONT_CW, selected_buf, XP_BLACK);
-    draw_tz_chevron_down(cx + cw - 8, y + 4, XP_DGRAY);
-
-    if (!settings_tz_open) return TZ_COMBO_H + 2;
-
-    // ---- Expanded list -----------------------------------------------------
-    settings_tz_up_x = cx + cw - settings_tz_btn - 4;
-    settings_tz_up_y = settings_tz_list_y;
-    settings_tz_down_x = settings_tz_up_x;
-    settings_tz_down_y = settings_tz_list_y + settings_tz_btn + 2;
-
-    int list_y = settings_tz_list_y + settings_tz_btn + 4;
-    int list_h = TZ_LIST_VISIBLE * TZ_ROW_H + 4;
-    int frame_h = list_h + settings_tz_btn + 6;
-
-    fill_chamfer_rect(cx, settings_tz_list_y, cw, frame_h, XP_WHITE);
-    draw_chamfer_rect(cx, settings_tz_list_y, cw, frame_h, XP_DGRAY);
-
-    // Scroll buttons, only when there is somewhere to scroll.
-    if (total > TZ_LIST_VISIBLE) {
-        int bx = settings_tz_up_x + settings_tz_btn / 2;
-        fill_chamfer_rect(settings_tz_up_x, settings_tz_up_y, settings_tz_btn, settings_tz_btn, XP_LGRAY);
-        draw_chamfer_rect(settings_tz_up_x, settings_tz_up_y, settings_tz_btn, settings_tz_btn, XP_DGRAY);
-        draw_tz_chevron_up(bx, settings_tz_up_y + 3, XP_BLACK);
-
-        fill_chamfer_rect(settings_tz_down_x, settings_tz_down_y, settings_tz_btn, settings_tz_btn, XP_LGRAY);
-        draw_chamfer_rect(settings_tz_down_x, settings_tz_down_y, settings_tz_btn, settings_tz_btn, XP_DGRAY);
-        draw_tz_chevron_down(bx, settings_tz_down_y + 4, XP_BLACK);
-    }
-
-    fill_chamfer_rect(cx + 3, list_y, cw - 6, list_h, XP_WHITE);
-    draw_chamfer_rect(cx + 3, list_y, cw - 6, list_h, XP_DGRAY);
-
-    for (int i = 0; i < TZ_LIST_VISIBLE; i++) {
-        int idx = settings_tz_scroll + i;
-        if (idx >= total) break;
-        int ry = list_y + 2 + i * TZ_ROW_H;
-        if (idx == selected) {
-            fill_rect(cx + 4, ry, cw - 8, TZ_ROW_H - 1, XP_LBLUE);
-        }
-        draw_compact_string_clipped(cx + 7, ry + 1, (cw - 16) / FONT_CW,
-                                    settings_tz_selected_label(idx), XP_BLACK);
-    }
-
-    settings_tz_list_bottom = settings_tz_list_y + frame_h;
-    return (settings_tz_list_bottom - y) + 4;
-}
-
-// True when the cursor is over the combo row, or over the list while open.
-static int settings_tz_hit(int mx, int my) {
-    if (settings_tz_list_w <= 0) return 0;
-    if (mx < settings_tz_list_x || mx >= settings_tz_list_x + settings_tz_list_w) return 0;
-    if (my >= settings_tz_combo_y && my < settings_tz_combo_y + TZ_COMBO_H) return 1;
-    if (settings_tz_open && my >= settings_tz_list_y && my < settings_tz_list_bottom) return 1;
-    return 0;
-}
-
-void settings_tz_close(void) {
-    settings_tz_open = 0;
-}
-
-// Wheel scrolling over the open list.
-static int handle_settings_tz_wheel(int mx, int my, int8_t wheel_delta) {
-    if (!settings_tz_open || wheel_delta == 0) return 0;
-    if (!settings_tz_hit(mx, my)) return 0;
-    settings_tz_scroll_by(-(int)wheel_delta);
-    return 1;
-}
-
-// Click handling, published by the renderer above.
-static int handle_settings_tz_click(int mx, int my) {
-    if (settings_tz_list_w <= 0) return 0;
-    int total = tz_count();
-    int selected = tz_current_index();
-
-    int in_combo = (mx >= settings_tz_list_x &&
-                    mx < settings_tz_list_x + settings_tz_list_w &&
-                    my >= settings_tz_combo_y &&
-                    my < settings_tz_combo_y + TZ_COMBO_H);
-    if (in_combo) {
-        settings_tz_open = (uint8_t)!settings_tz_open;
-        settings_tz_clamp_scroll(tz_current_index());
-        return 1;
-    }
-
-    if (!settings_tz_open) return 0;
-    if (mx < settings_tz_list_x || mx >= settings_tz_list_x + settings_tz_list_w) return 0;
-    if (my < settings_tz_list_y || my >= settings_tz_list_bottom) return 0;
-
-    if (total > TZ_LIST_VISIBLE) {
-        if (mx >= settings_tz_up_x && mx < settings_tz_up_x + settings_tz_btn &&
-            my >= settings_tz_up_y && my < settings_tz_up_y + settings_tz_btn) {
-            settings_tz_scroll_by(-1);
-            return 1;
-        }
-        if (mx >= settings_tz_down_x && mx < settings_tz_down_x + settings_tz_btn &&
-            my >= settings_tz_down_y && my < settings_tz_down_y + settings_tz_btn) {
-            settings_tz_scroll_by(1);
-            return 1;
-        }
-    }
-
-    int list_y = settings_tz_list_y + settings_tz_btn + 6;
-    if (my < list_y) return 1;
-    int rel = (my - list_y) / TZ_ROW_H;
-    int idx = settings_tz_scroll + rel;
-    if (idx < 0 || idx >= total) return 1;
-
-    if (idx != selected) tz_set_current_index(idx);
-    settings_tz_open = 0;   // picking an entry closes the list
-    return 1;
-}
-
-
-static int draw_settings_section(int content_x, int content_w, int y, const char* title) {
-    if (y < 0) return y;
-    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, title, XP_BLUE);
-    int rule_y = y + 9;
-    fill_rect(content_x + 6, rule_y, 12, 1, XP_LBLUE);
-    fill_rect(content_x + 20, rule_y, content_w - 26, 1, XP_LGRAY);
-    return rule_y + 4;
-}
-
-// Quieter sub-heading for groups inside a section.
-static int draw_settings_subheader(int content_x, int content_w, int y, const char* title) {
-    if (y < 0) return y;
-    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, title, XP_DGRAY);
-    return y + 11;
-}
-
-// Label on the left, value right-aligned. Returns the height consumed.
-static int draw_settings_kv(int content_x, int content_w, int y,
-                            const char* key, const char* value) {
-    if (y < 0 || !key || !value) return 11;
-    draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, key, XP_DGRAY);
-
-    int vw = (int)strlen(value) * FONT_CW;
-    int vx = content_x + content_w - 6 - vw;
-    int kx = content_x + 6;
-    if (vx > kx + 54) {
-        draw_compact_string(vx, y, value, XP_BLACK);
-    } else {
-        // Not enough room to right-align; place after the key instead.
-        draw_compact_string_clipped(content_x + 50, y, (content_w - 56) / FONT_CW, value, XP_BLACK);
-    }
-    return 11;
-}
-
-// Backing card used to group related rows.
-static void draw_settings_card(int content_x, int content_w, int y, int height) {
-    if (height <= 0) return;
-    int cx = content_x + 4;
-    int cw = content_w - 12;
-    if (cw <= 4) return;
-    fill_chamfer_rect(cx, y, cw, height, XP_LGRAY);
-    draw_chamfer_rect(cx, y, cw, height, XP_DGRAY);
-    // Accent edge down the left side ties the group together.
-    fill_rect(cx + 1, y + 1, 2, height - 2, XP_LBLUE);
-}
-
-// Publish a toggle's clickable rectangle for handle_settings_click().
-static void settings_register_toggle(int x, int w, int y, int id) {
-    if (settings_tog_count >= SETTINGS_MAX_TOGGLES) return;
-    settings_tog_hit_x = x;
-    settings_tog_hit_w = w;
-    settings_tog_hit_y[settings_tog_count] = y;
-    settings_tog_id[settings_tog_count] = id;
-    settings_tog_count++;
-}
-
-// Render a group of toggles inside a card, registering each hit box.
-// Returns the vertical space consumed.
-static int draw_settings_toggle_group(int content_x, int content_w, int y,
-                                      const settings_toggle_desc_t* items, int count) {
-    const int ROW_H = 12;
-    if (count <= 0) return 0;
-    if (count > SETTINGS_MAX_TOGGLES) count = SETTINGS_MAX_TOGGLES;
-
-    int card_h = 6 + count * ROW_H;
-    draw_settings_card(content_x, content_w, y, card_h);
-
-    int tx = content_x + 10;
-    int tw = content_w - 22;
-    int label_chars = (content_w - 60) / FONT_CW;
-    if (label_chars < 4) label_chars = 4;
-
-    for (int i = 0; i < count; i++) {
-        int ry = y + 3 + i * ROW_H;
-        settings_register_toggle(content_x, content_w - 16, ry, items[i].id);
-        draw_settings_toggle(tx, tw, ry, items[i].label, items[i].is_on, label_chars);
-    }
-    return card_h + 8;
-}
-
-// Apply a toggle by id.
-static void settings_apply_toggle(int id) {
-    switch (id) {
-        case SETTINGS_TOG_COMPACT:    setting_compact_mode = (uint8_t)!setting_compact_mode; break;
-        case SETTINGS_TOG_SECONDS:    setting_show_seconds = (uint8_t)!setting_show_seconds; break;
-        case SETTINGS_TOG_DEBUG:      debug_overlay_enabled = (uint8_t)!debug_overlay_enabled; break;
-        case SETTINGS_TOG_BLUETOOTH:  setting_bluetooth = (uint8_t)!setting_bluetooth; break;
-        case SETTINGS_TOG_NETWORK:    setting_network = (uint8_t)!setting_network; break;
-        case SETTINGS_TOG_CONTRAST:   setting_high_contrast = (uint8_t)!setting_high_contrast; break;
-        case SETTINGS_TOG_LARGE_TEXT: setting_large_text = (uint8_t)!setting_large_text; break;
-        default: break;
     }
 }
 
@@ -2269,322 +1830,8 @@ void draw_window(window_t* win) {
         // Notepad renders itself; the shell only supplies the client rect.
         notepad_app_draw_content(x + 2, y + 2, w - 4, h - 4, is_active_window);
     } else if (win->type == WIN_SETTINGS) {
-        fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
-        draw_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_DGRAY);
-        int nav_x = x + 6;
-        int nav_y = y + 30;
-        int nav_w = 124;
-        int nav_h = h - 36;
-        fill_chamfer_rect(nav_x, nav_y, nav_w, nav_h, XP_LGRAY);
-        draw_chamfer_rect(nav_x, nav_y, nav_w, nav_h, XP_DGRAY);
-        fill_chamfer_rect(nav_x + 1, nav_y + 1, nav_w - 2, 18, XP_WHITE);
-        fill_rect(nav_x + 2, nav_y + 2, nav_w - 4, 2, XP_LBLUE);
-        draw_compact_string(nav_x + 8, nav_y + 7, settings_ui_panel_title(), XP_BLACK);
-
-        int content_x = nav_x + nav_w + 8;
-        int content_y = y + 30;
-        int content_w = w - (content_x - x) - 8;
-        int content_h = h - 36;
-        int body_y = content_y + 24;
-        fill_chamfer_rect(content_x, content_y, content_w, content_h, XP_WHITE);
-        draw_chamfer_rect(content_x, content_y, content_w, content_h, XP_DGRAY);
-        fill_chamfer_rect(content_x + 1, content_y + 1, content_w - 2, 20, XP_LGRAY);
-        fill_rect(content_x + 2, content_y + 2, content_w - 4, 2, XP_LBLUE);
-        draw_compact_string_clipped(content_x + 8, content_y + 7, (content_w - 16) / FONT_CW, "Modern Control Center", XP_BLACK);
-        int content_chars = (content_w - 12) / FONT_CW;
-        if (content_chars < 1) content_chars = 1;
-
-        int nav_bottom = nav_y + nav_h;
-        for (int i = 0; i < SETTINGS_TAB_COUNT; i++) {
-            int ty = nav_y + 28 + i * 20;
-            if (ty + 16 > nav_bottom) break;  // Window too short: stop drawing rows.
-            fill_chamfer_rect(nav_x + 5, ty - 1, nav_w - 10, 16, (settings_tab == i) ? XP_LBLUE : XP_WHITE);
-            draw_chamfer_rect(nav_x + 5, ty - 1, nav_w - 10, 16, XP_DGRAY);
-            if (settings_tab == i) {
-                fill_rect(nav_x + 7, ty + 1, 3, 12, XP_WHITE);
-            }
-            draw_compact_string_clipped(nav_x + 14, ty + 3, (nav_w - 24) / FONT_CW, settings_ui_tab_name(i), XP_BLACK);
-        }
-
-        // Reset per-frame hit-box registries. Only the active tab renders, so
-        // whatever registers below is exactly what is clickable this frame.
-        settings_tog_count = 0;
-        settings_res_hit_count = 0;
-
-        if (settings_tab == SETTINGS_TAB_SYSTEM) {
-            // ---- System toggles -------------------------------------------
-            settings_toggle_desc_t sys_toggles[] = {
-                { "Taskbar compact", setting_compact_mode, SETTINGS_TOG_COMPACT },
-                { "Clock seconds",   setting_show_seconds, SETTINGS_TOG_SECONDS },
-                { "Debug window",    debug_overlay_enabled, SETTINGS_TOG_DEBUG }
-            };
-
-            int ry = draw_settings_section(content_x, content_w, body_y, "System");
-            ry += draw_settings_toggle_group(content_x, content_w, ry, sys_toggles, 3);
-
-            // ---- Display info ---------------------------------------------
-            {
-                char cur[40];
-                char nat[40];
-                char be[48];
-                sprintf(cur, "%ux%u", (unsigned int)current_width, (unsigned int)current_height);
-                sprintf(nat, "%ux%u", (unsigned int)graphics_get_native_width(), (unsigned int)graphics_get_native_height());
-                sprintf(be, "%s", graphics_is_truecolor() ? "Framebuffer" : "VGA Safe");
-
-                ry = draw_settings_section(content_x, content_w, ry, "Display");
-                ry += draw_settings_kv(content_x, content_w, ry, "Resolution", cur);
-                ry += draw_settings_kv(content_x, content_w, ry, "Native", nat);
-                ry += draw_settings_kv(content_x, content_w, ry, "Backend", be);
-                ry += 6;
-            }
-
-            // ---- Resolution list ------------------------------------------
-            ry = draw_settings_subheader(content_x, content_w, ry, "Resolution");
-            {
-                int rx = content_x + 6;
-                int rw = content_w - 16;
-                settings_res_hit_x = rx;
-                settings_res_hit_h = 12;
-                for (int i = 0; i < display_profile_count(); i++) {
-                    if (ry + 12 > content_y + content_h) break;
-                    if (i >= 8) break;
-                    int selected = (setting_display_profile == i);
-                    int usable = display_profile_available(i);
-                    uint8_t bg = selected ? XP_LBLUE : XP_WHITE;
-                    fill_chamfer_rect(rx, ry, rw, 12, bg);
-                    draw_chamfer_rect(rx, ry, rw, 12, XP_DGRAY);
-                    // Selection marker.
-                    if (selected) fill_rect(rx + 2, ry + 2, 2, 8, XP_WHITE);
-                    draw_compact_string_clipped(rx + 7, ry + 2, (rw - 12) / FONT_CW,
-                                                g_display_profiles[i].label,
-                                                usable ? XP_BLACK : XP_DGRAY);
-                    settings_res_hit_y[settings_res_hit_count++] = ry;
-                    ry += 13;
-                }
-                ry += 6;
-            }
-
-            // ---- Storage ---------------------------------------------------
-            ry = draw_settings_section(content_x, content_w, ry, "Storage");
-            {
-                int sc = fs_storage_get_device_count();
-                char cnt[8];
-                cnt[0] = (char)('0' + (sc > 9 ? 9 : sc));
-                cnt[1] = 0;
-                ry += draw_settings_kv(content_x, content_w, ry, "Devices", cnt);
-                ry += draw_settings_kv(content_x, content_w, ry, "Volume", "System Disk");
-            }
-        } else if (settings_tab == SETTINGS_TAB_PERSONALIZATION) {
-            char res_line[40];
-            char scale_line[40];
-            sprintf(res_line, "%ux%u", (unsigned int)current_width, (unsigned int)current_height);
-            sprintf(scale_line, "x%d", get_ui_scale());
-
-            int ry = draw_settings_section(content_x, content_w, body_y, "Theme");
-            ry += draw_settings_kv(content_x, content_w, ry, "Theme", "GamerOS Modern");
-            ry += draw_settings_kv(content_x, content_w, ry, "Color profile", "Blue");
-            ry += 10;
-
-            ry = draw_settings_section(content_x, content_w, ry, "Layout");
-            ry += draw_settings_kv(content_x, content_w, ry, "Desktop", res_line);
-            ry += draw_settings_kv(content_x, content_w, ry, "UI scale", scale_line);
-            ry += draw_settings_kv(content_x, content_w, ry, "Taskbar", setting_compact_mode ? "Compact" : "Full");
-        } else if (settings_tab == SETTINGS_TAB_BLUETOOTH_DEVICES) {
-            settings_toggle_desc_t dev_toggles[] = {
-                { "Bluetooth", setting_bluetooth, SETTINGS_TOG_BLUETOOTH }
-            };
-
-            int ry = draw_settings_section(content_x, content_w, body_y, "Wireless");
-            ry += draw_settings_toggle_group(content_x, content_w, ry, dev_toggles, 1);
-            ry = draw_settings_section(content_x, content_w, ry, "Input");
-            ry += draw_settings_kv(content_x, content_w, ry, "Mouse", mouse_is_present() ? "PS/2 Compatible" : "Not detected");
-            ry += draw_settings_kv(content_x, content_w, ry, "Keyboard", "PS/2 Standard");
-            ry += 10;
-
-            ry = draw_settings_section(content_x, content_w, ry, "Display");
-            ry += draw_settings_kv(content_x, content_w, ry, "Output", "VGA / Framebuffer");
-        } else if (settings_tab == SETTINGS_TAB_NETWORK_INTERNET) {
-            settings_toggle_desc_t net_toggles[] = {
-                { "Wi-Fi", setting_network, SETTINGS_TOG_NETWORK }
-            };
-
-            int ry = draw_settings_section(content_x, content_w, body_y, "Connection");
-            ry += draw_settings_toggle_group(content_x, content_w, ry, net_toggles, 1);
-            ry = draw_settings_section(content_x, content_w, ry, "Status");
-            ry += draw_settings_kv(content_x, content_w, ry, "Network stack", setting_network ? "Enabled" : "Not enabled");
-            ry += draw_settings_kv(content_x, content_w, ry, "Adapter", setting_network ? "Connecting" : "Virtual profile");
-            ry += draw_settings_kv(content_x, content_w, ry, "IP address", setting_network ? "Pending" : "None");
-        } else if (settings_tab == SETTINGS_TAB_APPS) {
-            int ry = draw_settings_section(content_x, content_w, body_y, "Installed");
-            {
-                static const char* app_names[] = {
-                    "Notepad", "Settings", "File Explorer", "About GamerOS"
-                };
-                int count = (int)(sizeof(app_names) / sizeof(app_names[0]));
-                int card_h = 6 + count * 12;
-                draw_settings_card(content_x, content_w, ry, card_h);
-                for (int i = 0; i < count; i++) {
-                    int ary = ry + 3 + i * 12;
-                    // Bullet marker, then the display name.
-                    fill_rect(content_x + 9, ary + 4, 2, 2, XP_LBLUE);
-                    draw_compact_string_clipped(content_x + 15, ary + 2,
-                                                (content_w - 60) / FONT_CW, app_names[i], XP_BLACK);
-                }
-                ry += card_h + 10;
-            }
-            ry = draw_settings_section(content_x, content_w, ry, "Paths");
-            ry += draw_settings_kv(content_x, content_w, ry, "App root", "C:/GamerOS/Apps");
-            ry += draw_settings_kv(content_x, content_w, ry, "Manifests", "C:/GamerOS/Apps/Manifests");
-        } else if (settings_tab == SETTINGS_TAB_ACCOUNTS) {
-            int ry = draw_settings_section(content_x, content_w, body_y, "Account");
-            ry += draw_settings_kv(content_x, content_w, ry, "User", "Admin");
-            ry += draw_settings_kv(content_x, content_w, ry, "Profile", "C:/Users/Admin");
-            ry += 10;
-
-            ry = draw_settings_section(content_x, content_w, ry, "Session");
-            ry += draw_settings_kv(content_x, content_w, ry, "Mode", "Local");
-            ry += draw_settings_kv(content_x, content_w, ry, "Security level", "System");
-            ry += draw_settings_kv(content_x, content_w, ry, "Isolation", "Active");
-        } else if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
-            // Time section first, then language. Local time comes from the
-            // selected time zone rather than straight off the RTC.
-            uint32_t now_utc = get_unix_time();
-            int tz_idx = tz_current_index();
-            int tz_dst = (tz_offset_minutes_at(tz_idx, now_utc) !=
-                          (tz_get(tz_idx) ? tz_get(tz_idx)->std_offset_min : 0));
-
-            uint16_t ly = 0; uint8_t lmo = 1, ld = 1, lh = 0, lmi = 0, ls = 0;
-            tz_local_time(now_utc, &ly, &lmo, &ld, &lh, &lmi, &ls);
-
-            char tm[24];
-            sprintf(tm, "%02u:%02u:%02u", (unsigned int)lh, (unsigned int)lmi, (unsigned int)ls);
-            char tzline[24];
-            tz_format_offset(tzline, (int)sizeof(tzline), tz_idx, now_utc);
-
-            int ry = draw_settings_section(content_x, content_w, body_y, "Time");
-            ry += draw_settings_kv(content_x, content_w, ry, "Local time", tm);
-            ry += draw_settings_kv(content_x, content_w, ry, "Time zone",
-                                   settings_tz_selected_label(tz_idx));
-            ry += draw_settings_kv(content_x, content_w, ry, "UTC offset", tzline);
-            ry += draw_settings_kv(content_x, content_w, ry, "Daylight saving",
-                                   tz_dst ? "In effect" : "Inactive");
-            // The dropdown: combo row, expanding to a scrolling list.
-            // Advance from the published bottom edge rather than the helper's
-            // return value, so the sections below can never sit underneath the
-            // expanded list.
-            {
-                int tz_top = ry;
-                draw_settings_timezone_list(content_x, content_w, ry);
-                int tz_floor = settings_tz_list_bottom;
-                if (tz_floor <= tz_top) tz_floor = tz_top + TZ_COMBO_H + 2;
-                ry = tz_floor + 10;
-            }
-
-            ry = draw_settings_section(content_x, content_w, ry, "Language");
-            ry += draw_settings_kv(content_x, content_w, ry, "Display", "English (US)");
-            ry += draw_settings_kv(content_x, content_w, ry, "Region", "United States");
-        } else if (settings_tab == SETTINGS_TAB_GAMING) {
-            char gfx_line[48];
-            char res_line[40];
-            uint8_t bpp = graphics_get_bpp();
-            sprintf(gfx_line, "%s %u-bpp",
-                    graphics_is_truecolor() ? "True color" : "VGA indexed",
-                    (unsigned int)bpp);
-            sprintf(res_line, "%ux%u", (unsigned int)current_width, (unsigned int)current_height);
-
-            int ry = draw_settings_section(content_x, content_w, body_y, "Graphics");
-            ry += draw_settings_kv(content_x, content_w, ry, "Mode", gfx_line);
-            ry += draw_settings_kv(content_x, content_w, ry, "Resolution", res_line);
-            ry += draw_settings_kv(content_x, content_w, ry, "Backend",
-                                   graphics_is_truecolor() ? "Framebuffer" : "VGA Safe");
-            ry += 10;
-
-            ry = draw_settings_section(content_x, content_w, ry, "Input");
-            ry += draw_settings_kv(content_x, content_w, ry, "Latency mode", "Balanced");
-            ry += draw_settings_kv(content_x, content_w, ry, "Polling", "Bounded (64 max)");
-        } else if (settings_tab == SETTINGS_TAB_ACCESSIBILITY) {
-            settings_toggle_desc_t a11y_toggles[] = {
-                { "High contrast", setting_high_contrast, SETTINGS_TOG_CONTRAST },
-                { "Large text",     setting_large_text,    SETTINGS_TOG_LARGE_TEXT }
-            };
-
-            int ry = draw_settings_section(content_x, content_w, body_y, "Display");
-            ry += draw_settings_toggle_group(content_x, content_w, ry, a11y_toggles, 2);
-            ry = draw_settings_section(content_x, content_w, ry, "Text");
-            ry += draw_settings_kv(content_x, content_w, ry, "Font size", setting_large_text ? "Large" : "Standard");
-        } else if (settings_tab == SETTINGS_TAB_PRIVACY_SECURITY) {
-            int ry = draw_settings_section(content_x, content_w, body_y, "Security");
-            ry += draw_settings_kv(content_x, content_w, ry, "Auth model", "Enabled");
-            ry += draw_settings_kv(content_x, content_w, ry, "Isolation table", "Active");
-            ry += draw_settings_kv(content_x, content_w, ry, "Policy", "Standard");
-            ry += 10;
-
-            ry = draw_settings_section(content_x, content_w, ry, "Data");
-            ry += draw_settings_kv(content_x, content_w, ry, "User profile", "C:/Users/Admin");
-            ry += draw_settings_kv(content_x, content_w, ry, "App data", "C:/Users/Admin/AppData");
-            ry += draw_settings_kv(content_x, content_w, ry, "Telemetry", "None");
-        } else if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
-            serial_write_string("[render tab10]");
-            settings_md_ensure_loaded();
-            serial_write_string("[md loaded]");
-            int has_roadmap = (md_roadmap_start() >= 0);
-
-            // Segmented control switching between the changelog and roadmap.
-            int sub_x = content_x + 6;
-            int sub_y = content_y + 5;
-            int sub_gap = 6;
-            int sub_w = (content_w - 12 - sub_gap) / 2;
-            int sub_h = 15;
-            if (sub_w < 56) sub_w = 56;
-            settings_view_hit_x = sub_x;
-            settings_view_hit_y = sub_y;
-            settings_view_hit_w = sub_w;
-            settings_view_hit_h = sub_h;
-            settings_view_hit_gap = sub_gap;
-
-            {
-                const char* seg_labels[2] = { "Changelog", "Roadmap" };
-                for (int i = 0; i < 2; i++) {
-                    int bx = sub_x + i * (sub_w + sub_gap);
-                    int active = (settings_update_view == i);
-                    fill_chamfer_rect(bx, sub_y, sub_w, sub_h, active ? XP_LBLUE : XP_LGRAY);
-                    draw_chamfer_rect(bx, sub_y, sub_w, sub_h, XP_DGRAY);
-                    if (active) fill_rect(bx + 1, sub_y + 1, sub_w - 2, 2, XP_WHITE);
-                    int chars = (sub_w - 10) / FONT_CW;
-                    draw_compact_string_clipped(bx + 5, sub_y + 4, chars, seg_labels[i], XP_BLACK);
-                }
-            }
-
-            // Markdown viewer body. The module owns wrapping, block styling and
-            // the scroll clamp, so the shell only supplies the box.
-            int view_y = sub_y + sub_h + 5;
-            int view_h = content_y + content_h - view_y - 12;
-            if (view_h < 20) view_h = 20;
-            draw_settings_card(content_x, content_w, view_y, view_h);
-
-            int text_top = view_y + 4;
-            int body_h = view_h - 8;
-            if (body_h < 20) body_h = 20;
-
-            int scroll = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
-            serial_write_string("[md draw]");
-            md_draw(content_x, text_top, content_w - 8, body_h,
-                    settings_update_view, &scroll);
-            serial_write_string("[md drawn]");
-            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = scroll;
-
-            if (!has_roadmap && settings_update_view == MD_VIEW_ROADMAP) {
-                // No roadmap section in this changelog. Say so rather than
-                // duplicating the changelog, which made the toggle look broken.
-                draw_compact_string_clipped(content_x + 12, text_top + 2,
-                                            (content_w - 24) / FONT_CW,
-                                            "No roadmap in this changelog.", XP_DGRAY);
-            }
-
-            // Footer hint, pinned to the bottom of the pane.
-            draw_compact_string_clipped(content_x + 8, content_y + content_h - 10,
-                                        content_chars, "Scroll with mouse wheel", XP_DGRAY);
-        }
+        // Settings renders its own navigation rail and pages.
+        settings_app_draw_content(x + 4, y + 28, w - 8, h - 32, is_active_window);
     } else if (win->type == WIN_ABOUT) {
         fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
         draw_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_DGRAY);
@@ -2605,7 +1852,7 @@ void draw_window(window_t* win) {
                 (unsigned int)bpp,
                 graphics_is_truecolor() ? "RGBA" : "Indexed");
         draw_compact_string_clipped(content_x, content_y + 0, content_chars, "Version: 00m2", XP_BLACK);
-        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.560", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.570", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 24, content_chars, "Design language: GamerOS Modern", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 42, content_chars, "System", XP_DGRAY);
         draw_compact_string_clipped(content_x, content_y + 54, content_chars, "Kernel: x86_64", XP_BLACK);
@@ -2901,16 +2148,6 @@ static void layout_desktop_icons(void) {
 }
 
 
-static void draw_settings_icon(int x, int y) {
-    fill_chamfer_rect(x, y, DESKTOP_ICON_W, DESKTOP_ICON_H, XP_WHITE);
-    draw_chamfer_rect(x, y, DESKTOP_ICON_W, DESKTOP_ICON_H, XP_DGRAY);
-    fill_rect(x + 2, y + 2, 3, DESKTOP_ICON_H - 4, XP_LBLUE);
-    fill_rect(x + 8, y + 4, 4, 12, XP_DGRAY);
-    fill_rect(x + 4, y + 8, 12, 4, XP_DGRAY);
-    fill_rect(x + 6, y + 6, 8, 8, XP_LGRAY);
-    fill_rect(x + 8, y + 8, 4, 4, XP_WHITE);
-}
-
 static void draw_explorer_icon(int x, int y) {
     fill_chamfer_rect(x, y + 4, DESKTOP_ICON_W, DESKTOP_ICON_H - 4, XP_WHITE);
     draw_chamfer_rect(x, y + 4, DESKTOP_ICON_W, DESKTOP_ICON_H - 4, XP_DGRAY);
@@ -2922,7 +2159,7 @@ static void draw_explorer_icon(int x, int y) {
 
 static void draw_desktop_icon(int x, int y, int window_type) {
     if (window_type == WIN_SETTINGS) {
-        draw_settings_icon(x, y);
+        settings_app_draw_icon(x, y);
         return;
     } else if (window_type == WIN_EXPLORER) {
         draw_explorer_icon(x, y);
@@ -3079,22 +2316,31 @@ void draw_desktop(void) {
     
     // Dock: a floating rounded panel centred on the bottom edge and drawn over
     // the wallpaper, so it reads as its own surface rather than a bar glued to
-    // the screen edge.
+    // the screen edge. The Windows style swaps this for a square full-width bar
+    // flush with the bottom edge; the items keep the positions
+    // dock_compute_layout published, so both styles share one item pass below.
     dock_layout_t dock;
     dock_compute_layout(&dock);
 
-    // Soft drop shadow, built from concentric outlines so it fades with distance
-    // instead of reading as a hard second border.
-    for (int s = DOCK_SHADOW; s >= 1; s--) {
-        vga_draw_rounded_rect(dock.x - s, dock.y + s, (uint32_t)(dock.w + (s * 2)),
-                              (uint32_t)dock.h, (uint8_t)(DOCK_RADIUS + s), XP_SHADOW);
+    if (settings_app_taskbar_style() == TASKBAR_STYLE_WINDOWS) {
+        fill_chamfer_rect(dock.x, dock.y, dock.w, dock.h, XP_LGRAY);
+        draw_chamfer_rect(dock.x, dock.y, dock.w, dock.h, XP_DGRAY);
+        // Flat bevel along the top edge in place of the dock's rounded one.
+        fill_rect(dock.x + 1, dock.y + 1, dock.w - 2, 1, XP_WHITE);
+    } else {
+        // Soft drop shadow, built from concentric outlines so it fades with
+        // distance instead of reading as a hard second border.
+        for (int s = DOCK_SHADOW; s >= 1; s--) {
+            vga_draw_rounded_rect(dock.x - s, dock.y + s, (uint32_t)(dock.w + (s * 2)),
+                                  (uint32_t)dock.h, (uint8_t)(DOCK_RADIUS + s), XP_SHADOW);
+        }
+        vga_fill_rounded_rect(dock.x, dock.y, (uint32_t)dock.w, (uint32_t)dock.h,
+                              (uint8_t)DOCK_RADIUS, XP_LGRAY);
+        vga_draw_rounded_rect(dock.x, dock.y, (uint32_t)dock.w, (uint32_t)dock.h,
+                              (uint8_t)DOCK_RADIUS, XP_DGRAY);
+        // Bevel highlight along the top edge, inset past the corners.
+        fill_rect(dock.x + DOCK_RADIUS, dock.y + 1, dock.w - (DOCK_RADIUS * 2), 1, XP_WHITE);
     }
-    vga_fill_rounded_rect(dock.x, dock.y, (uint32_t)dock.w, (uint32_t)dock.h,
-                          (uint8_t)DOCK_RADIUS, XP_LGRAY);
-    vga_draw_rounded_rect(dock.x, dock.y, (uint32_t)dock.w, (uint32_t)dock.h,
-                          (uint8_t)DOCK_RADIUS, XP_DGRAY);
-    // Bevel highlight along the top edge, inset past the corners.
-    fill_rect(dock.x + DOCK_RADIUS, dock.y + 1, dock.w - (DOCK_RADIUS * 2), 1, XP_WHITE);
 
     // Start button. The flag sits in its own gutter and the label is centred
     // in the space that remains, so the text cannot spill past the border.
@@ -3178,7 +2424,7 @@ void draw_desktop(void) {
     datetime_str[3] = (char)('0' + ((minute / 10) % 10));
     datetime_str[4] = (char)('0' + (minute % 10));
     int datetime_len = 5;
-    if (setting_show_seconds) {
+    if (settings_app_show_seconds()) {
         datetime_str[5] = ':';
         datetime_str[6] = (char)('0' + ((second / 10) % 10));
         datetime_str[7] = (char)('0' + (second % 10));
@@ -3218,92 +2464,6 @@ static int find_top_window_at(int32_t mx, int32_t my) {
     return -1;
 }
 
-static int handle_settings_click(window_t* win, int32_t mx, int32_t my) {
-    int pane_x = win->x + 4;
-    int pane_y = win->y + 28;
-    int pane_w = win->w - 8;
-    int pane_h = win->h - 32;
-  if (mx < pane_x || mx >= pane_x + pane_w || my < pane_y || my >= pane_y + pane_h) {
-          return 0;
-      }
-
-      // Time zone dropdown, only meaningful on the Time & Language tab.
-      if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
-          if (handle_settings_tz_click(mx, my)) return 1;
-          // A click anywhere else in the content pane dismisses the list, the
-          // way a combo box behaves.
-          settings_tz_close();
-      }
-
-
-    int nav_x = win->x + 6;
-    int nav_y = win->y + 30;
-    int nav_w = 124;
-    int nav_row_h = 20;
-    // Must match draw_window(): the first nav row is drawn at nav_y + 28.
-    int nav_start_y = nav_y + 28;
-    if (mx >= nav_x + 5 && mx < nav_x + nav_w - 5 &&
-        my >= nav_start_y && my < nav_start_y + SETTINGS_TAB_COUNT * nav_row_h) {
-        int tab_idx = (my - nav_start_y) / nav_row_h;
-        if (tab_idx >= 0 && tab_idx < SETTINGS_TAB_COUNT) {
-            settings_tab = tab_idx;
-            return 1;
-        }
-    }
-
-    int content_x = nav_x + nav_w + 8;
-    int content_y = win->y + 30;
-    int content_w = win->w - (content_x - win->x) - 8;
-    (void)content_x;
-    (void)content_y;
-    (void)content_w;
-
-    // Toggles are registered by whichever tab is on screen, so a single loop
-    // covers System, Devices, Network and Accessibility without per-tab
-    // geometry duplicated here.
-    for (int i = 0; i < settings_tog_count; i++) {
-        int ty = settings_tog_hit_y[i];
-        if (mx >= settings_tog_hit_x && mx < settings_tog_hit_x + settings_tog_hit_w &&
-            my >= ty && my < ty + 12) {
-            settings_apply_toggle(settings_tog_id[i]);
-            return 1;
-        }
-    }
-
-    // Segmented control inside GamerOS Update, using the published geometry.
-    if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE && settings_view_hit_h > 0) {
-        if (my >= settings_view_hit_y && my < settings_view_hit_y + settings_view_hit_h) {
-            for (int seg = 0; seg < 2; seg++) {
-                int bx = settings_view_hit_x + seg * (settings_view_hit_w + settings_view_hit_gap);
-                if (mx >= bx && mx < bx + settings_view_hit_w) {
-                    if (settings_update_view != seg) {
-                        settings_update_view = seg;
-                        settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = 0;
-                    }
-                    return 1;
-                }
-            }
-        }
-    }
-
-    if (settings_tab == SETTINGS_TAB_SYSTEM) {
-        int list_w = win->w - (settings_res_hit_x - win->x) - 8;
-        for (int i = 0; i < settings_res_hit_count; i++) {
-            int ry = settings_res_hit_y[i];
-            if (mx >= settings_res_hit_x && mx < settings_res_hit_x + list_w &&
-                my >= ry && my < ry + settings_res_hit_h) {
-                if (!display_profile_available(i)) {
-                    raise_runtime_error("Display Error", "This profile needs framebuffer mode.");
-                    return 1;
-                }
-                setting_display_profile = i;
-                apply_display_profile();
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
 
 static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
     if (!win) return 0;
@@ -3374,47 +2534,6 @@ static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
             } else if (path_has_extension(explorer_entries[i], ".gosapp")) {
                 raise_runtime_error("Manifest Info", path_basename(explorer_entries[i]));
             }
-            return 1;
-        }
-    }
-    return 0;
-}
-
-
-static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t wheel_delta) {
-    if (!win || wheel_delta == 0) return 0;
-    int nav_x = win->x + 6;
-    int nav_w = 124;
-    int content_x = nav_x + nav_w + 8;
-    int content_y = win->y + 30;
-    int content_w = win->w - (content_x - win->x) - 8;
-    int content_h = win->h - 36;
-      if (mx < content_x || mx >= content_x + content_w || my < content_y || my >= content_y + content_h) {
-          return 0;
-      }
-
-      // The time zone combo scrolls under the wheel before the tab tries
-      // anything else, so the list moves instead of the page.
-      if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
-          if (handle_settings_tz_wheel(mx, my, wheel_delta)) return 1;
-      }
-
-
-    if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
-        settings_md_ensure_loaded();
-        // Same box the renderer uses, so the clamp cannot drift from the pixels.
-        int sub_y = content_y + 5;
-        int sub_h = 15;
-        int view_y = sub_y + sub_h + 5;
-        int view_h = content_y + content_h - view_y - 12;
-        if (view_h < 20) view_h = 20;
-        int body_h = view_h - 8;
-        if (body_h < 20) body_h = 20;
-
-        int scroll = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
-        int next = md_scroll_by(content_w - 8, settings_update_view, scroll, -wheel_delta);
-        if (next != scroll) {
-            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = next;
             return 1;
         }
     }
@@ -3598,7 +2717,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
                 RETURN_MOUSE();
             }
             window_t* focused = &windows[active_window];
-            if (focused->type == WIN_SETTINGS && handle_settings_click(focused, mx, my)) {
+            if (focused->type == WIN_SETTINGS && settings_app_handle_click(mx, my)) {
                 RETURN_MOUSE();
             }
             if (focused->type == WIN_EXPLORER && handle_explorer_click(focused, mx, my)) {
@@ -3710,7 +2829,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             if (hovered->type == WIN_NOTEPAD) {
                 (void)notepad_app_handle_wheel(wheel_delta);
             } else if (hovered->type == WIN_SETTINGS) {
-                (void)handle_settings_wheel(hovered, mx, my, wheel_delta);
+                (void)settings_app_handle_wheel(mx, my, wheel_delta);
             }
         }
     }
@@ -3805,6 +2924,44 @@ file_t* shell_fs_create(const char* gos_path) {
 
 void shell_raise_error(const char* title, const char* message) {
     raise_runtime_error(title, message);
+}
+
+// --- Shell state an app configures ------------------------------------------
+// The Settings app owns the preferences; the shell owns the surfaces they drive,
+// so each side reads the other through an accessor rather than a shared static.
+
+int shell_debug_overlay_enabled(void) {
+    return debug_overlay_enabled ? 1 : 0;
+}
+
+void shell_set_debug_overlay(int enabled) {
+    debug_overlay_enabled = (uint8_t)(enabled ? 1 : 0);
+}
+
+int shell_ui_scale(void) {
+    return get_ui_scale();
+}
+
+int shell_display_profile_count(void) {
+    return display_profile_count();
+}
+
+int shell_display_profile_available(int idx) {
+    return display_profile_available(idx);
+}
+
+const char* shell_display_profile_label(int idx) {
+    if (idx < 0 || idx >= display_profile_count()) return "Unknown";
+    return g_display_profiles[idx].label;
+}
+
+int shell_display_profile_current(void) {
+    return setting_display_profile;
+}
+
+void shell_set_display_profile(int idx) {
+    setting_display_profile = idx;
+    apply_display_profile();
 }
 
 void kernel_main(multiboot_info_t* mb_info) {
@@ -4011,384 +3168,3 @@ int apps_resolve_launch(const char* exe_name, int* out_win_type, int* out_x, int
     if (out_y) *out_y = desc->launch_y;
     return 1;
 }
-
-// ============================================================================
-// UI String Helper Stubs (for missing component headers)
-// ============================================================================
-
-
-
-
-
-static const char* settings_ui_panel_title(void) {
-    return "Settings";
-}
-
-static const char* settings_ui_tab_name(int tab_idx) {
-    static const char* tabs[SETTINGS_TAB_COUNT] = {
-        "System",
-        "Devices",
-        "Network",
-        "Personalization",
-        "Apps",
-        "Accounts",
-        "Time & Language",
-        "Gaming",
-        "Accessibility",
-        "Privacy",
-        "GamerOS Update"
-    };
-    if (tab_idx < 0 || tab_idx >= SETTINGS_TAB_COUNT) return "Unknown";
-    return tabs[tab_idx];
-}
-
-static const char* settings_ui_changelog_md_path(void) {
-    return "C:/GamerOS/CHANGELOG.md";
-}
-
-static const char* settings_ui_changelog_md_text(void) {
-    return            "# GamerOS Changelog (2026-10-11)\n"
-           "\n"
-           "Build 1.550 takes the shell rendered by 1.520 and repairs how text is drawn, then\n"
-           "rebuilds the four always-visible surfaces — taskbar, Start menu, desktop watermark\n"
-           "and boot screen — on top of that fix.\n"
-           "\n"
-           "## Release\n"
-           "- Version: `00m2`\n"
-           "- Build: `1.550` (in progress)\n"
-           "- Date: `2026-10-11`\n"
-           "- Status: **Unreleased.** Work in progress; still being verified.\n"
-           "\n"
-           "## Critical — Triple Fault Opening the Start Menu\n"
-           "\n"
-           "- **Fixed a triple fault that killed the guest the moment the Start button was\n"
-           "  clicked.** `boot.asm` enabled `CR4.PAE` but never set `CR4.OSFXSR` (bit 9) or\n"
-           "  `CR4.OSXMMEXCPT` (bit 10) before entering long mode. In IA-32e, executing an\n"
-           "  SSE instruction with `OSFXSR` clear raises `#UD`. Because the IDT is not\n"
-           "  populated for these faults, that `#UD` became `#GP` -> `#DF` -> **triple\n"
-           "  fault**, and the CPU shut down. This is what VMware was reporting as\n"
-           "  \"a fault has occurred causing a virtual CPU to enter the shutdown state\".\n"
-           "- **This was a latent landmine, not a Start-menu bug.** Any GCC-generated SSE\n"
-           "  opcode anywhere in the kernel would have killed it. `-O2` emits `pxor` +\n"
-           "  `movaps` for any initialisation wider than a 64-bit store, so the moment a\n"
-           "  struct crossed 16 bytes the kernel would die. Growing\n"
-           "  `start_menu_metrics_t` from 5 to 10 fields pushed it to 40 bytes and tipped GCC\n"
-           "  into emitting `pxor %xmm0,%xmm0` at the top of `draw_start_menu()` — which is\n"
-           "  why the crash appeared to belong to the Start menu.\n"
-           "- **Diagnosed from QEMU's exception trace**, not guessed: `-d int,cpu_reset` gave\n"
-           "  the sequence `#UD -> #GP(0x32) -> #DF -> Triple fault` at `RIP=0x109e00`, which\n"
-           "  `addr2line` resolved to `draw_start_menu()` at `main.c:2663`, and `info\n"
-           "  registers` showed `CR4=0x20` (PAE only, `OSFXSR` clear) against a `pxor`\n"
-           "  instruction that cannot fault for any other reason.\n"
-           "- **Verified fixed under QEMU 11.0.1:** opening the Start menu now raises **zero\n"
-           "  exceptions and zero triple faults**, and the VM stays `running`.\n"
-           "- The time zone dropdown and its mouse-wheel scrolling were confirmed working\n"
-           "  under VMware. Wheel input could not be exercised through QEMU's monitor at\n"
-           "  all — `mouse_button` only exposes left, middle and right, with no wheel\n"
-           "  command — so that path was verified on real hardware input instead.\n"
-           "\n"
-           "## Time Zones\n"
-           "\n"
-           "- **Added a Time section to Settings, replacing the read-only \"Date & time\"\n"
-           "  rows.** The Time & Language tab now shows the local time for the selected zone,\n"
-           "  the zone name, its UTC offset, and whether daylight saving is currently in\n"
-           "  effect.\n"
-           "- **Added a scrollable time zone dropdown with 74 zones.** It is a combo box: a\n"
-           "  single row showing the current zone, a `(74 zones)` count and a drop arrow,\n"
-           "  which expands to a windowed list of eight rows. The list is longer than the\n"
-           "  pane, so the mouse wheel scrolls it; up/down buttons are shown as well and\n"
-           "  only when there is somewhere to scroll. Clicking an entry applies it and\n"
-           "  closes the list, and clicking anywhere else in the pane dismisses it, the way\n"
-           "  a combo box behaves. Row geometry is published by the renderer and read back\n"
-           "  by the click and wheel handlers, the same way the other Settings controls stay\n"
-           "  aligned.\n"
-           "- **The selection changes the clock.** The taskbar clock and the Settings time\n"
-           "  now read from the selected zone instead of taking raw RTC time. The RTC is\n"
-           "  treated as UTC; local time is UTC plus the zone offset, with daylight saving\n"
-           "  applied where the zone observes it. Verified end to end: forcing Kiritimati\n"
-           "  (+14:00) at 15:14 UTC produced 05:14 local the following day.\n"
-           "- **Daylight saving is implemented, not just offsets.** Four transition rules\n"
-           "  are modelled: US/Canada (2nd Sunday March to 1st Sunday November at 02:00\n"
-           "  local), European (last Sunday March to last Sunday October at 01:00 UTC),\n"
-           "  Australian (1st Sunday October to 1st Sunday April), and New Zealand (last\n"
-           "  Sunday September to 1st Sunday April). Zones that do not observe it — Hawaii,\n"
-           "  Arizona, Moscow, India, Japan, China — hold a constant offset all year.\n"
-           "- **Fixed southern-hemisphere daylight saving covering the wrong months.** The\n"
-           "  daylight window spans New Year, and testing against Sydney exposed that\n"
-           "  testing \"at or after this year's start OR before next year's end\" marked the\n"
-           "  whole April-September gap as daylight time. The window is now anchored to the\n"
-           "  previous year whenever the instant falls in the January-April tail.\n"
-           "- **Verified with 17 timezone assertions** covering both hemispheres in summer\n"
-           "  and winter, non-observing zones holding steady year round, and the US\n"
-           "  transitions to the minute: one minute before spring-forward is still EST, and\n"
-           "  the transition instant is already EDT.\n"
-           "- **The selection persists** to `C:/GamerOS/Registry/TIMEZONE.INI` and is reloaded\n"
-           "  at boot, so the clock keeps the chosen zone across a restart.\n"
-           "\n"
-           "## Correctness\n"
-           "\n"
-           "- **Fixed `sprintf` having no field-width or zero-padding support.** The parser\n"
-           "  jumped straight from `%` to the conversion character, so any specifier with a\n"
-           "  width such as `%02u` fell into the default branch and emitted the format text\n"
-           "  literally instead of the number. The Time settings rendered\n"
-           "  `\\x02u:\\x02u:\\x02u` where the time should have been. `sprintf` now parses a\n"
-           "  zero-pad flag and a width, and applies them to `%d`, `%i`, `%u`, `%x`, `%X`,\n"
-           "  and `%s`, with the sign counted toward the width for signed conversions.\n"
-           "  Anything else in the OS that used `%02u` was silently broken in the same way.\n"
-           "- **Fixed the keyboard and mouse starving each other on the PS/2 controller.** The\n"
-           "  keyboard and the auxiliary mouse share one output buffer, and status bit 5 says\n"
-           "  which device a pending byte belongs to. Both poll loops drained on bit 0 alone,\n"
-           "  so `mouse_poll()`, running first each frame, discarded nearly every keystroke\n"
-           "  before `keyboard_poll()` saw it: tracing raw scancodes showed one keypress\n"
-           "  surviving a 60-key burst. Each loop now stops at the device boundary. Typing\n"
-           "  did not work at all before this.\n"
-           "- **Fixed Notepad's line-number gutter clipping.** 22px held two digits, so every\n"
-           "  number from line 100 up lost its leading digit; it is now 30px for 160 rows.\n"
-           "\n"
-           "## Application modularisation\n"
-           "\n"
-           "- **Split Notepad out of `main.c` into its own module.** ~340 lines of editing,\n"
-           "  rendering, storage and input now live in `src/ui/apps/notepad/` behind a small\n"
-           "  public interface. `src/ui/shell/shell_api.h` defines what an app may ask of the\n"
-           "  shell: bring the volume up, test readiness, open or create a `GOS:/` file, raise\n"
-           "  an error. Those implementations are thin, so an app never needs to know whether\n"
-           "  storage is on ATA or in RAM. The shell keeps window chrome, focus and the input\n"
-           "  pump; an app supplies its title, icon, renderer and event handlers and never\n"
-           "  touches a `window_t`. This is a source-layout change, not a new on-disk format.\n"
-           "  File Explorer and Settings are still embedded in `main.c` and are next.\n"
-           "\n"
-           "## Build Verification\n"
-           "- Bumped the build number from `1.520` to `1.550`, keeping version `00m2`.\n"
-           "  Updated in the `GAMEROS.INI` written at boot, the Settings About page, the\n"
-           "  desktop watermark, and `README.md`.\n"
-           "- Compile-verified: zero warnings, zero errors, zero undefined symbols.\n"
-           "- Booted under QEMU and confirmed the desktop shell renders, including the\n"
-           "  desktop icons, taskbar, and watermark.\n"
-           "- **Storage verified against a real 12 GiB disk** attached on the IDE channel,\n"
-           "  across three consecutive boots:\n"
-           "  `Storage: ATA medium, capacity 12 GB, LBA48=no, model=QEMU HARDDISK`, then\n"
-           "  `files=29 dirs=27 used=21 KB` — identical on every run, proving the volume\n"
-           "  reloads from the medium rather than being rebuilt in RAM.\n"
-           "- File Explorer was driven through the QEMU monitor to confirm the drive block\n"
-           "  and the details columns render, and each captured frame was checked for\n"
-           "  exceptions: `triple faults: 0` throughout.\n"
-           "- Notepad was verified end to end after being split into its own module: launched\n"
-           "  from the desktop icon, typed into, caret moved with the arrow/Home/End keys, the\n"
-           "  modified indicator flipping between `Modified` and `Saved`, saved with the\n"
-           "  toolbar button, and re-read after a full reboot with the text intact. Storage\n"
-           "  stayed at `files=30 dirs=27` across both boots and `triple faults: 0`.\n"
-           "\n"
-           "## Storage\n"
-           "\n"
-           "- **The filesystem is now backed by a real disk instead of RAM.** `ata_pio_init()`\n"
-           "  had been short-circuited with `g_ata_available = 0; return 0;`, leaving the\n"
-           "  real probe as unreachable code, so every boot started from a wiped 2 MiB RAM\n"
-           "  disk. The driver is enabled and storage now persists across reboots.\n"
-           "- **Rewrote the ATA PIO driver.** It probes all four channel/device pairs rather\n"
-           "  than assuming the primary master exists, runs IDENTIFY DEVICE, and reads real\n"
-           "  capacity from words 60/61, falling back to the LBA48 words 100-103 when the\n"
-           "  28-bit field signals a larger disk. The model and serial strings are decoded\n"
-           "  from IDENTIFY words 27-46 and 10-19, correcting for the byte-swapped encoding.\n"
-           "- **Implemented LBA48.** Disks above the 28-bit ceiling of 128 GiB need the\n"
-           "  extended command set, so reads and writes use `0x24`/`0x34` with the high LBA\n"
-           "  byte programmed through the drive/head register when the request exceeds\n"
-           "  `0x0FFFFFFF`.\n"
-           "- **Fixed the probe handshake that made detection fail.** The driver bailed out\n"
-           "  if the drive never asserted DRQ during the post-reset signature phase, which\n"
-           "  is legal and which the emulated controller does not do. That single `continue`\n"
-           "  was the entire reason detection returned \"no device\". It now logs the failure\n"
-           "  and falls through to IDENTIFY regardless.\n"
-           "- **The filesystem now starts at LBA 64**, so the MBR, partition table, and any\n"
-           "  backup GPT in the first sectors are never written. The superblock used to live\n"
-           "  at LBA 0, which would have destroyed the partition table on the first write.\n"
-           "- **Capacity is no longer hardcoded.** The old build always reserved\n"
-           "  `MAX_DISK_SECTORS 4096` (2 MiB) regardless of the medium and reported a fake\n"
-           "  `102400 MB`. The volume now spans whatever the drive reports.\n"
-           "- **Fixed files being recreated on every boot.** `MAX_FILENAME_LEN` was 40, and\n"
-           "  seeding writes paths such as `C:/GamerOS/Apps/Manifests/Notepad.gosapp`, which\n"
-           "  is *exactly* 40 characters. `strncpy(..., MAX_FILENAME_LEN - 1)` stored a\n"
-           "  truncated name, so the next boot's full path no longer matched it and\n"
-           "  `fs_create_file` appended a duplicate. Six over-length paths meant the volume\n"
-           "  gained six junk entries on every single boot, forever. The limit is now 64 and\n"
-           "  `fs_create_file` rejects over-long names outright rather than truncating them.\n"
-           "  Verified stable at `files=29 dirs=27` across three consecutive boots.\n"
-           "- **Stopped reserving 24 KiB of RAM per file.** `file_t` embedded a full\n"
-           "  `MAX_FILE_SIZE` buffer, so 32 slots cost 786 KB of BSS to hold data that\n"
-           "  belongs on the medium. File contents are read from the medium on demand;\n"
-           "  `files[]` is now 18 KB.\n"
-           "- **Files are allocated by real size, not a fixed 24 KiB reservation**, so the\n"
-           "  usage figure reflects actual occupancy. Added `fs_delete_file()` and\n"
-           "  `fs_delete_directory()`, and `fs_get_space_info()` for free/used accounting.\n"
-           "- **Raised the volume limits** to 256 files and 128 directories, with the on-disk\n"
-           "  tables resized to match and the format version bumped to `GFS3PIO` so any\n"
-           "  image from the older layout is cleanly reformatted rather than misread.\n"
-           "- **The volume now mounts during boot** instead of being deferred until the first\n"
-           "  app launch, so a boot log actually reports whether the medium was detected.\n"
-           "\n"
-           "## UI\n"
-           "\n"
-           "- **Turned the taskbar into a floating dock.** A full-width bar glued to the bottom\n"
-           "  edge is now a rounded panel inset from the sides and bottom, sized to its\n"
-           "  contents and centred, with the wallpaper showing through on all sides. Start,\n"
-           "  the task buttons and the clock live inside it, plus a soft drop shadow. The\n"
-           "  wallpaper now covers the full screen height, so no seam is left where the dock\n"
-           "  used to be, and window placement clamps against the dock's real footprint so the\n"
-           "  taller dock never overlaps window bottoms.\n"
-           "- Dock geometry comes from one `dock_compute_layout` call read by both the\n"
-           "  renderer and the hit tester, so the dock re-centring when windows open or close\n"
-           "  cannot leave click targets out of step with the pixels. The Start menu hangs off\n"
-           "  the dock's left edge instead of the screen corner.\n"
-           "- `vga_fill_rounded_rect` and `vga_draw_rounded_rect` were stubs that ignored\n"
-           "  `radius` and drew plain rectangles. They now round the corners for real,\n"
-           "  clipping to the screen and writing both the indexed and truecolour buffers.\n"
-           "\n"
-           "- **Added a Windows-style drive block to Explorer \"This PC\".** Each volume now\n"
-           "  shows its model, a usage bar, and a capacity line reading\n"
-           "  `11.9 GB free of 12 GB`, in place of a bare `C:` row. The bar is sized from\n"
-           "  measured bytes, and volumes under 1 GiB report in MB so a RAM-backed fallback\n"
-           "  does not render as `0 GB free`.\n"
-           "- **Added the Windows-style details view to File Explorer.** The entry list now\n"
-           "  carries `Name | Date modified | Type | Size` with header separators, matching\n"
-           "  the Explorer details layout. Name absorbs the leftover width, and the columns\n"
-           "  collapse to `Name | Type | Size` when the window is too narrow to show a\n"
-           "  readable date.\n"
-           "- **Files now carry a modification time.** Added a closed-form Gregorian\n"
-           "  date conversion to the RTC driver (`get_unix_time` / `unix_to_calendar`), so\n"
-           "  no 64-bit division or `libgcc` helper is needed. `fs_write_file` stamps each\n"
-           "  write, and the timestamp is persisted in what used to be padding in the file\n"
-           "  record — the record stays 88 bytes, so images written before this field\n"
-           "  existed still load (with `mtime` of 0).\n"
-           "- **Type is derived from the extension** the way Explorer labels it:\n"
-           "  `.EXE` is Application, `.GOSAPP` an Application manifest, `.DLL` an\n"
-           "  Application extension, `.INI` Configuration Settings, `.REG` a Registry File,\n"
-           "  `.LST` a System File, and folders report as File folder with a blank size.\n"
-           "- **Sizes are humanised** to `0 bytes`, `1.2 KB`, `3.4 MB`, computed with\n"
-           "  shifts rather than division for the same libgcc reason.\n"
-           "\n"
-           "- **Fixed the UI text renderer, which was shearing every letter.** `draw_compact_string()`\n"
-           "  sampled only the **left 6 of the 8 columns** of each glyph\n"
-           "  (`row_data & (0x80 >> col)` for `col` 0-5) while advancing the pen by only 6px.\n"
-           "  The right side of every glyph was discarded and the following glyph then\n"
-           "  overdrew 2px of it, so compact text rendered as vertical smears across the\n"
-           "  whole shell — most visibly on the desktop watermark. It now samples all 8\n"
-           "  columns and advances 8px, the font's natural width.\n"
-           "- **Converted all 43 hardcoded 6px text-width computations** to `FONT_CW`. Any\n"
-           "  site left at 6 would have overflowed its panel by a third once the renderer\n"
-           "  started advancing 8. The one non-text use of `/ 6` — the wallpaper gradient\n"
-           "  band height — was deliberately left alone.\n"
-           "- **Rebuilt the taskbar.** The Start button was 52px wide, but its label needs\n"
-           "  40px plus the flag gutter, so the text spilled past the button border. It is\n"
-           "  now wide enough, with the label centred in the space left by the flag. The task\n"
-           "  strip moved off a hardcoded `x = 56` to a centred run between the Start button\n"
-           "  and the clock, which removes the large dead gap on wide displays. Task labels\n"
-           "  are now clamped to the button width instead of a fixed 8 characters, and the\n"
-           "  Start button shows a pressed state while the menu is open.\n"
-           "- **Rebuilt the Start menu.** The profile rail was 42px wide, but \"Admin\" needs\n"
-           "  40px at the corrected advance, so the label bled into the content column. The\n"
-           "  rail is now 56px, the panel is wider, and the avatar plus both labels are\n"
-           "  centred on the rail's own centre line. \"Launchpad\" is placed after the brand\n"
-           "  word using a measured gap rather than a magic `x + 74`.\n"
-           "- **Centralised the Start menu layout.** `rail_w`, `panel_x`, `panel_w`,\n"
-           "  `items_top` and the item count were duplicated between the renderer and the\n"
-           "  click handler — the same duplication that previously let click targets drift\n"
-           "  away from the pixels they were drawn at. They now come from a single\n"
-           "  `get_start_menu_metrics()`. The taskbar strip got the same treatment via\n"
-           "  `taskbar_strip_start()`.\n"
-           "- **Rebuilt the desktop watermark.** The build badge is right-aligned on the\n"
-           "  lower row, and the card is sized from measured text instead of hand-padded\n"
-           "  spaces that no longer lined up once the advance changed.\n"
-           "- **Rebuilt the loading screen.** The title was centred on the *screen* while\n"
-           "  being drawn inside a much narrower panel, so it sat outside the panel on any\n"
-           "  wide display; it is now anchored to the panel's content column. The \"Loading\"\n"
-           "  label was drawn across the spinner ring at the same `y` and overwrote the dots;\n"
-           "  it now sits centred beneath the ring. The panel was also enlarged and centred\n"
-           "  rather than positioned from the title's `y`.\n"
-           "\n"
-           "## Build and Tooling\n"
-           "\n"
-           "- **Raised the changelog viewer's line budget from 256 to 320** in `main.c`, and\n"
-           "  moved the matching cap in `tools/embed_changelog.py` to the same value. The\n"
-           "  two were separate hardcoded literals, so raising only one would have left the\n"
-           "  generator warning about a truncation the viewer no longer had.\n"
-           "\n"
-           "## Documentation\n"
-           "\n"
-           "- **Split the changelog per release.** Build `1.520` (2026-10-10) stays in\n"
-           "  `changelog_2026-10-10.md`; this file records build `1.550` (2026-10-11).\n"
-           "  `tools/embed_changelog.py` was repointed at this file so the in-OS viewer keeps\n"
-           "  showing the newest release.\n"
-           "\n"
-           "## Notes\n"
-           "\n"
-           "- The 1.520 notes recorded that the ISO had never been booted. It has now: the\n"
-           "  desktop shell, taskbar, and watermark were confirmed rendering under QEMU.\n"
-           "- The font fix is global. Every compact string in the OS is 33% wider than it\n"
-           "  was, which is why the four surfaces above were rebuilt rather than patched.\n"
-           "- Start-menu and taskbar hit boxes are now derived from the same metrics the\n"
-           "  renderer uses, so a future layout change cannot silently break clicking.\n"
-           "- **Known storage limitation: freed sectors are never reused.** Allocation is\n"
-           "  append-only, so deleting a file zeroes its sectors and frees the name, but the\n"
-           "  space is not returned to the pool. The volume therefore fills over many write\n"
-           "  cycles until it is reformatted. A free-run list or bitmap is needed to close\n"
-           "  that gap.\n"
-           "- **Only legacy ATA at port 0x1F0 is supported.** AHCI (SATA) and NVMe are not\n"
-           "  implemented, so a machine whose disk is on a modern controller will find no\n"
-           "  device and fall back to the RAM disk. Under QEMU the default IDE channel works;\n"
-           "  VMware VMs commonly default to NVMe or SATA and will need those drivers.\n"
-           "\n"
-           "## Planned\n"
-           "\n"
-           "### Kernel\n"
-           "\n"
-           "- **Populate a real IDT with exception handlers.** `IDT` still reads back as\n"
-           "  `0000000000000000 00000000`, so hardware interrupts work only because the\n"
-           "  firmware descriptor happens to be in place, and any fault triple-faults\n"
-           "  instead of reaching a handler. This is why the `CR4.OSFXSR` bug presented as\n"
-           "  an instant shutdown with no diagnostic at all.\n"
-           "- Add a panic path that prints the fault vector, error code and the registers\n"
-           "  QEMU captured, so a crash is diagnosable from the serial log.\n"
-           "- Replace the polled input loop with PIT/HPET timer-driven frame pacing.\n"
-           "- Add keyboard shortcuts: Alt+Tab window cycling, a Windows key, and Ctrl+Alt+Del.\n"
-           "\n"
-           "### Storage\n"
-           "\n"
-           "- Implement an AHCI (SATA) driver so VMware VMs without a legacy IDE controller\n"
-           "  can mount a real volume.\n"
-           "- Implement an NVMe driver over PCI for the same reason.\n"
-           "- Add a free-sector map so deleted space is reclaimed instead of leaked, and\n"
-           "  address the fragmentation the append-only allocator produces over time.\n"
-           "- Add a journal so an interrupted metadata write cannot corrupt the volume.\n"
-           "- Stop rewriting the whole file table on every write. `fs_save_metadata()`\n"
-           "  serialises all 256 records on each `fs_write_file()`, so saving a file costs\n"
-           "  the same whether the volume holds three files or three hundred.\n"
-           "- Add rename and move, and make `fs_delete_directory()` refuse non-empty\n"
-           "  directories instead of deleting the entry and orphaning its children.\n"
-           "- Raise the 24 KiB per-file cap in `MAX_FILE_SIZE`, and handle paths that\n"
-           "  exceed the 64-character `MAX_FILENAME_LEN` rather than rejecting them.\n"
-           "- Add a BIOS-style POST screen so storage detection and capacity are visible\n"
-           "  before the desktop loads, instead of only on the serial log.\n"
-           "\n"
-           "### Shell\n"
-           "\n"
-           "- Add Explorer sorting by column. The details view draws Name, Date modified,\n"
-           "  Type and Size, but only the zone dropdown is interactive so far; the reference\n"
-           "  layout shows a sort indicator on the header that does nothing yet.\n"
-           "- Expose create, rename and delete in the Explorer UI. The filesystem already\n"
-           "  has `fs_create_file`, `fs_delete_file` and `fs_delete_directory`; nothing\n"
-           "  calls them.\n"
-           "- Give Notepad open/save dialogs instead of the single fixed file path.\n"
-           "- Taskbar: window previews on hover, overflow grouping, and show-desktop.\n"
-           "- Visually confirm the loading screen; the desktop, taskbar, watermark, Start\n"
-           "  menu and Explorer have all been captured as rendered frames.\n"
-           "\n"
-           "### Settings and time\n"
-           "\n"
-           "- Persist Settings state so toggles survive a reboot instead of resetting.\n"
-           "- Allow the clock to be set. The RTC is read-only today, so the time zone can\n"
-           "  only shift the displayed time; nothing corrects a clock that has drifted.\n"
-           "- Cover the remaining daylight-saving rules. Iran, Chile, and Lord Howe Island\n"
-           "  are approximated by one of the four implemented rules rather than their real\n"
-           "  transitions.\n"
-           "- Remember each Settings tab's scroll position between visits.\n";
-}
-
