@@ -119,9 +119,7 @@ static uint8_t setting_large_text = 0;
 #define SETTINGS_TAB_COUNT 11
 static int settings_scroll_top[SETTINGS_TAB_COUNT] = {0};
 // The Settings changelog is parsed and drawn by src/ui/markdown/markdown.c.
-// Capacity of the Settings changelog viewer. The array is static BSS (122 bytes
-// per entry) and the view scrolls, so this is a size choice rather than a hard
-// limit; it was raised from 320 when the 1.550 notes outgrew it and the viewer
+static uint8_t settings_md_loaded = 0;
 // started silently dropping the tail.
 
 typedef enum {
@@ -1025,7 +1023,7 @@ static void initialize_storage_layout(void) {
     debug_log_message("Boot: seed system files");
     debug_present_boot_status();
     write_text_file("C:/GamerOS/System32/GAMEROS.INI",
-        "shell=GamerOS\nbuild=1.550\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
+        "shell=GamerOS\nbuild=1.560\nsystem=C:/GamerOS/System32\napps=C:/GamerOS/Apps\nregistry=C:/GamerOS/Registry\n");
     write_text_file("C:/Users/Admin/README.TXT", "Welcome to GamerOS user profile.\n");
     write_text_file(NOTEPAD_FILE_PATH, "GamerOS Notepad\n\nType here...\n");
 
@@ -1156,7 +1154,7 @@ void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color) {
 static void draw_desktop_watermark(void) {
     const char* brand = "GamerOS 00m2";
     const char* tag = "Stability release";
-    const char* build = "Build 1.550";
+    const char* build = "Build 1.560";
 
     int brand_w = compact_text_width(brand);
     int tag_w = compact_text_width(tag);
@@ -1580,10 +1578,6 @@ static void launch_settings_tab(int tab_idx) {
     if (tab_idx >= 0 && tab_idx < SETTINGS_TAB_COUNT) {
         settings_tab = tab_idx;
     }
-}
-
-static void settings_md_reset(void) {
-    settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
 }
 
 static void settings_md_parse(const char* markdown) {
@@ -2530,26 +2524,10 @@ void draw_window(window_t* win) {
             ry += draw_settings_kv(content_x, content_w, ry, "App data", "C:/Users/Admin/AppData");
             ry += draw_settings_kv(content_x, content_w, ry, "Telemetry", "None");
         } else if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
+            serial_write_string("[render tab10]");
             settings_md_ensure_loaded();
-            int total = settings_md_line_count;
-            int start_idx = 0;
-            int end_idx = total;
-            int has_roadmap = (settings_md_plan_start >= 0);
-            if (has_roadmap) {
-                if (settings_update_view == SETTINGS_UPDATE_VIEW_CHANGELOG) {
-                    end_idx = settings_md_plan_start;
-                } else {
-                    start_idx = settings_md_plan_start;
-                }
-            } else if (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) {
-                // No roadmap section in this changelog. Show an explicit notice
-                // instead of duplicating the changelog verbatim, which made the
-                // view switch look broken.
-                start_idx = total;
-                end_idx = total;
-            }
-            if (end_idx < start_idx) end_idx = start_idx;
-            int view_count = end_idx - start_idx;
+            serial_write_string("[md loaded]");
+            int has_roadmap = (md_roadmap_start() >= 0);
 
             // Segmented control switching between the changelog and roadmap.
             int sub_x = content_x + 6;
@@ -2577,46 +2555,30 @@ void draw_window(window_t* win) {
                 }
             }
 
-            // Markdown viewer body.
+            // Markdown viewer body. The module owns wrapping, block styling and
+            // the scroll clamp, so the shell only supplies the box.
             int view_y = sub_y + sub_h + 5;
             int view_h = content_y + content_h - view_y - 12;
             if (view_h < 20) view_h = 20;
             draw_settings_card(content_x, content_w, view_y, view_h);
 
-            int row_h = 10;
             int text_top = view_y + 4;
-            int visible = (view_h - 8) / row_h;
-            if (visible < 1) visible = 1;
-            settings_md_visible_rows = visible;
+            int body_h = view_h - 8;
+            if (body_h < 20) body_h = 20;
 
-            int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
-            if (top < 0) top = 0;
-            if (top > view_count - visible) top = view_count - visible;
-            if (top < 0) top = 0;
-            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
+            int scroll = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
+            serial_write_string("[md draw]");
+            md_draw(content_x, text_top, content_w - 8, body_h,
+                    settings_update_view, &scroll);
+            serial_write_string("[md drawn]");
+            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = scroll;
 
-            int body_chars = (content_w - 34) / FONT_CW;
-            if (body_chars < 8) body_chars = 8;
-            for (int r = 0; r < visible; r++) {
-                int idx = start_idx + top + r;
-                if (idx >= end_idx) break;
-                markdown_line_t* md = &settings_md_lines[idx];
-                int line_x = content_x + 12 + md->indent;
-                int line_y = text_top + r * row_h;
-                if (line_y + 8 > view_y + view_h - 2) break;
-
-                // Headings use the larger regular font; body text is compact.
-                if (md->indent == 0 && (md->color == XP_BLUE || md->color == XP_LBLUE)) {
-                    draw_string(line_x, line_y, md->text, md->color);
-                } else {
-                    draw_compact_string_clipped(line_x, line_y, body_chars, md->text, md->color);
-                }
-            }
-
-            if (view_count == 0) {
-                const char* empty = has_roadmap ? "No entries in this view."
-                                                : "No roadmap in this changelog.";
-                draw_compact_string_clipped(content_x + 12, text_top + 2, body_chars, empty, XP_DGRAY);
+            if (!has_roadmap && settings_update_view == MD_VIEW_ROADMAP) {
+                // No roadmap section in this changelog. Say so rather than
+                // duplicating the changelog, which made the toggle look broken.
+                draw_compact_string_clipped(content_x + 12, text_top + 2,
+                                            (content_w - 24) / FONT_CW,
+                                            "No roadmap in this changelog.", XP_DGRAY);
             }
 
             // Footer hint, pinned to the bottom of the pane.
@@ -2643,7 +2605,7 @@ void draw_window(window_t* win) {
                 (unsigned int)bpp,
                 graphics_is_truecolor() ? "RGBA" : "Indexed");
         draw_compact_string_clipped(content_x, content_y + 0, content_chars, "Version: 00m2", XP_BLACK);
-        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.550", XP_BLACK);
+        draw_compact_string_clipped(content_x, content_y + 12, content_chars, "Build: 1.560", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 24, content_chars, "Design language: GamerOS Modern", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 42, content_chars, "System", XP_DGRAY);
         draw_compact_string_clipped(content_x, content_y + 54, content_chars, "Kernel: x86_64", XP_BLACK);
@@ -3440,29 +3402,19 @@ static int handle_settings_wheel(window_t* win, int32_t mx, int32_t my, int8_t w
 
     if (settings_tab == SETTINGS_TAB_GAMEROS_UPDATE) {
         settings_md_ensure_loaded();
-        int total = settings_md_line_count;
-        int start_idx = 0;
-        int end_idx = total;
-        if (settings_md_plan_start >= 0) {
-            if (settings_update_view == SETTINGS_UPDATE_VIEW_CHANGELOG) {
-                end_idx = settings_md_plan_start;
-            } else if (settings_update_view == SETTINGS_UPDATE_VIEW_ROADMAP) {
-                start_idx = settings_md_plan_start;
-            }
-        }
-        if (end_idx < start_idx) end_idx = start_idx;
-        int view_count = end_idx - start_idx;
-        // Use the row count the renderer actually used; recomputing it here from
-        // content_h is what let scrolling drift from the drawn viewport.
-        int visible = settings_md_visible_rows;
-        if (visible < 1) visible = 1;
-        if (view_count == 0) return 0;
-        int top = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] - (int)wheel_delta;
-        if (top < 0) top = 0;
-        if (top > view_count - visible) top = view_count - visible;
-        if (top < 0) top = 0;
-        if (top != settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE]) {
-            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = top;
+        // Same box the renderer uses, so the clamp cannot drift from the pixels.
+        int sub_y = content_y + 5;
+        int sub_h = 15;
+        int view_y = sub_y + sub_h + 5;
+        int view_h = content_y + content_h - view_y - 12;
+        if (view_h < 20) view_h = 20;
+        int body_h = view_h - 8;
+        if (body_h < 20) body_h = 20;
+
+        int scroll = settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE];
+        int next = md_scroll_by(content_w - 8, settings_update_view, scroll, -wheel_delta);
+        if (next != scroll) {
+            settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = next;
             return 1;
         }
     }
@@ -4096,9 +4048,6 @@ static const char* settings_ui_changelog_md_path(void) {
 
 static const char* settings_ui_changelog_md_text(void) {
     return            "# GamerOS Changelog (2026-10-11)\n"
-           "\n"
-           "> **WORK IN PROGRESS — DO NOT SHIP.** Build 1.550 is unfinished, and some of\n"
-           "> the entries below are only compile-verified. Treat this as a running log.\n"
            "\n"
            "Build 1.550 takes the shell rendered by 1.520 and repairs how text is drawn, then\n"
            "rebuilds the four always-visible surfaces — taskbar, Start menu, desktop watermark\n"

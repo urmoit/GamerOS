@@ -20,6 +20,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAIN_C = os.path.join(ROOT, "src", "core", "kernel", "main.c")
 FS_H = os.path.join(ROOT, "src", "include", "fs.h")
+MARKDOWN_H = os.path.join(ROOT, "src", "ui", "markdown", "markdown.h")
 
 DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-11.md")
 
@@ -35,14 +36,14 @@ def read_max_file_size():
 
 
 def read_md_max_lines():
-    """Read SETTINGS_MD_MAX_LINES from the kernel so this script cannot drift
+    """Read MD_MAX_LINES from the markdown module so this script cannot drift
     from the viewer capacity it is warning about."""
-    with io.open(MAIN_C, "r", encoding="utf-8") as fh:
+    with io.open(MARKDOWN_H, "r", encoding="utf-8") as fh:
         for line in fh:
-            m = re.match(r'^\s*#define\s+SETTINGS_MD_MAX_LINES\s+(\d+)', line)
+            m = re.match(r'^\s*#define\s+MD_MAX_LINES\s+(\d+)', line)
             if m:
                 return int(m.group(1))
-    raise RuntimeError("SETTINGS_MD_MAX_LINES not found in %s" % MAIN_C)
+    raise RuntimeError("MD_MAX_LINES not found in %s" % MARKDOWN_H)
 
 START_RE = re.compile(
     r'^static const char\* settings_ui_changelog_md_text\(void\) \{$'

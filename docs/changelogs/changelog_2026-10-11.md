@@ -1,15 +1,12 @@
 # GamerOS Changelog (2026-10-11)
 
-> **WORK IN PROGRESS — DO NOT SHIP.** Build 1.550 is unfinished, and some of
-> the entries below are only compile-verified. Treat this as a running log.
-
 Build 1.550 takes the shell rendered by 1.520 and repairs how text is drawn, then
 rebuilds the four always-visible surfaces — taskbar, Start menu, desktop watermark
 and boot screen — on top of that fix.
 
 ## Release
 - Version: `00m2`
-- Build: `1.550` (in progress)
+- Build: `1.550`
 - Date: `2026-10-11`
 - Status: **Unreleased.** Work in progress; still being verified.
 

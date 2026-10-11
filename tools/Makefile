@@ -67,7 +67,7 @@ ASMFLAGS = -f elf64 -I$(SRC_DIR)
 
 CC = x86_64-linux-gnu-gcc
 CFLAGS = -m64 -mno-red-zone -ffreestanding -nostdlib -nostdinc -fno-builtin -fno-stack-protector -fomit-frame-pointer -Wall -Wextra -std=c11 -Wno-unused-parameter -Wno-unused-variable -O2
-  INCLUDES = -I$(SRC_DIR)/include -I$(SRC_DIR)/ui/shell -I$(SRC_DIR)/ui/apps/notepad
+  INCLUDES = -I$(SRC_DIR)/include -I$(SRC_DIR)/ui/shell -I$(SRC_DIR)/ui/apps/notepad -I$(SRC_DIR)/ui/markdown
 
 LD = x86_64-linux-gnu-ld
 LDFLAGS = -m elf_x86_64 -T $(TARGETS_DIR)/$(ARCH)/linker.ld -nostdlib -O2
@@ -121,7 +121,7 @@ $(BUILD_DIR)/$(ARCH)/background_wallpaper.o: $(SRC_DIR)/resources/wallpapers/bac
   $(BUILD_DIR)/$(ARCH)/notepad_app.o: $(SRC_DIR)/ui/apps/notepad/notepad_app.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
   $(BUILD_DIR)/$(ARCH)/markdown.o: $(SRC_DIR)/ui/markdown/markdown.c | $(BUILD_DIR)/$(ARCH)
-  	$(CC) $(CFLAGS) $(INCLUDES) -I$(SRC_DIR)/ui/markdown -c -o $@ $<
+	$(CC) $(CFLAGS) $(INCLUDES) -I$(SRC_DIR)/ui/markdown -c -o $@ $<
 $(BUILD_DIR)/$(ARCH)/fs.o: $(SRC_DIR)/filesystem/fs.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 

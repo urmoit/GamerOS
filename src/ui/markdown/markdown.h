@@ -23,6 +23,11 @@
 // Upper bound on wrapped visual rows for one view, used to size the row table.
 #define MD_MAX_VROWS 1024
 
+// Capacity of the parsed document, in logical lines. This is the number
+// tools/embed_changelog.py checks the changelog against, so raising it here is
+// what stops the Settings viewer dropping the tail of a long changelog.
+#define MD_MAX_LINES 384
+
 typedef enum {
     MD_K_BLANK = 0,
     MD_K_PARA,

@@ -24,7 +24,7 @@
 // Horizontal padding inside the text column.
 #define MD_PAD_X   8
 
-static md_line_t md_lines[384];
+static md_line_t md_lines[MD_MAX_LINES];
 static int md_count;
 static int md_roadmap;
 static int md_truncated;
@@ -44,26 +44,12 @@ static int md_str_len(const char* s) {
     return n;
 }
 
-static char md_lower(char c) {
-    return (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
-}
-
 static int md_is_space(char c) { return c == ' ' || c == '\t'; }
 
 static int md_is_digit(char c) { return c >= '0' && c <= '9'; }
 
 // Copies src into dst, stopping at a space or the end, never splitting a word
 // and never writing past cap-1. Returns the number of characters copied.
-static int md_copy_word(char* dst, int cap, const char* src, int max_chars) {
-    int n = 0;
-    while (src[n] && !md_is_space(src[n]) && n < max_chars && n < cap - 1) {
-        dst[n] = src[n];
-        n++;
-    }
-    dst[n] = 0;
-    return n;
-}
-
 static int md_starts_with(const char* s, const char* prefix) {
     int i = 0;
     while (prefix[i]) {
@@ -247,24 +233,26 @@ void md_parse(const char* text) {
 
     int in_fence = 0;
     int prev_blank = 1;   // suppresses runs of blank lines
-    int pos = 0;
+    size_t src = 0;       // cursor into the source text; persists across lines
     char line[MD_TEXT_MAX + 8];
 
     for (;;) {
-        // Accumulate one source line.
-        pos = 0;
-        int done = 0;
-        while (!done) {
-            char ch = text[pos];
+        // Accumulate one source line. `at_end` reports whether the terminator
+        // was the end of the document rather than a newline.
+        int w = 0;
+        int at_end = 0;
+        while (1) {
+            char ch = text[src];
             if (ch == '\n' || ch == 0) {
-                line[pos] = 0;
-                done = 1;
-                if (ch == 0) pos = -1;  // signal end of document
-                else pos++;
-                continue;
+                line[w] = 0;
+                at_end = (ch == 0);
+                // Step over the newline. Without this the cursor stays parked on
+                // the terminator and the reader re-reads the same empty line forever.
+                if (!at_end) src++;
+                break;
             }
-            if (ch != '\r' && pos < (int)sizeof(line) - 1) line[pos++] = ch;
-            pos++;
+            if (ch != '\r' && w < (int)sizeof(line) - 1) line[w++] = ch;
+            src++;
         }
 
         int len = md_str_len(line);
@@ -281,7 +269,7 @@ void md_parse(const char* text) {
                 }
             }
             prev_blank = 0;
-            if (pos < 0) break;
+            if (at_end) break;
             continue;
         }
 
@@ -290,7 +278,7 @@ void md_parse(const char* text) {
                 md_line_new(MD_K_BLANK);
                 prev_blank = 1;
             }
-            if (pos < 0) break;
+            if (at_end) break;
             continue;
         }
         prev_blank = 0;
@@ -298,13 +286,13 @@ void md_parse(const char* text) {
         // Fenced code block.
         if (md_starts_with(line, "```")) {
             in_fence = 1;
-            if (pos < 0) break;
+            if (at_end) break;
             continue;
         }
 
         if (md_is_rule(line, len)) {
             md_line_new(MD_K_RULE);
-            if (pos < 0) break;
+            if (at_end) break;
             continue;
         }
 
@@ -329,7 +317,7 @@ void md_parse(const char* text) {
                     md_inline(htext, l);
                     md_note_roadmap(l);
                 }
-                if (pos < 0) break;
+                if (at_end) break;
                 continue;
             }
         }
@@ -346,7 +334,7 @@ void md_parse(const char* text) {
                 l->depth = (uint8_t)(level - 1);
                 md_inline(q, l);
             }
-            if (pos < 0) break;
+            if (at_end) break;
             continue;
         }
 
@@ -360,7 +348,7 @@ void md_parse(const char* text) {
                 l->depth = (uint8_t)depth;
                 md_inline(item, l);
             }
-            if (pos < 0) break;
+            if (at_end) break;
             continue;
         }
 
@@ -381,7 +369,7 @@ void md_parse(const char* text) {
                     l->ordinal = (uint16_t)v;
                     md_inline(item, l);
                 }
-                if (pos < 0) break;
+                if (at_end) break;
                 continue;
             }
         }
@@ -392,7 +380,7 @@ void md_parse(const char* text) {
             if (l) md_inline(body, l);
         }
 
-        if (pos < 0) break;
+        if (at_end) break;
     }
 }
 
@@ -579,6 +567,19 @@ int md_scroll_by(int w, int view, int scroll, int wheel_notches) {
 // Drawing
 // ---------------------------------------------------------------------------
 
+// Draws one 8x8 glyph. This goes through font_sample_pixel rather than reading
+// font_8x8 directly: the headings in this same module render correctly that way,
+// while a direct table read produced filled blocks for every character.
+static void md_glyph(int x, int y, char c, uint8_t colour) {
+    for (int r = 0; r < MD_CH; r++) {
+        for (int col = 0; col < MD_CW; col++) {
+            if (font_sample_pixel(c, FONT_SIZE_8X8, (uint8_t)col, (uint8_t)r)) {
+                draw_pixel(x + col, y + r, colour);
+            }
+        }
+    }
+}
+
 // Draws a run of characters with one inline style applied.
 static void md_draw_run(int x, int y, const char* text, int len, int style) {
     if (len <= 0) return;
@@ -592,10 +593,11 @@ static void md_draw_run(int x, int y, const char* text, int len, int style) {
     for (int i = 0; i < len; i++) {
         // The 8px face has no bold weight, so bold is faked by over-printing one
         // pixel to the right. At this cell size it reads correctly.
-        draw_char(x, y, text[i], style == MD_S_CODE ? XP_BLACK : XP_DGRAY);
+        md_glyph(x, y, text[i], style == MD_S_CODE ? XP_BLACK : XP_DGRAY);
         if (style == MD_S_BOLD) {
-            draw_char(x + 1, y, text[i], XP_DGRAY);
+            md_glyph(x + 1, y, text[i], XP_DGRAY);
         }
+        x += MD_CW;   // step to the next cell
     }
 
     if (style == MD_S_STRIKE) {
@@ -626,7 +628,7 @@ static void md_draw_marker(int x, int y, const md_line_t* l, int kind) {
         num[n++] = '.';
         num[n] = 0;
         for (int i = 0; i < n; i++) {
-            draw_char(x + i * MD_CW, y, num[i], XP_DGRAY);
+            md_glyph(x + i * MD_CW, y, num[i], XP_DGRAY);
         }
     }
 }
@@ -666,8 +668,8 @@ void md_draw(int x, int y, int w, int h, int view, int* scroll) {
                 case MD_K_H3: {
                     int sx = tx, n = md_str_len(l->text), i2;
                     for (i2 = 0; i2 < n; i2++) {
-                        draw_char(sx, cy, l->text[i2], XP_BLUE);
-                        draw_char(sx + 1, cy, l->text[i2], XP_BLUE);
+                        md_glyph(sx, cy, l->text[i2], XP_BLUE);
+                        md_glyph(sx + 1, cy, l->text[i2], XP_BLUE);
                         sx += MD_CW + 1;
                     }
                     break;
@@ -677,8 +679,8 @@ void md_draw(int x, int y, int w, int h, int view, int* scroll) {
                 case MD_K_H6: {
                     int sx = tx, n = md_str_len(l->text), i2;
                     for (i2 = 0; i2 < n; i2++) {
-                        draw_char(sx, cy, l->text[i2], XP_DGRAY);
-                        draw_char(sx + 1, cy, l->text[i2], XP_DGRAY);
+                        md_glyph(sx, cy, l->text[i2], XP_DGRAY);
+                        md_glyph(sx + 1, cy, l->text[i2], XP_DGRAY);
                         sx += MD_CW + 1;
                     }
                     break;
@@ -704,25 +706,32 @@ void md_draw(int x, int y, int w, int h, int view, int* scroll) {
                 }
                 default:
                 text_pass: {
-                    // Walk the inline spans, drawing the slice of each that falls
-                    // on this visual row.
-                    int seg_start = r->start;
+                    // Walk the row character by character in runs: plain text
+                    // between spans is emitted with MD_S_NONE, and each styled
+                    // run is drawn as one go. The old span-pair walk produced no
+                    // output at all for a line with no spans, which blanked every
+                    // paragraph.
+                    int pos = r->start;
                     int seg_end = r->start + r->len;
                     int cx2 = tx;
-                    int cur = seg_start;
-                    for (int s = 0; s <= l->span_count; s++) {
-                        int s_start = (s < l->span_count) ? l->spans[s].start : seg_end;
-                        int s_end = (s < l->span_count)
-                                        ? l->spans[s].start + l->spans[s].len
-                                        : seg_end;
-                        int style = (s < l->span_count) ? l->spans[s].style : MD_S_NONE;
-                        int a = (cur > s_start) ? cur : s_start;
-                        int b = (s_end < seg_end) ? s_end : seg_end;
-                        if (b > a) {
-                            md_draw_run(cx2, cy, l->text + a, b - a, style);
-                            cx2 += (b - a) * MD_CW;
+                    while (pos < seg_end) {
+                        int style = MD_S_NONE;
+                        int run_end = seg_end;
+                        for (int s = 0; s < l->span_count; s++) {
+                            int ss = l->spans[s].start;
+                            int se = ss + l->spans[s].len;
+                            if (pos >= ss && pos < se) {
+                                style = l->spans[s].style;
+                                run_end = se;
+                                break;
+                            }
+                            if (pos < ss) { run_end = ss; break; }
                         }
-                        if (s < l->span_count && s_end > cur) cur = s_end;
+                        if (run_end > seg_end) run_end = seg_end;
+                        if (run_end <= pos) run_end = pos + 1;
+                        md_draw_run(cx2, cy, l->text + pos, run_end - pos, style);
+                        cx2 += (run_end - pos) * MD_CW;
+                        pos = run_end;
                     }
                     break;
                 }
