@@ -8,7 +8,7 @@ and boot screen — on top of that fix.
 - Version: `00m2`
 - Build: `1.550`
 - Date: `2026-10-11`
-- Status: **Unreleased.** Work in progress; still being verified.
+- Status: **Released.**
 
 ## Critical — Triple Fault Opening the Start Menu
 
