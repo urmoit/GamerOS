@@ -1,4 +1,4 @@
-# GamerOS Changelog (2026-10-12)
+# GamerOS Changelog (2026-10-00)
 
 > **WORK IN PROGRESS — DO NOT SHIP.** Build 1.570 is unfinished, and some of
 > the entries below are only compile-verified. Treat this as a running log.
