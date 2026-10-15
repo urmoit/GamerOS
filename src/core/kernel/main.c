@@ -19,6 +19,7 @@
 #include <multiboot2.h>
 #include <settings_ui.h>
 #include <usb.h>
+#include <xhci.h>
 #include <vmware.h>
 #include <vboxguest.h>
 #include "../../resources/wallpapers/background_wallpaper.h"
@@ -3006,6 +3007,7 @@ void kernel_main(multiboot_info_t* mb_info) {
     // of these replaces the PS/2 devices on a machine where they are the only
     // pointer, and reports into the same input state below.
     usb_init();
+    xhci_init();
     vmware_mouse_init();
     vboxguest_init();
     // Seed desktop state before storage comes online.
@@ -3071,6 +3073,7 @@ void kernel_main(multiboot_info_t* mb_info) {
         // one synchronous read, so it has to win over whatever the 8042 left
         // in the shared state.
         usb_poll();
+        xhci_poll();
         vmware_mouse_poll();
         vboxguest_mouse_poll();
         

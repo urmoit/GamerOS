@@ -24,8 +24,8 @@ FS_H = os.path.join(ROOT, "src", "include", "fs.h")
 MARKDOWN_H = os.path.join(ROOT, "src", "ui", "markdown", "markdown.h")
 
 # The changelog the in-OS viewer should show. Build 1.570 is the current
-# in-progress log; the 1.550 release notes stay in the repo for history.
-DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-12.md")
+# in-progress log; the older release notes stay in the repo for history.
+DEFAULT_MD = os.path.join(ROOT, "docs", "changelogs", "changelog_2026-10-00.md")
 
 
 def read_max_file_size():

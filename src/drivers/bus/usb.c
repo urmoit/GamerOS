@@ -964,6 +964,21 @@ static int usb_setup_device_on_port(uhci_hc_t* hc, usb_hid_dev_t* parent,
         uhci_wait_ms(hc->io_base, 2);
     }
 
+    if (!(status & HUB_PORT_STATUS_ENABLE)) {
+        return 0;   // the port never came up, so the device is unreachable
+    }
+
+    // A port that is already carrying a live device must not be reset again:
+    // resetting it pulls the device back to the default address, and re-running
+    // enumeration would take a working keyboard or mouse off the bus.
+    for (int i = 0; i < USB_DEV_PER_HC; i++) {
+        usb_hid_dev_t* d = &hc->devices[i];
+        if (d->present && d->parent == (uint8_t)(parent - hc->devices) &&
+            d->port_index == port_index) {
+            return 1;
+        }
+    }
+
     if (slot < 0) {
         slot = usb_alloc_slot(hc);
     }

@@ -27,6 +27,7 @@ C_SRC = $(SRC_DIR)/core/kernel/main.c \
         $(SRC_DIR)/drivers/bus/pci.c \
         $(SRC_DIR)/drivers/bus/pic.c \
         $(SRC_DIR)/drivers/bus/usb.c \
+        $(SRC_DIR)/drivers/bus/xhci.c \
         $(SRC_DIR)/drivers/virtualization/vmware.c \
         $(SRC_DIR)/drivers/virtualization/vboxguest.c \
         $(SRC_DIR)/drivers/network/serial.c \
@@ -56,6 +57,7 @@ C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/pci.o \
         $(BUILD_DIR)/$(ARCH)/pic.o \
         $(BUILD_DIR)/$(ARCH)/usb.o \
+        $(BUILD_DIR)/$(ARCH)/xhci.o \
         $(BUILD_DIR)/$(ARCH)/vmware.o \
         $(BUILD_DIR)/$(ARCH)/vboxguest.o \
         $(BUILD_DIR)/$(ARCH)/serial.o \
@@ -158,6 +160,9 @@ $(BUILD_DIR)/$(ARCH)/pci.o: $(SRC_DIR)/drivers/bus/pci.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/usb.o: $(SRC_DIR)/drivers/bus/usb.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/xhci.o: $(SRC_DIR)/drivers/bus/xhci.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/vmware.o: $(SRC_DIR)/drivers/virtualization/vmware.c | $(BUILD_DIR)/$(ARCH)

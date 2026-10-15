@@ -40,4 +40,12 @@ uint32_t inl(uint16_t port);
 void outl(uint16_t port, uint32_t val);
 void io_wait(void);
 
+// Memory-mapped register access, for devices whose registers live behind a PCI
+// BAR. The port helpers above take a 16-bit port because legacy devices only
+// need that, but a BAR address can be far above 64 KiB.
+uint32_t mmio_inl(uint64_t address);
+void mmio_outl(uint64_t address, uint32_t val);
+uint32_t mmio_inw(uint64_t address);
+void mmio_outw(uint64_t address, uint32_t val);
+
 #endif

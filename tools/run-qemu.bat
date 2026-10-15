@@ -51,11 +51,10 @@ REM Create/overwrite log file (deletes old one if exists)
 set LOG_PATH=%ROOT%\qemu.log
 set DEBUG_LOG_PATH=%ROOT%\qemu-debug.log
 
-REM The USB HID stack drives UHCI controllers, and it reaches devices attached
-REM directly to a root hub port. QEMU's xHCI is a different interface and is not
-REM supported, so attach each USB device to its own UHCI controller's first
-REM port. Putting two devices on one controller makes QEMU chain the second one
-REM behind an auto-created USB hub, which the driver cannot reach.
+REM USB devices attach to two separate UHCI controllers, one device each, so
+REM both land on root hub ports. A single controller makes QEMU place the second
+REM device behind an auto-created USB hub, which the UHCI stack cannot reach:
+REM QEMU's UHCI model implements no split transactions.
 set USB_OPTS=-usb -device piix3-usb-uhci,id=u1 -device piix3-usb-uhci,id=u2 -device usb-kbd,bus=u1.0 -device usb-mouse,bus=u2.0
 
 echo Starting QEMU with ISO: %ISO_PATH%

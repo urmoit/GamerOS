@@ -49,3 +49,52 @@ void outl(uint16_t port, uint32_t val) {
 void io_wait(void) {
     __asm__ volatile("jmp 1f\n1: jmp 2f\n2:");
 }
+
+// ----------------------------------------------------------------------------
+// Memory-mapped register access
+//
+// The port-based helpers above address a 16-bit I/O port because that is all
+// the legacy devices use. PCI devices such as USB host controllers expose their
+// registers in memory instead, at a base address the PCI BAR supplies, which
+// port instructions cannot reach at all: they take a 16-bit port number, so
+// these are plain memory loads and stores against the bus address.
+//
+// The address is used whole. QEMU hands out every BAR in the low 4 GiB, which
+// the kernel identity-maps, so the bus address is also a kernel address.
+// ----------------------------------------------------------------------------
+
+uint32_t mmio_inl(uint64_t address) {
+    uint32_t val;
+    __asm__ volatile(
+        "movl (%1), %0"
+        : "=r"(val)
+        : "r"(address)
+        : "memory");
+    return val;
+}
+
+void mmio_outl(uint64_t address, uint32_t val) {
+    __asm__ volatile(
+        "movl %1, (%0)"
+        :
+        : "r"(address), "r"(val)
+        : "memory");
+}
+
+uint32_t mmio_inw(uint64_t address) {
+    uint32_t val;
+    __asm__ volatile(
+        "movzwl (%1), %0"
+        : "=r"(val)
+        : "r"(address)
+        : "memory");
+    return val;
+}
+
+void mmio_outw(uint64_t address, uint32_t val) {
+    __asm__ volatile(
+        "movw %w1, (%0)"
+        :
+        : "r"(address), "r"(val)
+        : "memory");
+}

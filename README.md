@@ -221,7 +221,7 @@ GamerOS/
       hal/         Hardware abstraction (port I/O)
       executive/   Executive layer (object manager, I/O manager, filesystem, GDI)
     drivers/
-      bus/         PCI, PIC, RTC, USB (UHCI host driver and HID enumeration)
+      bus/         PCI, PIC, RTC, USB (UHCI host driver, xHCI in progress)
       input/       PS/2 keyboard and mouse, shared pointer state
       network/     Serial
       storage/     ATA PIO
@@ -245,15 +245,29 @@ GamerOS/
 
 - Use MSYS2, Git Bash, WSL, or Linux for local ISO builds via `make`.
 - QEMU is usually the safer first test target.
-- The USB HID stack (keyboard and mouse) enumerates devices on **UHCI** controllers only. Boot the ISO with each USB device on its own controller's root port:
+- **USB HID input works on UHCI controllers.** Boot the ISO with each USB device
+  on its own controller's root port:
   ```
   qemu-system-x86_64 -cdrom dist/x86_64/kernel.iso \
     -device piix3-usb-uhci,id=u1 -device piix3-usb-uhci,id=u2 \
     -device usb-kbd,bus=u1.0 -device usb-mouse,bus=u2.0
   ```
-  `tools/run-qemu.bat` already does this. Devices behind a hub are detected and the hub's ports are powered, but a mouse or keyboard attached there needs USB split transactions, which are not implemented, so it will not enumerate.
-- VMware and VirtualBox both expose an absolute pointer protocol that the kernel uses when it is running under them. VMware is stable; VirtualBox VMM device support is present but not yet verified on a real VirtualBox machine.
-- Multiboot 2 is the preferred boot protocol. The controller carries both a Multiboot 2 and a Multiboot 1 header, and the kernel's entry point normalises either handover into one structure, so `multiboot2` and `multiboot` both boot.
+  `tools/run-qemu.bat` already does this.
+- **Devices behind a hub do not enumerate.** Hubs are detected and their ports
+  powered and reset, but reaching a child device needs UHCI split transactions
+  (SS/CS), which are not implemented. QEMU's own UHCI model does not implement
+  them either — its hub code says so explicitly — so this is a real hardware gap
+  rather than a driver bug.
+- **xHCI is partial.** The controller is brought up (reset, command/event rings,
+  DCBAA, port enumeration) and `ENABLE_SLOT` succeeds, but `ADDRESS_DEVICE` does
+  not complete, so no device is usable through it yet. The code is complete
+  enough to continue from. UHCI remains the working path.
+- VMware and VirtualBox both expose an absolute pointer protocol that the kernel
+  uses when it is running under them. VMware is stable; VirtualBox VMM device
+  support is present but not yet verified on a real VirtualBox machine.
+- Multiboot 2 is the preferred boot protocol. The kernel carries both a
+  Multiboot 2 and a Multiboot 1 header, and the entry point normalises either
+  handover into one structure, so `multiboot2` and `multiboot` both boot.
 
 ## Important Files
 
