@@ -1,6 +1,47 @@
 ; boot.asm - COMPLETE VGA Mode 13h setup from scratch
 
+; ============================================================================
+; Boot headers
+;
+; Two headers are emitted, Multiboot 2 first and Multiboot 1 second. The entry
+; stubs below hand the boot magic and the information pointer to
+; multiboot2_build(), which normalises either protocol into the one
+; multiboot_info layout the kernel consumes.
+;
+; GRUB2 loads the Multiboot 2 header when the loader command is "multiboot2",
+; and the Multiboot 1 header when it is "multiboot". Multiboot 2 comes first
+; because a loader that understands both picks the first header it finds, and
+; Multiboot 2 is the preferred protocol.
+;
+; Framebuffer: only the Multiboot 1 header requests a video mode, as before. The
+; Multiboot 2 header here carries just the end tag and asks for no console. A
+; framebuffer tag in the MB2 header tells GRUB the guest requires a graphics
+; console, and GRUB then refuses to load the image outright when it cannot set
+; the requested mode - which includes headless runs - instead of falling back
+; the way the MB1 path does. boot.asm sets up its own VGA mode before entering
+; long mode, so the graphics path does not depend on the loader.
+; ============================================================================
+
 section .multiboot_header
+align 8
+
+; --- Multiboot 2 header ------------------------------------------------------
+; Only the mandatory end tag, no framebuffer request: see the note above. The
+; header must be 8-byte aligned, which linker.ld enforces with ALIGN(8).
+mb2_header_start:
+    dd 0xE85250D6                       ; magic
+    dd 0x00000000                       ; architecture: i386 (32-bit protected mode)
+    dd mb2_header_end - mb2_header_start ; header_length
+    dd -(0xE85250D6 + 0x00000000 + (mb2_header_end - mb2_header_start)) ; checksum
+
+    ; End tag. An MB2 tag list of just this means "no console requirement".
+    dd 0                                ; type 0 = end, flags 0
+    dd 8                                ; size
+mb2_header_end:
+
+; --- Multiboot 1 header ------------------------------------------------------
+; GRUB2's own Multiboot 1 layout. Identical to the previous boot flow, so a
+; loader that only understands Multiboot 1 is unaffected.
 align 4
 header_start:
     dd 0x1BADB002
@@ -28,6 +69,12 @@ VGA_GRAPHICS_BUFFER equ 0xA0000
 
 global _start
 _start:
+    ; GRUB hands over the boot magic in EAX and the information pointer in EBX.
+    ; Multiboot 1: EAX = 0x2BADB002. Multiboot 2: EAX = 0x36D76289. Both are
+    ; stashed now, before any register is touched, so the C entry can normalise
+    ; them into one structure.
+    mov [multiboot_magic], eax
+    mov [multiboot_ptr], ebx
     mov esp, stack_top
     jmp boot_main32
 
@@ -488,7 +535,8 @@ detect_cpu:
     ret
 
 boot_main32:
-    mov [multiboot_ptr], ebx  ; Save Multiboot pointer
+    ; EAX (boot magic) and EBX (information pointer) were saved in _start; the
+    ; bootloader's registers are no longer trusted from here on.
 
     ; Disable NMI
     in al, 0x70
@@ -586,8 +634,6 @@ start_64:
     mov es, ax
     mov fs, ax
     mov gs, ax
-    
-    mov ebx, [multiboot_ptr] ; Restore Multiboot pointer to pass to kernel
 
     mov rsp, stack_top_64
     and rsp, 0xFFFFFFFFFFFFFFF0
@@ -595,8 +641,21 @@ start_64:
     extern hal_init
     call hal_init
 
+    ; Normalise the bootloader information into the one layout the kernel
+    ; expects, whichever protocol GRUB used. multiboot2_build() returns a
+    ; pointer to a populated multiboot_info_t (0 when the magic is unknown).
+    ;
+    ; Both slots are read as 32-bit words: the kernel image lives below 4 GiB so
+    ; a 32-bit load zero-extends to the full 64-bit pointer, and the slots sit
+    ; adjacent in BSS, so a 64-bit load would fold multiboot_magic into the
+    ; pointer's high half.
+    extern multiboot2_build
+    mov edi, [multiboot_magic]      ; boot magic (zero-extended)
+    mov esi, [multiboot_ptr]        ; information pointer (zero-extended)
+    call multiboot2_build
+
     extern kernel_main
-    mov rdi, rbx        ; Pass multiboot info pointer (from EBX) as first argument (RDI)
+    mov rdi, rax        ; Multiboot information pointer as first argument
     call kernel_main
 
     hlt
@@ -607,6 +666,11 @@ cpu_vendor:
     resb 12
     
 multiboot_ptr:
+    resd 1
+
+; Boot protocol magic handed over by the loader in EAX at entry. Kept next to
+; the information pointer so both survive the 32-bit setup path.
+multiboot_magic:
     resd 1
 
 ; Use `alignb` (byte granularity, no fill) rather than `align`: plain `align`

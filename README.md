@@ -221,11 +221,11 @@ GamerOS/
       hal/         Hardware abstraction (port I/O)
       executive/   Executive layer (object manager, I/O manager, filesystem, GDI)
     drivers/
-      bus/         PCI, PIC, RTC, USB
-      input/       PS/2 keyboard and mouse
+      bus/         PCI, PIC, RTC, USB (UHCI host driver and HID enumeration)
+      input/       PS/2 keyboard and mouse, shared pointer state
       network/     Serial
       storage/     ATA PIO
-      virtualization/ VMware backdoor
+      virtualization/ VMware backdoor, VirtualBox VMM device
     filesystem/    Filesystem with persistent metadata layout
     graphics/      VGA/framebuffer renderer, fonts, cursor
     include/       Shared headers
@@ -245,7 +245,15 @@ GamerOS/
 
 - Use MSYS2, Git Bash, WSL, or Linux for local ISO builds via `make`.
 - QEMU is usually the safer first test target.
-- VMware support is still being stabilized.
+- The USB HID stack (keyboard and mouse) enumerates devices on **UHCI** controllers only. Boot the ISO with each USB device on its own controller's root port:
+  ```
+  qemu-system-x86_64 -cdrom dist/x86_64/kernel.iso \
+    -device piix3-usb-uhci,id=u1 -device piix3-usb-uhci,id=u2 \
+    -device usb-kbd,bus=u1.0 -device usb-mouse,bus=u2.0
+  ```
+  `tools/run-qemu.bat` already does this. Devices behind a hub are detected and the hub's ports are powered, but a mouse or keyboard attached there needs USB split transactions, which are not implemented, so it will not enumerate.
+- VMware and VirtualBox both expose an absolute pointer protocol that the kernel uses when it is running under them. VMware is stable; VirtualBox VMM device support is present but not yet verified on a real VirtualBox machine.
+- Multiboot 2 is the preferred boot protocol. The controller carries both a Multiboot 2 and a Multiboot 1 header, and the kernel's entry point normalises either handover into one structure, so `multiboot2` and `multiboot` both boot.
 
 ## Important Files
 

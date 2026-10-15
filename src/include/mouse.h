@@ -28,6 +28,14 @@ int8_t mouse_get_wheel_delta(void);
 void mouse_clear_buttons(void);
 int mouse_is_present(void);
 
+// Entry points for pointer devices that do not use the PS/2 port: USB HID mice
+// and the VMware/VirtualBox absolute pointer protocols. Deltas are relative to
+// the screen, x right and y down.
+void mouse_set_position(int32_t x, int32_t y);
+void mouse_inject_relative(int16_t dx, int16_t dy, uint8_t buttons);
+void mouse_set_buttons(uint8_t buttons);
+void mouse_inject_wheel(int8_t wheel);
+
 void draw_cursor(int32_t x, int32_t y);
 
 #endif

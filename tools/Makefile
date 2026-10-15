@@ -12,21 +12,26 @@ ASM_SRC = $(SRC_DIR)/arch/x86_64/boot.asm
 C_SRC = $(SRC_DIR)/core/kernel/main.c \
         $(SRC_DIR)/core/hal/ports.c \
         $(SRC_DIR)/core/kernel/mm.c \
+        $(SRC_DIR)/core/kernel/mb2.c \
         $(SRC_DIR)/graphics/vga_graphics.c \
         $(SRC_DIR)/graphics/font.c \
         $(SRC_DIR)/resources/wallpapers/background_wallpaper.c \
-  $(SRC_DIR)/ui/apps/notepad/notepad_app.c \
-  $(SRC_DIR)/ui/apps/settings/settings_ui.c \
-  $(SRC_DIR)/ui/markdown/markdown.c \
+        $(SRC_DIR)/ui/apps/notepad/notepad_app.c \
+        $(SRC_DIR)/ui/apps/settings/settings_ui.c \
+        $(SRC_DIR)/ui/markdown/markdown.c \
         $(SRC_DIR)/filesystem/fs.c \
         $(SRC_DIR)/graphics/cursor.c \
         $(SRC_DIR)/drivers/input/keyboard.c \
         $(SRC_DIR)/drivers/input/mouse.c \
-  $(SRC_DIR)/drivers/bus/rtc.c \
-  $(SRC_DIR)/drivers/rtc/timezone.c \
-  $(SRC_DIR)/drivers/bus/pic.c \
+        $(SRC_DIR)/drivers/bus/rtc.c \
+        $(SRC_DIR)/drivers/bus/pci.c \
+        $(SRC_DIR)/drivers/bus/pic.c \
+        $(SRC_DIR)/drivers/bus/usb.c \
+        $(SRC_DIR)/drivers/virtualization/vmware.c \
+        $(SRC_DIR)/drivers/virtualization/vboxguest.c \
         $(SRC_DIR)/drivers/network/serial.c \
         $(SRC_DIR)/drivers/storage/ata_pio.c \
+        $(SRC_DIR)/drivers/rtc/timezone.c \
         $(SRC_DIR)/core/kernel/string.c \
         $(SRC_DIR)/core/kernel/process_model.c
 
@@ -36,21 +41,26 @@ ASM_OBJ = $(BUILD_DIR)/$(ARCH)/boot.o
 C_OBJ = $(BUILD_DIR)/$(ARCH)/main.o \
         $(BUILD_DIR)/$(ARCH)/ports.o \
         $(BUILD_DIR)/$(ARCH)/mm.o \
+        $(BUILD_DIR)/$(ARCH)/mb2.o \
         $(BUILD_DIR)/$(ARCH)/vga_graphics.o \
         $(BUILD_DIR)/$(ARCH)/font.o \
         $(BUILD_DIR)/$(ARCH)/background_wallpaper.o \
-  $(BUILD_DIR)/$(ARCH)/notepad_app.o \
-  $(BUILD_DIR)/$(ARCH)/settings_ui.o \
-  $(BUILD_DIR)/$(ARCH)/markdown.o \
+        $(BUILD_DIR)/$(ARCH)/notepad_app.o \
+        $(BUILD_DIR)/$(ARCH)/settings_ui.o \
+        $(BUILD_DIR)/$(ARCH)/markdown.o \
         $(BUILD_DIR)/$(ARCH)/fs.o \
         $(BUILD_DIR)/$(ARCH)/cursor.o \
         $(BUILD_DIR)/$(ARCH)/keyboard.o \
         $(BUILD_DIR)/$(ARCH)/mouse.o \
         $(BUILD_DIR)/$(ARCH)/rtc.o \
-  $(BUILD_DIR)/$(ARCH)/timezone.o \
+        $(BUILD_DIR)/$(ARCH)/pci.o \
         $(BUILD_DIR)/$(ARCH)/pic.o \
+        $(BUILD_DIR)/$(ARCH)/usb.o \
+        $(BUILD_DIR)/$(ARCH)/vmware.o \
+        $(BUILD_DIR)/$(ARCH)/vboxguest.o \
         $(BUILD_DIR)/$(ARCH)/serial.o \
         $(BUILD_DIR)/$(ARCH)/ata_pio.o \
+        $(BUILD_DIR)/$(ARCH)/timezone.o \
         $(BUILD_DIR)/$(ARCH)/string.o \
         $(BUILD_DIR)/$(ARCH)/process_model.o
 
@@ -111,6 +121,9 @@ $(BUILD_DIR)/$(ARCH)/ports.o: $(SRC_DIR)/core/hal/ports.c | $(BUILD_DIR)/$(ARCH)
 $(BUILD_DIR)/$(ARCH)/mm.o: $(SRC_DIR)/core/kernel/mm.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/mb2.o: $(SRC_DIR)/core/kernel/mb2.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 $(BUILD_DIR)/$(ARCH)/vga_graphics.o: $(SRC_DIR)/graphics/vga_graphics.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
@@ -139,6 +152,18 @@ $(BUILD_DIR)/$(ARCH)/keyboard.o: $(SRC_DIR)/drivers/input/keyboard.c | $(BUILD_D
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 $(BUILD_DIR)/$(ARCH)/mouse.o: $(SRC_DIR)/drivers/input/mouse.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/pci.o: $(SRC_DIR)/drivers/bus/pci.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/usb.o: $(SRC_DIR)/drivers/bus/usb.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/vmware.o: $(SRC_DIR)/drivers/virtualization/vmware.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+$(BUILD_DIR)/$(ARCH)/vboxguest.o: $(SRC_DIR)/drivers/virtualization/vboxguest.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
   $(BUILD_DIR)/$(ARCH)/rtc.o: $(SRC_DIR)/drivers/bus/rtc.c | $(BUILD_DIR)/$(ARCH)

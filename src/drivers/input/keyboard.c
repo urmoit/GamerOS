@@ -64,6 +64,15 @@ int keyboard_has_input(void) {
     return kbd_read_idx != kbd_write_idx;
 }
 
+// Queue a character that did not come from the PS/2 controller: the USB HID
+// stack translates boot protocol usage IDs into the same character codes and
+// calls this, so both keyboards land in one buffer.
+void keyboard_inject_char(char c) {
+    if (c) {
+        kbd_buffer_put(c);
+    }
+}
+
 // Keyboard interrupt handler
 void keyboard_handler(void) {
     uint8_t status = inb(KBD_STATUS_PORT);

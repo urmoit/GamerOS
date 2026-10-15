@@ -22,6 +22,23 @@ static uint8_t mouse_packet[4];
 
 int mouse_is_present(void);
 
+// Apply a motion delta expressed in screen coordinates: dx positive is right,
+// dy positive is down. Every input source funnels through here so the clamp
+// logic cannot drift between them, and so the cursor stays on the desktop no
+// matter which device reported the movement.
+static void mouse_apply_motion(int16_t dx, int16_t dy) {
+    int32_t nx = (int32_t)mouse_x + dx;
+    int32_t ny = (int32_t)mouse_y + dy;
+
+    if (nx < 0) nx = 0;
+    if (ny < 0) ny = 0;
+    if (nx >= (int32_t)current_width - CURSOR_SIZE) nx = (int32_t)current_width - CURSOR_SIZE - 1;
+    if (ny >= (int32_t)current_height - CURSOR_SIZE) ny = (int32_t)current_height - CURSOR_SIZE - 1;
+
+    mouse_x = nx;
+    mouse_y = ny;
+}
+
 static inline int16_t clamp_mouse_delta(int16_t v) {
     if (v > 12) return 12;
     if (v < -12) return -12;
@@ -164,16 +181,10 @@ void mouse_handler(void) {
                 }
                 mouse_buttons = mouse_packet[0] & 0x07;
 
-                int16_t dx = clamp_mouse_delta((int8_t)mouse_packet[1]);
-                int16_t dy = clamp_mouse_delta((int8_t)mouse_packet[2]);
-
-                mouse_x += dx;
-                mouse_y -= dy;
-
-                if (mouse_x < 0) mouse_x = 0;
-                if (mouse_x >= (int32_t)current_width - CURSOR_SIZE) mouse_x = current_width - CURSOR_SIZE - 1;
-                if (mouse_y < 0) mouse_y = 0;
-                if (mouse_y >= (int32_t)current_height - CURSOR_SIZE) mouse_y = current_height - CURSOR_SIZE - 1;
+                // A PS/2 mouse reports dy positive when the device moves up,
+                // so the screen-space delta negates it.
+                mouse_apply_motion(clamp_mouse_delta((int8_t)mouse_packet[1]),
+                                   (int16_t)(-clamp_mouse_delta((int8_t)mouse_packet[2])));
 
                 mouse_cycle = 0;
             }
@@ -191,13 +202,7 @@ void mouse_handler(void) {
                 int16_t dx = clamp_mouse_delta((int8_t)mouse_packet[1]);
                 int16_t dy = clamp_mouse_delta((int8_t)mouse_packet[2]);
 
-                mouse_x += dx;
-                mouse_y -= dy;
-
-                if (mouse_x < 0) mouse_x = 0;
-                if (mouse_x >= (int32_t)current_width - CURSOR_SIZE) mouse_x = current_width - CURSOR_SIZE - 1;
-                if (mouse_y < 0) mouse_y = 0;
-                if (mouse_y >= (int32_t)current_height - CURSOR_SIZE) mouse_y = current_height - CURSOR_SIZE - 1;
+                mouse_apply_motion(dx, (int16_t)-dy);
             }
 
             {
@@ -248,6 +253,49 @@ void mouse_clear_buttons(void) { mouse_buttons = 0; }
 
 // Whether mouse_init() found a usable controller.
 int mouse_is_present(void) { return mouse_present ? 1 : 0; }
+
+// --- Non-PS/2 input sources ------------------------------------------------
+//
+// The USB HID stack and the VMware/VirtualBox absolute pointer protocols do not
+// go through the 8042 port, so they cannot push packets at the PS/2 state
+// machine above. These entry points let them report into the same shared state,
+// which is what the shell reads every frame. Direction is screen-relative: dx
+// grows to the right, dy grows downward.
+
+// Absolute pointer: place the cursor at a screen position, clamped to the
+// desktop. The VMware backdoor and the VMM device report 0..0xFFFF coordinates
+// that the caller scales first.
+void mouse_set_position(int32_t x, int32_t y) {
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x >= (int32_t)current_width - CURSOR_SIZE) x = (int32_t)current_width - CURSOR_SIZE - 1;
+    if (y >= (int32_t)current_height - CURSOR_SIZE) y = (int32_t)current_height - CURSOR_SIZE - 1;
+    mouse_x = x;
+    mouse_y = y;
+}
+
+// Relative pointer: a movement delta in screen pixels plus the current button
+// state. USB HID mice report 8-bit deltas, which this clamps the same way PS/2
+// deltas are clamped so a burst cannot fling the cursor off screen.
+void mouse_inject_relative(int16_t dx, int16_t dy, uint8_t buttons) {
+    mouse_buttons = buttons;
+    mouse_apply_motion(clamp_mouse_delta(dx), clamp_mouse_delta(dy));
+}
+
+// Replace the button state on its own: absolute pointer sources (VMware, VMM)
+// only carry position, and their buttons keep arriving over PS/2.
+void mouse_set_buttons(uint8_t buttons) {
+    mouse_buttons = buttons;
+}
+
+// Accumulate a wheel notch toward the same accumulator the PS/2 wheel uses.
+void mouse_inject_wheel(int8_t wheel) {
+    if (wheel == 0) return;
+    int16_t acc = (int16_t)mouse_wheel_delta + wheel;
+    if (acc > 64) acc = 64;
+    if (acc < -64) acc = -64;
+    mouse_wheel_delta = (int8_t)acc;
+}
 
 // TODO: Add runtime-configurable pointer sensitivity and acceleration profiles.
 // TODO: Add optional movement smoothing filter for high-jitter PS/2 devices.

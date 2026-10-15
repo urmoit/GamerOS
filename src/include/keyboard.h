@@ -18,5 +18,7 @@ void keyboard_handler(void);
 void keyboard_poll(void);
 char keyboard_getchar(void);
 int keyboard_has_input(void);
+// Queue a translated character from a non-PS/2 keyboard (USB HID).
+void keyboard_inject_char(char c);
 
 #endif

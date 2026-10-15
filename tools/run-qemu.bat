@@ -51,6 +51,13 @@ REM Create/overwrite log file (deletes old one if exists)
 set LOG_PATH=%ROOT%\qemu.log
 set DEBUG_LOG_PATH=%ROOT%\qemu-debug.log
 
+REM The USB HID stack drives UHCI controllers, and it reaches devices attached
+REM directly to a root hub port. QEMU's xHCI is a different interface and is not
+REM supported, so attach each USB device to its own UHCI controller's first
+REM port. Putting two devices on one controller makes QEMU chain the second one
+REM behind an auto-created USB hub, which the driver cannot reach.
+set USB_OPTS=-usb -device piix3-usb-uhci,id=u1 -device piix3-usb-uhci,id=u2 -device usb-kbd,bus=u1.0 -device usb-mouse,bus=u2.0
+
 echo Starting QEMU with ISO: %ISO_PATH%
 if exist "%LOG_PATH%" (
     echo Overwriting existing qemu.log
@@ -60,8 +67,8 @@ echo Creating new qemu.log file...
 echo QEMU Boot Log - %date% %time% > "%LOG_PATH%"
 echo ======================================== >> "%LOG_PATH%"
 echo Starting QEMU with ISO: %ISO_PATH% >> "%LOG_PATH%"
-echo Command: %QEMU_EXE% -cdrom "%ISO_PATH%" -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -d cpu_reset,int,guest_errors -D "%DEBUG_LOG_PATH%" >> "%LOG_PATH%"
+echo Command: %QEMU_EXE% -cdrom "%ISO_PATH%" -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max %USB_OPTS% -serial stdio -d cpu_reset,int,guest_errors -D "%DEBUG_LOG_PATH%" >> "%LOG_PATH%"
 echo. >> "%LOG_PATH%"
 
 REM Run QEMU and capture output. QEMU internal debug log goes to qemu-debug.log, main output goes to qemu.log
-%QEMU_EXE% -cdrom "%ISO_PATH%" -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max -serial stdio -usb -device usb-mouse -device usb-kbd -device qemu-xhci,id=xhci -d cpu_reset,int,guest_errors -D "%DEBUG_LOG_PATH%"
+%QEMU_EXE% -cdrom "%ISO_PATH%" -no-reboot -no-shutdown -machine pc,accel=tcg,smm=off -cpu max %USB_OPTS% -serial stdio -d cpu_reset,int,guest_errors -D "%DEBUG_LOG_PATH%"

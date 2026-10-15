@@ -16,7 +16,11 @@
 #include <notepad_app.h>
 #include <process_model.h>
 #include <multiboot.h>
+#include <multiboot2.h>
 #include <settings_ui.h>
+#include <usb.h>
+#include <vmware.h>
+#include <vboxguest.h>
 #include "../../resources/wallpapers/background_wallpaper.h"
 #include <stdint.h>
 #include <string.h>
@@ -2968,6 +2972,12 @@ void kernel_main(multiboot_info_t* mb_info) {
     serial_init();
     serial_write_string("GamerOS Starting...\n");
     debug_log_message("Boot: kernel_main start");
+    {
+        char boot_line[64];
+        sprintf(boot_line, "Boot protocol: %s\n", multiboot2_protocol_name());
+        serial_write_string(boot_line);
+        debug_log_message(boot_line);
+    }
     
     // Prefer safe-validated multiboot framebuffer path; fallback to stable VGA renderer.
     if (!graphics_use_multiboot_framebuffer(mb_info)) {
@@ -2992,6 +3002,12 @@ void kernel_main(multiboot_info_t* mb_info) {
     debug_log_message("Boot: keyboard init ok");
     mouse_init();
     debug_log_message("Boot: mouse init ok");
+    // USB HID keyboards and mice, then the hypervisor absolute pointers. Each
+    // of these replaces the PS/2 devices on a machine where they are the only
+    // pointer, and reports into the same input state below.
+    usb_init();
+    vmware_mouse_init();
+    vboxguest_init();
     // Seed desktop state before storage comes online.
     explorer_drive_count = 1;
     explorer_drive_paths[0][0] = 'C';
@@ -3050,6 +3066,13 @@ void kernel_main(multiboot_info_t* mb_info) {
         // mouse drain must never be allowed to consume a keystroke.
         keyboard_poll();
         mouse_poll();
+        // Non-PS/2 input sources. These run after the PS/2 drains because a
+        // hypervisor absolute pointer carries the position and the buttons as
+        // one synchronous read, so it has to win over whatever the 8042 left
+        // in the shared state.
+        usb_poll();
+        vmware_mouse_poll();
+        vboxguest_mouse_poll();
         
         int32_t raw_mx = mouse_get_x();
         int32_t raw_my = mouse_get_y();
