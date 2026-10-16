@@ -11,7 +11,20 @@ mb2_header_start:
     dd mb2_header_end - mb2_header_start ; header_length
     dd -(0xE85250D6 + 0x00000000 + (mb2_header_end - mb2_header_start)) ; checksum
 
-    ; End tag: no console requirement.
+    ; Framebuffer request: 1920x1080x30 RGB. GRUB fills in addr/pitch; the
+    ; rest of the header is static. Note: GRUB may refuse to load an MB2 image
+    ; carrying a framebuffer tag when it cannot set the requested console mode;
+    ; in that case boot with the "multiboot" (MB1) command instead.
+    dd 8                                ; type 8 = framebuffer
+    dd 32                               ; size (8-byte header + payload, 8-aligned)
+    dq 0                                ; addr (filled in by loader)
+    dd 0                                ; pitch (filled in by loader)
+    dd 1920                             ; width
+    dd 1080                             ; height
+    db 30                               ; bpp
+    db 1                                ; type = RGB
+
+    ; End tag: end of header tags.
     dd 0                                ; type 0 = end, flags 0
     dd 8                                ; size
 mb2_header_end:

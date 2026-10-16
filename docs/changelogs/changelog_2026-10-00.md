@@ -1,9 +1,8 @@
 # GamerOS Changelog (2026-10-00)
 
-> **WORK IN PROGRESS — DO NOT SHIP.** Build 1.570 is unfinished. The Multiboot 2,
-> UHCI USB and hypervisor pointer work is boot-verified under QEMU and is
-> recorded in the Verification section; the rest is still being verified. Treat
-> this as a running log.
+> **WORK IN PROGRESS — DO NOT SHIP.** Build 1.570 is unfinished. The UHCI USB and
+> hypervisor pointer work is boot-verified under QEMU and is recorded in the
+> Verification section; the rest is still being verified. Treat this as a running
 
 ## Release
 
@@ -12,40 +11,6 @@
 - Status: Unreleased. Work in progress; still being verified.
 
 <!-- New entries go below this line. Keep entries one bullet per change. -->
-
-## Multiboot 2
-
-- **The kernel now boots from a Multiboot 2 header as well as the Multiboot 1 one
-  it always carried.** `boot.asm` emits both: the Multiboot 2 header first, then
-  the Multiboot 1 header. The entry stub saves the boot magic from `EAX` and the
-  information pointer from `EBX` before touching any register, and a new
-  `multiboot2_build()` normalises either handover into the one `multiboot_info_t`
-  layout the rest of the kernel consumes. `multiboot2` and `multiboot` both boot;
-  the printed `Boot protocol: Multiboot 2` / `Multiboot 1` line confirms which.
-- **This surfaced two boot bugs that had been invisible until now.** GRUB's
-  Multiboot 2 loader was never reached, so its stricter behaviour exposed them:
-
-  1. **A framebuffer tag in the Multiboot 2 header made GRUB refuse to load the
-     image at all.** GRUB's `grub_multiboot2_load()` calls
-     `grub_multiboot2_set_console()` with the requested width, height and depth
-     and returns that error straight out of the command. When it cannot set the
-     mode it does not fall back the way the Multiboot 1 path does, so the guest
-     never started and the serial log was empty. The Multiboot 2 header now
-     carries only the mandatory end tag and requests no console; `boot.asm` sets
-     up its own VGA mode before entering long mode, so the graphics path does not
-     depend on the loader.
-  2. **The 64-bit handover stub folded the boot magic into the pointer.**
-     `mov rsi, [multiboot_ptr]` is an 8-byte load and the two BSS slots sit next
-     to each other, so `multiboot_magic` landed in the pointer's high half and
-     `multiboot2_build()` walked a garbage address. Both slots are now loaded as
-     32-bit words, which zero-extends correctly because the kernel image lives
-     below 4 GiB. Verified by dumping `RBX=0x36d7628900100120` at the faulting
-     instruction.
-
-- **GRUB's `multiboot2` command is not in `grub-mkrescue`'s default module set**,
-  so a config using it needs the module shipped inside the ISO. The ISO's
-  `grub.cfg` still uses `multiboot` (which is present), and the loader command in
-  `config/targets/x86_64/grub.cfg` records why.
 
 ## USB HID — UHCI host controller, boot protocol keyboard and mouse
 
@@ -205,8 +170,6 @@
 All of the boot-verified work below was checked by booting the built ISO under
 QEMU in a container and reading the guest's serial log back:
 
-- `Boot protocol: Multiboot 2` prints, and the guest reaches the desktop main
-  loop with no triple faults.
 - `USB: keyboard on port (address 1, endpoint 1)` and
   `USB: mouse on port (address 1, endpoint 1)` print when one device is attached
   per UHCI controller, which is the configuration `run-qemu.bat` uses.

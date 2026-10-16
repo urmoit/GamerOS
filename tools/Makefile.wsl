@@ -175,6 +175,9 @@ $(BUILD_DIR)/$(ARCH)/vboxguest.o: $(SRC_DIR)/drivers/virtualization/vboxguest.c 
 $(BUILD_DIR)/$(ARCH)/rtc.o: $(SRC_DIR)/drivers/bus/rtc.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
+$(BUILD_DIR)/$(ARCH)/timezone.o: $(SRC_DIR)/drivers/rtc/timezone.c | $(BUILD_DIR)/$(ARCH)
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
 $(BUILD_DIR)/$(ARCH)/pic.o: $(SRC_DIR)/drivers/bus/pic.c | $(BUILD_DIR)/$(ARCH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
