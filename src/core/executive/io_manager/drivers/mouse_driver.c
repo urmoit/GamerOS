@@ -63,7 +63,7 @@ uint8_t mouse_read() {
 void mouse_handler() {
     uint8_t status = inb(MOUSE_STATUS);
     if (!(status & MOUSE_ABIT)) {
-        pic_eoi(MOUSE_IRQ); // End of interrupt for mouse
+        pic_eoi(MOUSE_IRQ);
         return;
     }
 
@@ -78,18 +78,14 @@ void mouse_handler() {
             break;
         case 2:
             mouse_byte[2] = mouse_read();
-            // Update mouse coordinates
             mouse_x += (int8_t)mouse_byte[1];
             mouse_y -= (int8_t)mouse_byte[2];
             if (mouse_x < 0) mouse_x = 0;
             if (mouse_y < 0) mouse_y = 0;
-            // Note: No upper bounds checking as screen size may vary
             // TODO: Add screen boundary checking for mouse position based on current display resolution
 
-            // Update button state
             mouse_buttons = mouse_byte[0] & 0x07;  // Lower 3 bits are buttons
 
-            // Update current state
             current_state.x = mouse_x;
             current_state.y = mouse_y;
             current_state.buttons = mouse_buttons;
@@ -97,7 +93,7 @@ void mouse_handler() {
             mouse_cycle = 0;
             break;
     }
-    pic_eoi(MOUSE_IRQ); // End of interrupt for mouse
+    pic_eoi(MOUSE_IRQ);
 }
 
 int mouse_driver_init(void) {
@@ -121,15 +117,11 @@ int mouse_driver_init(void) {
     mouse_write(MOUSE_ENABLE);
     mouse_read(); // Acknowledge
 
-    // Initialize state
     mouse_cycle = 0;
     mouse_x = mouse_y = 0;
     mouse_buttons = 0;
     current_state.x = current_state.y = 0;
     current_state.buttons = 0;
-
-    // Set mouse handler in IDT (not implemented here)
-    // For now, we assume IDT is set up to handle IRQ12
 
     return 0;
 }
@@ -142,7 +134,6 @@ int mouse_driver_read(object_handle_t device, void* buffer, uint32_t size, uint3
         return -1;
     }
 
-    // Return current mouse state
     *(mouse_state_t*)buffer = current_state;
     return sizeof(mouse_state_t);
 }
@@ -183,7 +174,6 @@ int mouse_driver_ioctl(object_handle_t device, uint32_t code, void* data) {
 }
 
 int mouse_driver_shutdown(void) {
-    // Disable mouse if needed
     return 0;
 }
 

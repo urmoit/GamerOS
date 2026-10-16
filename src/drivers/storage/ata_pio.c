@@ -4,10 +4,6 @@
 
 
 // Legacy ATA (IDE) PIO driver, primary channel, master device.
-//
-// Sectors above 128 GiB need the LBA48 command set (0x24/0x34) rather than the
-// 28-bit form, so both paths are implemented and selected per request from the
-// capacity discovered at IDENTIFY time.
 
 #define ATA_IO_BASE      0x1F0
 #define ATA_REG_DATA     (ATA_IO_BASE + 0)

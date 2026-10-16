@@ -7,7 +7,7 @@
 void widget_system_init(void);
 void widget_system_shutdown(void);
 
-// Widget creation (wrappers around existing functions)
+// Widget creation (wrappers)
 ui_widget_t* widget_create_button(int32_t x, int32_t y, uint32_t width, uint32_t height, const char* text);
 ui_widget_t* widget_create_label(int32_t x, int32_t y, uint32_t width, uint32_t height, const char* text);
 ui_widget_t* widget_create_textbox(int32_t x, int32_t y, uint32_t width, uint32_t height, const char* initial_text);

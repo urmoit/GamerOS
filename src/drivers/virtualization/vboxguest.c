@@ -7,10 +7,6 @@
 #include <string.h>
 
 // VirtualBox VMM device mouse integration driver.
-//
-// The request block the VMM device reads must be in physical memory the host
-// can write to. The kernel identity-maps the first 4 GiB, so a page-aligned
-// static buffer works and its kernel address is also its bus address.
 
 #define VBOX_VENDOR_ID          0x80EE
 #define VBOX_VMMDEV_DEVICE_ID   0xCAFE
@@ -51,17 +47,13 @@ static vbox_mouse_status_request_t* vbox_req(void) {
 }
 
 static void vbox_submit(void) {
-    // A single 32-bit port write hands the block over. The request is
-    // synchronous: by the time the instruction retires, the host has already
-    // written its answer into the same buffer.
+    // One port write hands the block over; the request is synchronous.
     outl(vbox_port, (uint32_t)(uintptr_t)vbox_request);
 }
 
 void vboxguest_init(void) {
     pci_device_t pci;
 
-    // Absent on any hypervisor that is not VirtualBox, which is the common
-    // case, so this returns without a word.
     if (!pci_find_device(VBOX_VENDOR_ID, VBOX_VMMDEV_DEVICE_ID, &pci)) {
         return;
     }
@@ -105,16 +97,12 @@ int vboxguest_mouse_poll(void) {
     if (req->header.rc < 0) {
         return 0;   // request refused: nothing to read
     }
-    // Only follow the reported position while the host has the pointer in
-    // integration mode. With the pointer captured, the host sends nothing
-    // useful, and the relative PS/2 packets are the right source again.
+    // Trust the position only while the host wants absolute mode.
     if (!(req->mouse_features & VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE)) {
         return 0;
     }
 
-    // Positions span 0..0xFFFF independently on each axis, so scale each one
-    // onto the current desktop. Read the size once: the shell can change it,
-    // and a half-scaled cursor is worse than a stale one.
+    // Each axis spans 0..0xFFFF; read the screen size once.
     uint32_t screen_w = current_width;
     uint32_t screen_h = current_height;
     uint32_t raw_x = (uint32_t)req->pointer_x_pos & 0xFFFFu;

@@ -3,12 +3,7 @@
 #include <fs.h>
 #include <string.h>
 
-// Standard IANA/Windows time zones with their standard offsets and, where they
-// observe one, the daylight-saving rule that governs them.
-//
-// The RTC is treated as UTC. Local time is UTC plus the zone offset, with
-// daylight saving applied when the instant falls inside that zone's transition
-// window for the year.
+// IANA time zone table and UTC -> local conversion.
 
 static const tz_info_t g_zones[] = {
     { "UTC-12:00  International Date Line West", -720, TZ_DST_NONE },
@@ -92,7 +87,7 @@ static const tz_info_t g_zones[] = {
 static int g_current = -1;   // -1 forces a lazy load
 static uint8_t g_loaded = 0;
 
-// ---- Calendar helpers (closed form; no libgcc, no runtime division) ---------
+// ---- Calendar helpers ----
 
 static int32_t tz_days_from_civil(int32_t y, int32_t m, int32_t d) {
     y -= (m <= 2) ? 1 : 0;
@@ -132,15 +127,13 @@ static int32_t tz_nth_weekday(int32_t y, int32_t m, int weekday, int nth) {
     int32_t delta = weekday - first_wd;
     if (delta < 0) delta += 7;
     int32_t day = 1 + delta + (int32_t)(nth - 1) * 7;
-    // Walk back if we ran past the end of the month.
     int32_t len = (m == 2) ? (((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) ? 29 : 28)
                           : ((m == 4 || m == 6 || m == 9 || m == 11) ? 30 : 31);
     while (day > len) day -= 7;
     return day;
 }
 
-// UTC instant of a transition. minutes_of_day_utc may be negative for zones
-// far east of Greenwich.
+// UTC instant of a transition; minutes_of_day_utc may be negative.
 static uint32_t tz_boundary(int32_t y, int32_t m, int weekday, int nth,
                             int32_t minutes_of_day_utc) {
     int32_t day = tz_nth_weekday(y, m, weekday, nth);
@@ -148,7 +141,7 @@ static uint32_t tz_boundary(int32_t y, int32_t m, int weekday, int nth,
     return (uint32_t)((int64_t)days * 86400 + minutes_of_day_utc * 60);
 }
 
-// ---- Public API -------------------------------------------------------------
+// ---- Public API ----
 
 int tz_count(void) {
     return TZ_COUNT;
@@ -187,12 +180,7 @@ static int tz_is_dst(int rule, int32_t std_off, uint32_t utc) {
             return (utc >= start && utc < end);
         case TZ_DST_AU:
         case TZ_DST_NZ: {
-            // Southern hemisphere: the daylight window spans New Year, running
-            // from October (or September for NZ) to the following April. The
-            // window must therefore be anchored to the *previous* year whenever
-            // the instant falls in the Jan-Apr tail; simply testing
-            // "after this year's start OR before next year's end" would wrongly
-            // report the whole Apr-Sep gap as daylight time.
+            // Southern hemisphere: window spans New Year; anchor to the previous year.
             const int32_t start_month = (rule == TZ_DST_AU) ? 10 : 9;
             uint32_t start;
             uint32_t end;
@@ -284,7 +272,7 @@ void tz_current_label(char* out, int out_size) {
     out[pos] = 0;
 }
 
-// ---- Persistence ------------------------------------------------------------
+// ---- Persistence ----
 
 #define TZ_REG_PATH "C:/GamerOS/Registry/TIMEZONE.INI"
 
@@ -337,7 +325,6 @@ void tz_save(void) {
 int tz_current_index(void) {
     if (!g_loaded) tz_load();
     if (g_current < 0) {
-        // Default to UTC until the user picks something.
         for (int i = 0; i < TZ_COUNT; i++) {
             if (g_zones[i].std_offset_min == 0 && g_zones[i].dst_rule == TZ_DST_EU) {
                 g_current = i;

@@ -25,10 +25,9 @@ void init_windowing() {
 
 window_t* create_window(int x, int y, int width, int height, char* title) {
     if (window_count >= MAX_WINDOWS || !title) {
-        return 0; // Max windows reached or invalid title
+        return 0;
     }
 
-    // Find a free spot
     int window_slot = -1;
     for (size_t i = 0; i < MAX_WINDOWS; i++) {
         if (windows[i] == 0) {
@@ -37,13 +36,13 @@ window_t* create_window(int x, int y, int width, int height, char* title) {
         }
     }
 
-    if (window_slot == -1) return 0; // Should not happen if window_count is correct
+    if (window_slot == -1) return 0;
 
     // Use static window pool instead of kmalloc
     static window_t window_pool[MAX_WINDOWS];
     window_t* new_window = &window_pool[window_slot];
     if (!new_window) {
-        return 0; // Memory allocation failed
+        return 0;
     }
 
     new_window->x = x;
@@ -64,14 +63,11 @@ window_t* create_window(int x, int y, int width, int height, char* title) {
 void draw_window(window_t* win) {
     if (!win) return;
 
-    // Define local size constants
     #define TITLE_BAR_HEIGHT 20
 
-    // Draw window frame
     vga_fill_rect(win->x, win->y, win->width, win->height, COLOR_DARK_GREY);
     vga_draw_rect(win->x, win->y, win->width, win->height, COLOR_WHITE);
 
-    // Draw title bar
     uint8_t title_color = win->is_active ? COLOR_BLUE : COLOR_DARK_GREY;
     vga_fill_rect(win->x, win->y, win->width, TITLE_BAR_HEIGHT, title_color);
 
@@ -84,12 +80,10 @@ void draw_window(window_t* win) {
 void move_window(window_t* win, int new_x, int new_y) {
     if (!win) return;
 
-    // Define constants for magic numbers
     #define VGA_WIDTH_CONSTANT  320
     #define VGA_HEIGHT_CONSTANT 200
     #define MIN_WINDOW_DIMENSION 50
 
-    // Validate coordinates are within reasonable bounds
     if (new_x < 0) new_x = 0;
     if (new_y < 0) new_y = 0;
     if (new_x > VGA_WIDTH_CONSTANT - MIN_WINDOW_DIMENSION) new_x = VGA_WIDTH_CONSTANT - MIN_WINDOW_DIMENSION;

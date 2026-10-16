@@ -1,6 +1,6 @@
 #include "../../interfaces/subsystem_interfaces.h"
 
-// Function declarations
+// POSIX environment subsystem
 void posix_init_impl(void);
 void posix_shutdown_impl(void);
 int posix_load_application(const char* app_path);
@@ -13,7 +13,6 @@ static void* posix_api_table[] = {
     0
 };
 
-// POSIX environment interface implementation
 static environment_interface_t posix_interface = {
     .init = posix_init_impl,
     .shutdown = posix_shutdown_impl,
@@ -23,14 +22,12 @@ static environment_interface_t posix_interface = {
 };
 
 void posix_init_impl(void) {
-    // Initialize POSIX environment
     // TODO: Set up POSIX API compatibility layer
 
     posix_env = &posix_interface;
 }
 
 void posix_shutdown_impl(void) {
-    // Shutdown POSIX environment
     // TODO: Cleanup POSIX resources
 }
 

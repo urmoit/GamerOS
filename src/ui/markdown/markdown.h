@@ -3,29 +3,18 @@
 
 #include <stdint.h>
 
-// A small block + inline Markdown renderer for the Settings changelog.
-//
-// The previous implementation was line-oriented and kept one colour per line, so
-// it could not express the things a changelog actually uses: real bullets,
-// indented nesting, headings that look like headings, blockquotes with a quote
-// bar, inline code as a chip, or emphasis. This module parses blocks and inline
-// spans separately, then wraps and draws the result at display time so the same
-// parsed data reflows correctly when the window is resized.
+// Markdown renderer for the Settings changelog.
 
-// Capacity of a logical line, in characters. Source lines longer than this are
-// broken at a word boundary onto a continuation line rather than cut mid-word.
+// Capacity of a logical line, in characters; wraps at word boundaries.
 #define MD_TEXT_MAX 200
 
-// Inline spans recorded per line. A changelog line rarely needs more; the parser
-// stops adding spans (and keeps the text) rather than overflowing.
+// Inline spans recorded per line.
 #define MD_MAX_SPANS 12
 
-// Upper bound on wrapped visual rows for one view, used to size the row table.
+// Upper bound on wrapped visual rows for one view.
 #define MD_MAX_VROWS 1024
 
-// Capacity of the parsed document, in logical lines. This is the number
-// tools/embed_changelog.py checks the changelog against, so raising it here is
-// what stops the Settings viewer dropping the tail of a long changelog.
+// Capacity of the parsed document, in logical lines.
 #define MD_MAX_LINES 384
 
 typedef enum {
@@ -62,8 +51,7 @@ typedef struct {
     uint16_t  ordinal;    // Number for an ordered-list item.
 } md_line_t;
 
-// One wrapped row of a logical line, produced at draw time because the usable
-// width is only known once the window is laid out.
+// One wrapped row of a logical line, built at draw time.
 typedef struct {
     int16_t line;     // Index into the parsed line table.
     int16_t start;    // First character of the logical line on this row.
@@ -80,22 +68,19 @@ typedef enum {
 void md_parse(const char* text);
 
 int  md_line_count(void);
-// Index of the first line of the roadmap section, or -1 when the document has no
-// roadmap heading. The Settings view uses it to split changelog from roadmap.
+// First line of the roadmap section, or -1 when there is no roadmap heading.
 int  md_roadmap_start(void);
-// True when at least one line was dropped because MD_TEXT_MAX or MD_MAX_VROWS was
-// reached, so the caller can warn instead of silently truncating.
+// True when a line was dropped because MD_TEXT_MAX or MD_MAX_VROWS was reached.
 int  md_was_truncated(void);
 
-// Drawing. `scroll` is in pixels and is clamped in place to the document height.
-// The document is measured and wrapped as part of the call.
+// Drawing. `scroll` is in pixels and is clamped in place.
 void md_draw(int x, int y, int w, int h, int view, int* scroll);
 
-// Total height in pixels of the wrapped document for a view at the given width.
+// Total height in pixels of the wrapped document for a view.
 int  md_content_height(int w, int view);
 
-// Applies a wheel delta (in notches) to a scroll position and returns the new
-// clamped value. Kept separate so the Settings hit test and the renderer agree.
+// Applies a wheel delta (notches) to a scroll position, returning the new
+// clamped value.
 int  md_scroll_by(int w, int view, int scroll, int wheel_notches);
 
 #endif

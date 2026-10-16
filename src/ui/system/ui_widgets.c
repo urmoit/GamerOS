@@ -3,22 +3,19 @@
 #include <string.h>
 #include <graphics.h>
 
-// Note: strlen and strcpy are now in string.h/string.c
-
-// Global theme
 ui_theme_t current_theme;
 
-// Default theme initialization - Fluent UI (Windows 11 Dark Theme)
+// Default theme: Fluent UI (Windows 11 dark)
 void ui_load_default_theme() {
-    current_theme.primary_color = 0xFF0078D4;     // Windows blue (accent)
-    current_theme.secondary_color = 0xFF6C757D;   // Medium grey
-    current_theme.accent_color = 0xFF0078D4;      // Windows blue
-    current_theme.background_color = 0xFF1F1F1F;  // Fluent dark background
-    current_theme.surface_color = 0xFF2D2D30;     // Fluent surface
-    current_theme.text_color = 0xFFE4E4E4;        // Fluent light text
-    current_theme.text_secondary_color = 0xFFA0A0A0; // Fluent secondary text
-    current_theme.border_color = 0xFF3C3C3C;      // Fluent border
-    current_theme.shadow_color = 0x40000000;      // Semi-transparent black
+    current_theme.primary_color = 0xFF0078D4;
+    current_theme.secondary_color = 0xFF6C757D;
+    current_theme.accent_color = 0xFF0078D4;
+    current_theme.background_color = 0xFF1F1F1F;
+    current_theme.surface_color = 0xFF2D2D30;
+    current_theme.text_color = 0xFFE4E4E4;
+    current_theme.text_secondary_color = 0xFFA0A0A0;
+    current_theme.border_color = 0xFF3C3C3C;
+    current_theme.shadow_color = 0x40000000;
 
     // Button styles
     current_theme.button_normal_bg = 0xFF3C3C3C;
@@ -50,7 +47,7 @@ void ui_set_theme(ui_theme_t* theme) {
     }
 }
 
-// Widget creation functions
+// Widget creation
 ui_widget_t* ui_create_widget(widget_type_t type, int32_t x, int32_t y, uint32_t width, uint32_t height) {
     ui_widget_t* widget = (ui_widget_t*)kmalloc(sizeof(ui_widget_t));
     if (!widget) return 0;
@@ -64,7 +61,6 @@ ui_widget_t* ui_create_widget(widget_type_t type, int32_t x, int32_t y, uint32_t
     widget->width = width;
     widget->height = height;
 
-    // Default properties
     widget->background_color = current_theme.surface_color;
     widget->foreground_color = current_theme.primary_color;
     widget->border_color = current_theme.border_color;
@@ -209,7 +205,6 @@ ui_container_t* ui_create_container(widget_type_t type, int32_t x, int32_t y, ui
 
     memset(container, 0, sizeof(ui_container_t));
 
-    // Initialize base widget
     container->base.type = type;
     container->base.state = STATE_NORMAL;
     container->base.x = x;
@@ -223,7 +218,6 @@ ui_container_t* ui_create_container(widget_type_t type, int32_t x, int32_t y, ui
     container->base.visible = 1;
     container->base.enabled = 1;
 
-    // Container-specific initialization
     container->child_capacity = 16;
     container->children = (ui_widget_t**)kmalloc(sizeof(ui_widget_t*) * container->child_capacity);
     if (!container->children) {
@@ -270,8 +264,7 @@ ui_container_t* ui_create_panel(int32_t x, int32_t y, uint32_t width, uint32_t h
 void ui_destroy_widget(ui_widget_t* widget) {
     if (!widget) return;
 
-    // Containers own their children: release them before the container itself,
-    // otherwise every window/panel teardown leaked its subtree.
+    // Containers own their children: free them before the container itself.
     if (widget->type == WIDGET_WINDOW || widget->type == WIDGET_PANEL) {
         ui_container_t* container = (ui_container_t*)widget;
         for (uint32_t i = 0; i < container->child_count; i++) {
@@ -284,7 +277,6 @@ void ui_destroy_widget(ui_widget_t* widget) {
         container->child_count = 0;
     }
 
-    // Free widget-specific data
     if (widget->text) {
         kfree(widget->text);
     }
@@ -330,7 +322,6 @@ void ui_destroy_widget(ui_widget_t* widget) {
 void ui_add_child(ui_container_t* parent, ui_widget_t* child) {
     if (!parent || !child) return;
 
-    // Expand capacity if needed
     if (parent->child_count >= parent->child_capacity) {
         uint32_t new_capacity = parent->child_capacity * 2;
         ui_widget_t** new_children = (ui_widget_t**)kmalloc(sizeof(ui_widget_t*) * new_capacity);
@@ -353,7 +344,6 @@ void ui_remove_child(ui_container_t* parent, ui_widget_t* child) {
 
     for (uint32_t i = 0; i < parent->child_count; i++) {
         if (parent->children[i] == child) {
-            // Shift remaining children
             for (uint32_t j = i; j < parent->child_count - 1; j++) {
                 parent->children[j] = parent->children[j + 1];
             }
@@ -424,7 +414,6 @@ ui_widget_t* ui_find_widget_at(ui_container_t* container, int32_t x, int32_t y) 
     for (int32_t i = (int32_t)container->child_count - 1; i >= 0; i--) {
         ui_widget_t* child = container->children[i];
         if (child && ui_point_in_widget(child, x, y)) {
-            // If it's a container, recursively check its children
             if (child->type == WIDGET_WINDOW || child->type == WIDGET_PANEL) {
                 ui_widget_t* found = ui_find_widget_at((ui_container_t*)child, x, y);
                 if (found) return found;
@@ -433,7 +422,6 @@ ui_widget_t* ui_find_widget_at(ui_container_t* container, int32_t x, int32_t y) 
         }
     }
 
-    // Check container itself
     if (ui_point_in_widget(&container->base, x, y)) {
         return &container->base;
     }
@@ -441,50 +429,43 @@ ui_widget_t* ui_find_widget_at(ui_container_t* container, int32_t x, int32_t y) 
     return 0;
 }
 
-// Rendering functions (simplified implementations)
+// Rendering
 void ui_render_widget(ui_widget_t* widget) {
     if (!widget || !widget->visible) return;
 
-    // Draw shadow if specified
     if (widget->shadow_offset > 0) {
         vga_draw_shadow(widget->x, widget->y, widget->width, widget->height,
                        widget->shadow_color, widget->shadow_offset);
     }
 
-    // Draw background
     if ((widget->background_color >> 24) & 0xFF) { // Not fully transparent
         vga_fill_rounded_rect(widget->x, widget->y, widget->width, widget->height,
                              current_theme.border_radius, widget->background_color);
     }
 
-    // Draw border
     if (widget->border_width > 0) {
         vga_draw_rounded_rect(widget->x, widget->y, widget->width, widget->height,
                              current_theme.border_radius, widget->border_color);
     }
 
-    // Draw text
     if (widget->text) {
         uint32_t text_x = widget->x + widget->border_width + 4;
         uint32_t text_y = widget->y + widget->border_width + 4;
         vga_draw_string(text_x, text_y, widget->text, widget->text_color);
     }
 
-    // Widget-specific rendering
     switch (widget->type) {
         case WIDGET_BUTTON:
             // Button-specific rendering (already handled by base)
             break;
 
         case WIDGET_CHECKBOX:
-            // Draw checkbox
             uint32_t cb_x = widget->x + 4;
             uint32_t cb_y = widget->y + (widget->height - 12) / 2;
             vga_draw_rect(cb_x, cb_y, 12, 12, widget->border_color);
             if (widget->data.checkbox.checked) {
                 vga_fill_rect(cb_x + 2, cb_y + 2, 8, 8, widget->foreground_color);
             }
-            // Draw label
             if (widget->data.checkbox.label) {
                 vga_draw_string(cb_x + 16, widget->y + (widget->height - 8) / 2,
                                widget->data.checkbox.label, widget->text_color);
@@ -492,7 +473,6 @@ void ui_render_widget(ui_widget_t* widget) {
             break;
 
         case WIDGET_PROGRESS_BAR: {
-            // Draw progress bar background
             vga_draw_rect(widget->x, widget->y, widget->width, widget->height, widget->border_color);
             // Guard against a zero range, which would divide by zero.
             uint32_t range = widget->data.progress_bar.max_value - widget->data.progress_bar.min_value;
@@ -514,10 +494,8 @@ void ui_render_widget(ui_widget_t* widget) {
 void ui_render_container(ui_container_t* container) {
     if (!container || !container->base.visible) return;
 
-    // Render container background
     ui_render_widget(&container->base);
 
-    // Render children
     for (uint32_t i = 0; i < container->child_count; i++) {
         ui_widget_t* child = container->children[i];
         if (child) {
@@ -536,7 +514,7 @@ void ui_render_container(ui_container_t* container) {
 // TODO: Add widget animation and state transitions
 // TODO: Implement accessibility features (screen reader support)
 
-// Event handling (basic implementations)
+// Event handling
 void ui_process_mouse_event(ui_widget_t* widget, ui_event_t* event) {
     if (!widget || !widget->enabled) return;
 
@@ -590,10 +568,8 @@ void ui_process_keyboard_event(ui_widget_t* widget, ui_event_t* event) {
             }
             break;
         case EVENT_KEY_PRESS:
-            // Handle text input for textboxes
             if (widget->type == WIDGET_TEXTBOX && widget->data.textbox.buffer) {
-                // Bounded append: the old code trusted a fixed 256-byte buffer
-                // and only checked length after strcpy-like writes.
+                // Bounded append within buffer_size.
                 char* buf = widget->data.textbox.buffer;
                 uint32_t cap = widget->data.textbox.buffer_size;
                 if (cap > 0) {
@@ -625,7 +601,6 @@ void ui_update_widget_state(ui_widget_t* widget, uint32_t mouse_x, uint32_t mous
         ui_process_mouse_event(widget, &event);
     }
 
-    // Update visual state based on interaction
     if (widget->hovered && mouse_button_pressed) {
         widget->state = STATE_PRESSED;
         widget->background_color = current_theme.button_pressed_bg;
@@ -638,7 +613,6 @@ void ui_update_widget_state(ui_widget_t* widget, uint32_t mouse_x, uint32_t mous
     }
 }
 
-// Initialize the UI system
 void ui_widgets_init() {
     ui_load_default_theme();
 }

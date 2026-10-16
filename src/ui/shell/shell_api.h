@@ -1,12 +1,7 @@
 #ifndef SHELL_API_H
 #define SHELL_API_H
 
-// The interface between standalone apps and the kernel shell.
-//
-// Apps are separate translation units: they must not reach into the kernel's
-// internals, so everything they legitimately need from the shell is declared
-// here. The shell (window manager, taskbar, desktop, input pump) stays in
-// main.c and implements these.
+// App-facing shell API.
 
 #include <stdint.h>
 #include <fs.h>
@@ -34,15 +29,13 @@ void fill_chamfer_rect(int x, int y, int w, int h, uint8_t color);
 void draw_chamfer_rect(int x, int y, int w, int h, uint8_t color);
 void draw_tool_button(int x, int y, int w, int h, const char* label, int enabled);
 
-// ---- Shell state an app configures -----------------------------------------
-// Debug overlay, shown by the Settings System page's "Debug window" toggle.
+// ---- Shell state ------------------------------------------------------------
 int  shell_debug_overlay_enabled(void);
 void shell_set_debug_overlay(int enabled);
 
 // Current desktop UI scale, as a whole multiplier.
 int  shell_ui_scale(void);
 
-// Display profiles the Settings System page lists and applies.
 int         shell_display_profile_count(void);
 int         shell_display_profile_available(int idx);
 const char* shell_display_profile_label(int idx);

@@ -2,13 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-// Minimal first-fit heap over a statically reserved BSS arena.
-//
-// The executive layer (object manager, GDI) allocates through kmalloc/kfree, so
-// these must exist for that code to link. A real allocator with block splitting,
-// coalescing and fragmentation control is still listed as future work; this
-// implementation is correct but simple: fixed-size block free list, first fit,
-// no splitting, no coalescing.
+// Minimal first-fit heap over a static BSS arena.
 
 #define ALIGN_SIZE   8u
 #define HEAP_MAGIC   0x48454150u  // "HEAP"
@@ -20,7 +14,6 @@ typedef struct block_header {
     uint32_t reserved;
 } block_header_t;
 
-// Static arena. HEAP_SIZE from mm.h is 1MB.
 static uint8_t heap_arena[HEAP_SIZE] __attribute__((aligned(ALIGN_SIZE)));
 static block_header_t* heap_free_list = 0;
 static int heap_initialized = 0;
@@ -56,11 +49,9 @@ void* kmalloc(size_t size) {
     while (*link) {
         block_header_t* block = *link;
         if (block->size >= need) {
-            // Exact-size or first-fit: unlink and hand the whole block over.
             *link = block->next;
             block->next = 0;
-            // Re-stamp the magic: kfree() rejects blocks whose magic is clear,
-            // and we cleared it on the previous free.
+            // Re-stamp magic: kfree() rejects blocks with cleared magic.
             block->magic = HEAP_MAGIC;
             return (void*)((uint8_t*)block + sizeof(block_header_t));
         }
@@ -74,7 +65,6 @@ void kfree(void* ptr) {
 
     block_header_t* block = (block_header_t*)((uint8_t*)ptr - sizeof(block_header_t));
 
-    // Validate that this really is one of our blocks before touching the list.
     if ((uint8_t*)block < heap_arena ||
         (uint8_t*)block + sizeof(block_header_t) > heap_arena + sizeof(heap_arena)) {
         return;

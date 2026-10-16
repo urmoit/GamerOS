@@ -7,10 +7,8 @@
 #define MOUSE_STATUS_PORT  0x64
 #define MOUSE_CMD_PORT     0x64
 
-// Upper bound for every controller handshake loop.
 #define MOUSE_IO_TIMEOUT   100000
 
-// Mouse state
 static int32_t mouse_x = 160;
 static int32_t mouse_y = 100;
 static uint8_t mouse_buttons = 0;
@@ -22,10 +20,6 @@ static uint8_t mouse_packet[4];
 
 int mouse_is_present(void);
 
-// Apply a motion delta expressed in screen coordinates: dx positive is right,
-// dy positive is down. Every input source funnels through here so the clamp
-// logic cannot drift between them, and so the cursor stays on the desktop no
-// matter which device reported the movement.
 static void mouse_apply_motion(int16_t dx, int16_t dy) {
     int32_t nx = (int32_t)mouse_x + dx;
     int32_t ny = (int32_t)mouse_y + dy;
@@ -59,10 +53,7 @@ static uint8_t mouse_read_data_timeout(uint8_t* out) {
     return 0;
 }
 
-// Send command to mouse
 void mouse_send_cmd(uint8_t cmd) {
-    // Bounded waits: if the controller is absent the status bits never clear,
-    // and an unbounded spin here would hang boot on machines with no PS/2 mouse.
     for (int i = 0; i < MOUSE_IO_TIMEOUT; i++) {
         if (!(inb(MOUSE_STATUS_PORT) & 0x02)) break;
     }
@@ -73,15 +64,12 @@ void mouse_send_cmd(uint8_t cmd) {
     outb(MOUSE_DATA_PORT, cmd);
 }
 
-// Drain and discard the controller acknowledgement so the next command is not
-// confused by a stale reply. Bounded for the same reason as mouse_send_cmd().
 static void mouse_drain_ack(void) {
     for (int i = 0; i < 4; i++) {
         if (!mouse_read_data_timeout(0)) break;
     }
 }
 
-// Mouse initialization
 void mouse_init(void) {
     mouse_x = current_width / 2;
     mouse_y = current_height / 2;
@@ -90,8 +78,6 @@ void mouse_init(void) {
     mouse_has_wheel = 0;
     mouse_cycle = 0;
 
-    // Probe the controller before enabling IRQ12 so we can fall back cleanly
-    // instead of waiting forever on absent hardware.
     outb(MOUSE_CMD_PORT, 0xA8); // Enable auxiliary device
     io_wait();
 
@@ -99,8 +85,6 @@ void mouse_init(void) {
     io_wait();
     uint8_t status = inb(MOUSE_DATA_PORT);
     if (status == 0xFF || status == 0x00) {
-        // No controller responded; leave the mouse unavailable rather than
-        // spinning on a port that will never answer.
         mouse_present = 0;
         return;
     }
@@ -116,7 +100,7 @@ void mouse_init(void) {
     mouse_send_cmd(0xF6); // Set defaults
     mouse_drain_ack();
 
-    // Enable IntelliMouse wheel packets (4-byte PS/2 packet format) when supported.
+    // Enable IntelliMouse wheel packets (4-byte PS/2 packet).
     mouse_send_cmd(0xF3);
     mouse_send_cmd(200);
     mouse_drain_ack();
@@ -136,12 +120,12 @@ void mouse_init(void) {
         }
     }
 
-    mouse_send_cmd(0xF4); // Ensure streaming enabled after reconfiguration.
+    mouse_send_cmd(0xF4); // Enable streaming
     mouse_drain_ack();
 
     // Unmask IRQ2 (cascade) on master PIC and IRQ12 on slave PIC
     uint8_t master_mask = inb(PIC1_DATA);
-    master_mask &= ~(1 << 2); // Unmask IRQ2 (cascade to slave)
+    master_mask &= ~(1 << 2);
     outb(PIC1_DATA, master_mask);
 
     uint8_t slave_mask = inb(PIC2_DATA);
@@ -149,12 +133,12 @@ void mouse_init(void) {
     outb(PIC2_DATA, slave_mask);
 }
 
-// Mouse interrupt handler
 void mouse_handler(void) {
     if (!mouse_present) return;
     uint8_t status = inb(MOUSE_STATUS_PORT);
-    if (!(status & 0x01)) return; // No data
-    if (!(status & 0x20)) { inb(MOUSE_DATA_PORT); return; } // Keyboard data
+    if (!(status & 0x01)) return;
+    // Bit 5 clear = keyboard byte; drain it, not a mouse packet.
+    if (!(status & 0x20)) { inb(MOUSE_DATA_PORT); return; }
     
     uint8_t data = inb(MOUSE_DATA_PORT);
     
@@ -174,15 +158,13 @@ void mouse_handler(void) {
             if (mouse_has_wheel) {
                 mouse_cycle = 3;
             } else {
-                // Process 3-byte packet.
                 if (mouse_packet[0] & 0xC0) {
                     mouse_cycle = 0;
                     break;
                 }
                 mouse_buttons = mouse_packet[0] & 0x07;
 
-                // A PS/2 mouse reports dy positive when the device moves up,
-                // so the screen-space delta negates it.
+                // PS/2 dy is positive when the mouse moves up; negate it.
                 mouse_apply_motion(clamp_mouse_delta((int8_t)mouse_packet[1]),
                                    (int16_t)(-clamp_mouse_delta((int8_t)mouse_packet[2])));
 
@@ -191,7 +173,6 @@ void mouse_handler(void) {
             break;
         case 3:
             mouse_packet[3] = data;
-            // Process 4-byte wheel packet.
             if (mouse_packet[0] & 0xC0) {
                 mouse_cycle = 0;
                 break;
@@ -219,19 +200,17 @@ void mouse_handler(void) {
     }
 }
 
-// Poll mouse (for systems without interrupts)
 void mouse_poll(void) {
     int safety = 64;
     while (safety-- > 0) {
         uint8_t status = inb(MOUSE_STATUS_PORT);
-        if (!(status & 0x01)) break;   // Output buffer empty.
-        // Bit 5 clear means this byte belongs to the keyboard; leave it in place.
+        if (!(status & 0x01)) break;
+        // Bit 5 clear = keyboard byte; leave it in place.
         if (!(status & 0x20)) break;
         mouse_handler();
     }
 }
 
-// Get mouse position
 int32_t mouse_get_x(void) { return mouse_x; }
 int32_t mouse_get_y(void) { return mouse_y; }
 uint8_t mouse_get_buttons(void) { return mouse_buttons; }
@@ -248,23 +227,12 @@ int8_t mouse_get_wheel_delta(void) {
     return d;
 }
 
-// Reset buttons (after processing)
 void mouse_clear_buttons(void) { mouse_buttons = 0; }
 
-// Whether mouse_init() found a usable controller.
 int mouse_is_present(void) { return mouse_present ? 1 : 0; }
 
-// --- Non-PS/2 input sources ------------------------------------------------
-//
-// The USB HID stack and the VMware/VirtualBox absolute pointer protocols do not
-// go through the 8042 port, so they cannot push packets at the PS/2 state
-// machine above. These entry points let them report into the same shared state,
-// which is what the shell reads every frame. Direction is screen-relative: dx
-// grows to the right, dy grows downward.
+// --- Non-PS/2 input sources ---
 
-// Absolute pointer: place the cursor at a screen position, clamped to the
-// desktop. The VMware backdoor and the VMM device report 0..0xFFFF coordinates
-// that the caller scales first.
 void mouse_set_position(int32_t x, int32_t y) {
     if (x < 0) x = 0;
     if (y < 0) y = 0;
@@ -274,21 +242,16 @@ void mouse_set_position(int32_t x, int32_t y) {
     mouse_y = y;
 }
 
-// Relative pointer: a movement delta in screen pixels plus the current button
-// state. USB HID mice report 8-bit deltas, which this clamps the same way PS/2
-// deltas are clamped so a burst cannot fling the cursor off screen.
 void mouse_inject_relative(int16_t dx, int16_t dy, uint8_t buttons) {
     mouse_buttons = buttons;
     mouse_apply_motion(clamp_mouse_delta(dx), clamp_mouse_delta(dy));
 }
 
-// Replace the button state on its own: absolute pointer sources (VMware, VMM)
-// only carry position, and their buttons keep arriving over PS/2.
 void mouse_set_buttons(uint8_t buttons) {
     mouse_buttons = buttons;
 }
 
-// Accumulate a wheel notch toward the same accumulator the PS/2 wheel uses.
+// Feed the shared accumulator the PS/2 wheel uses.
 void mouse_inject_wheel(int8_t wheel) {
     if (wheel == 0) return;
     int16_t acc = (int16_t)mouse_wheel_delta + wheel;

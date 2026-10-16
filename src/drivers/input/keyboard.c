@@ -5,7 +5,6 @@
 #define KBD_DATA_PORT   0x60
 #define KBD_STATUS_PORT 0x64
 
-// Keyboard buffer
 #define KBD_BUFFER_SIZE 256
 #define KBD_DRAIN_LIMIT 256
 #define KBD_EXTENDED_MAX_AGE 4
@@ -13,11 +12,8 @@ static char kbd_buffer[KBD_BUFFER_SIZE];
 static int kbd_read_idx = 0;
 static int kbd_write_idx = 0;
 static int is_extended = 0;
-// Poll index at which a dangling 0xE0 prefix is abandoned, so a lost follow-up
-// scancode cannot leave the next real key interpreted as extended.
 static int extended_age = 0;
 
-// US keyboard layout
 static const char kbd_layout[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
     '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
@@ -39,18 +35,16 @@ static const char kbd_layout_shift[128] = {
 static int shift_pressed = 0;
 static int caps_lock = 0;
 
-// Add character to buffer
 static void kbd_buffer_put(char c) {
     int next = (kbd_write_idx + 1) % KBD_BUFFER_SIZE;
     if (next == kbd_read_idx) {
-        // Preserve newest input under burst typing by discarding oldest byte.
+        // Ring buffer full: drop the oldest byte to keep the newest input.
         kbd_read_idx = (kbd_read_idx + 1) % KBD_BUFFER_SIZE;
     }
     kbd_buffer[kbd_write_idx] = c;
     kbd_write_idx = next;
 }
 
-// Get character from buffer
 char keyboard_getchar(void) {
     if (kbd_read_idx == kbd_write_idx) return 0;
     
@@ -59,36 +53,30 @@ char keyboard_getchar(void) {
     return c;
 }
 
-// Check if keyboard has input
 int keyboard_has_input(void) {
     return kbd_read_idx != kbd_write_idx;
 }
 
-// Queue a character that did not come from the PS/2 controller: the USB HID
-// stack translates boot protocol usage IDs into the same character codes and
-// calls this, so both keyboards land in one buffer.
 void keyboard_inject_char(char c) {
     if (c) {
         kbd_buffer_put(c);
     }
 }
 
-// Keyboard interrupt handler
 void keyboard_handler(void) {
     uint8_t status = inb(KBD_STATUS_PORT);
     if (!(status & 0x01)) {
-        return; // No output buffer data.
+        return;
     }
 
-    // If this byte is from the auxiliary device (mouse), consume and ignore it.
-    // Without this, mouse bytes get interpreted as keyboard scancodes.
+    // Auxiliary (mouse) byte: drain it so it is not read as a scancode.
     if (status & 0x20) {
         (void)inb(KBD_DATA_PORT);
         return;
     }
 
     uint8_t scancode = inb(KBD_DATA_PORT);
-// Extended key prefix
+// 0xE0 = extended key prefix
     if (scancode == 0xE0) {
         is_extended = 1;
         extended_age = 0;
@@ -101,7 +89,7 @@ void keyboard_handler(void) {
     }
     extended_age++;
     
-    // Key release
+    // Key release (break code: bit 7 set)
     if (scancode & 0x80) {
         scancode &= 0x7F;
         if (scancode == 0x2A || scancode == 0x36) {
@@ -116,17 +104,15 @@ void keyboard_handler(void) {
         shift_pressed = 1;
         return;
     }
-    
-    // Caps lock
+
+    // Caps lock toggle
     if (scancode == 0x3A) {
         caps_lock = !caps_lock;
         return;
     }
     
-    // Get character
     char c = 0;
     if (is_extended) {
-        // Extended keys (arrows, etc)
         switch (scancode) {
             case 0x4B: c = KEY_LEFT; break;
             case 0x4D: c = KEY_RIGHT; break;
@@ -137,7 +123,6 @@ void keyboard_handler(void) {
         }
         is_extended = 0;
     } else {
-        // Regular keys
         if (shift_pressed ^ caps_lock) {
             c = kbd_layout_shift[scancode];
         } else {
@@ -150,29 +135,24 @@ void keyboard_handler(void) {
     }
 }
 
-// Keyboard polling fallback
 void keyboard_poll(void) {
     int safety = 64;
     while (safety-- > 0) {
         uint8_t status = inb(KBD_STATUS_PORT);
-        if (!(status & 0x01)) break;   // Output buffer empty.
+        if (!(status & 0x01)) break;
         // Bit 5 set means this byte belongs to the mouse; leave it in place.
         if (status & 0x20) break;
         keyboard_handler();
     }
 }
 
-// Keyboard initialization
 void keyboard_init(void) {
-    // Empty buffer
     kbd_read_idx = 0;
     kbd_write_idx = 0;
     is_extended = 0;
     shift_pressed = 0;
     caps_lock = 0;
 
-    // Clear pending keyboard bytes. Bounded: on noisy/absent controllers the
-    // status bit can stay set, and an unbounded drain would hang boot.
     for (int i = 0; i < KBD_DRAIN_LIMIT; i++) {
         if (!(inb(KBD_STATUS_PORT) & 0x01)) break;
         (void)inb(KBD_DATA_PORT);
@@ -180,7 +160,7 @@ void keyboard_init(void) {
 
     // Unmask IRQ1 (keyboard) in PIC
     uint8_t mask = inb(PIC1_DATA);
-    mask &= ~(1 << 1); // Clear bit 1 to unmask IRQ1
+    mask &= ~(1 << 1);
     outb(PIC1_DATA, mask);
 }
 

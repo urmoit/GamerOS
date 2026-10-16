@@ -2,7 +2,7 @@
 
 #define CURSOR_SIZE 12
 
-// Simple arrow cursor shape (1 = pixel, 0 = transparent)
+// Arrow cursor bitmap: 1 = outline, 2 = fill, 0 = transparent
 static const uint8_t cursor_shape[CURSOR_SIZE][CURSOR_SIZE] = {
     {1,0,0,0,0,0,0,0,0,0,0,0},
     {1,1,0,0,0,0,0,0,0,0,0,0},
@@ -18,7 +18,6 @@ static const uint8_t cursor_shape[CURSOR_SIZE][CURSOR_SIZE] = {
     {1,1,1,0,1,1,0,0,0,0,0,0},
 };
 
-// Draw cursor at screen coordinates
 void draw_cursor(int32_t x, int32_t y) {
     for (int row = 0; row < CURSOR_SIZE; row++) {
         for (int col = 0; col < CURSOR_SIZE; col++) {

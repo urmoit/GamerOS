@@ -3,7 +3,6 @@
 
 #include "stdint.h"
 
-// Parenthesized so the macro is safe in expressions, not just array sizes.
 #define HEAP_SIZE (1024 * 1024) // 1MB heap
 
 void mm_init(void);

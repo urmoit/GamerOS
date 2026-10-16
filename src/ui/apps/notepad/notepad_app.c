@@ -6,8 +6,7 @@
 #include <window.h>
 #include <shell_api.h>
 
-// All Notepad state is private to this module. The kernel no longer reaches
-// into it directly; everything it needs goes through notepad_app.h.
+// All Notepad state is private to this module.
 static char notepad_lines[NOTEPAD_MAX_LINES][NOTEPAD_MAX_COLS];
 static int notepad_cursor_x = 0;
 static int notepad_cursor_y = 0;
@@ -82,9 +81,7 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
     const int TOOLBAR_H = 15;
     const int STATUS_H = 13;
     const int LINE_H = 8;
-    // Wide enough for the widest line number Notepad can show. With 160 rows the
-    // largest number is three digits, and at an 8px advance that needs 24px of
-    // glyphs plus padding; 22 only held two and clipped the leading digit.
+    // Wide enough for three-digit line numbers at 8px advance.
     const int GUTTER_W = 30;
 
     int tool_y = y + 28;
@@ -92,7 +89,6 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
     int edit_h = h - (edit_y - y) - STATUS_H - 4;
     if (edit_h < LINE_H + 4) edit_h = LINE_H + 4;
 
-    // Toolbar
     const int btn_w = 34;
     const int btn_h = 13;
     int bx = x + 6;
@@ -102,12 +98,10 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
     notepad_save_w = btn_w;
     notepad_save_h = btn_h;
 
-    // Right-aligned modified indicator.
     const char* state = notepad_dirty ? "Modified" : "Saved";
     int sx = x + w - 6 - ((int)strlen(state) * FONT_CW);
     draw_compact_string(sx, tool_y + (btn_h - 8) / 2, state, notepad_dirty ? XP_BLUE : XP_DGRAY);
 
-    // Editor surface
     fill_chamfer_rect(x + 5, edit_y, w - 10, edit_h, XP_WHITE);
     draw_chamfer_rect(x + 5, edit_y, w - 10, edit_h, XP_DGRAY);
 
@@ -127,7 +121,6 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
     if (max_top < 0) max_top = 0;
     if (notepad_view_top > max_top) notepad_view_top = max_top;
 
-    // Gutter separator.
     fill_rect(x + 5 + 2 + GUTTER_W, edit_y + 3, 1, edit_h - 6, XP_LGRAY);
 
     for (int row = 0; row < lines_shown; row++) {
@@ -136,7 +129,6 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
         int row_y = edit_y + 3 + row * LINE_H;
         if (row_y + LINE_H > edit_y + edit_h - 1) break;
 
-        // Line number, dimmed, right-aligned in the gutter.
         char num[8];
         sprintf(num, "%d", i + 1);
         int nx = x + 5 + 2 + GUTTER_W - 2 - ((int)strlen(num) * FONT_CW);
@@ -147,7 +139,6 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
         }
     }
 
-    // Caret
     if (is_active) {
         int cx = text_x + notepad_cursor_x * FONT_CW;
         int cy = edit_y + 3 + (notepad_cursor_y - notepad_view_top) * LINE_H;
@@ -156,7 +147,6 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
         }
     }
 
-    // Status bar
     int status_y = y + h - STATUS_H - 2;
     fill_chamfer_rect(x + 5, status_y, w - 10, STATUS_H, XP_LGRAY);
     draw_chamfer_rect(x + 5, status_y, w - 10, STATUS_H, XP_DGRAY);
@@ -166,7 +156,6 @@ void notepad_app_draw_content(int x, int y, int w, int h, int is_active) {
     sprintf(pos, "Ln %d, Col %d", notepad_cursor_y + 1, notepad_cursor_x + 1);
     draw_compact_string_clipped(x + 9, status_y + 3, (w - 60) / FONT_CW, pos, XP_DGRAY);
 
-    // File name, right-aligned.
     const char* fname = path_basename(NOTEPAD_FILE_PATH);
     int fw = (int)strlen(fname) * FONT_CW;
     if (fw < w - 90) {
@@ -312,8 +301,7 @@ const char* notepad_app_title(void) {
                 consumed = 1;
             }
 
-            // Keep the caret in the visible viewport after keyboard movement. The visible
-            // row count is the one the renderer published, not a recomputed guess.
+            // Keep the caret visible using the renderer-published row count.
             if (notepad_cursor_y < notepad_view_top) {
                 notepad_view_top = notepad_cursor_y;
             } else {

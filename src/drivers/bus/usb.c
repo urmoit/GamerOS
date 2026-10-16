@@ -6,30 +6,9 @@
 #include <serial.h>
 #include <string.h>
 
-// ============================================================================
-// USB HID stack: UHCI host controller, device enumeration and boot protocol
-// keyboards and mice.
-//
-// The PS/2 drivers cover everything wired to the 8042, but a machine with USB
-// keyboards (or a VM with usb-kbd / usb-mouse on the virtual UHCI controller)
-// has no 8042 device to talk to. This module covers that: it brings up each
-// UHCI controller, walks its root hub ports, enumerates HID devices, switches
-// them to the boot protocol, and reports their 8-byte keyboard reports and
-// 4-byte mouse reports into the same shared input state the shell reads.
-//
-// Interrupts are disabled while the desktop loop runs (the shell polls input),
-// so the interrupt transfers are polled too: a transfer descriptor stops being
-// "active" when the host controller finishes it, and the buffer it wrote is the
-// report. Control transfers are synchronous for the same reason.
-//
-// Scope: UHCI only. EHCI covers high-speed bulk traffic, which HID boot devices
-// (full or low speed) do not use, and xHCI needs its own TRB machinery, so the
-// PCI probe skips those controllers rather than half-driving them.
-// ============================================================================
+// USB HID stack: UHCI controller and boot HID enumeration.
 
-// ----------------------------------------------------------------------------
-// UHCI register map (offsets from the controller's I/O base in BAR4)
-// ----------------------------------------------------------------------------
+// --- UHCI register map (offsets from the BAR4 I/O base) ---
 #define UHCI_USBCMD        0x00
 #define UHCI_USBSTS        0x02
 #define UHCI_USBINTR       0x04
@@ -56,9 +35,7 @@
 #define LINK_QH            0x00000002u
 #define LINK_DEPTH         0x00000004u
 
-// Transfer descriptor control and status. UHCI keeps the status bits at the top
-// of the word and the actual transferred length in the bottom 11 bits, stored as
-// length - 1.
+// Status bits sit at the top of the word; the low 11 bits hold length - 1.
 #define TD_CTRL_CRCTIMEO   (1u << 18)
 #define TD_CTRL_SPD        (1u << 29)   // short packet detect
 #define TD_CTRL_BABBLE     (1u << 20)
@@ -70,18 +47,13 @@
 #define TD_CTRL_C_ERR3     (3u << 27)
 #define TD_ACTLEN(td)      (((td)->status & 0x7FF) + 1)
 
-// USB packet PIDs. A UHCI token keeps the whole 8-bit PID byte in its low byte,
-// with the device address at bits 8-14, the endpoint at 15-18, the data toggle
-// at 19 and the maximum length in the top 11 bits. Linux's uhci-hcd.h and
-// QEMU's UHCI model both read the token this way, so this is the on-the-wire
-// encoding, not a simplification.
+// Token: PID in bits 0-7, device address 8-14, endpoint 15-18, toggle 19.
 #define USB_PID_OUT        0xE1u
 #define USB_PID_IN         0x69u
 #define USB_PID_SETUP      0x2Du
 #define TD_TOKEN_TOGGLE    (1u << 19)
 
-// Expected length is stored as (length - 1). Length zero stores 0x7FF, which
-// decodes back to zero, so a zero-length status packet works.
+// Length is stored as length - 1; zero is encoded as 0x7FF.
 #define TD_TOKEN_MAXLEN(l) ((((uint32_t)(l) - 1u) & 0x7FFu) << 21)
 #define TD_TOKEN_DEVADDR(a) (((uint32_t)(a) & 0x7Fu) << 8)
 #define TD_TOKEN_EP(e)     (((uint32_t)(e) & 0x0Fu) << 15)
@@ -98,19 +70,7 @@ typedef struct {
     uint32_t buffer;  // address of the data buffer
 } __attribute__((packed, aligned(16))) uhci_td_t;
 
-// A HID device or a hub attached to a port.
-//
-// Only one interrupt transfer descriptor is queued per device at a time. A ring
-// of descriptors would leave several IN transfers outstanding at once, and when
-// a report arrives the controller completes the whole ring with the same bytes,
-// applying one mouse move several times over.
-//
-// A device either hangs off the root hub of a controller (parent < 0) or off a
-// port of one of the hubs in the same controller's list (parent is the hub's
-// slot index), which is what makes devices behind a hub reachable. Same
-// full-speed devices behind a full-speed hub need no split transfers, so the
-// queue is shared: a device behind a hub is addressed exactly like a root
-// device, and the parent only matters for the requests that manage the port.
+// One interrupt transfer descriptor is queued per device at a time.
 typedef struct {
     uint8_t present;
     uint8_t is_keyboard;
@@ -149,26 +109,17 @@ typedef struct {
 static uhci_hc_t hcs[USB_HC_COUNT];
 static int hc_count = 0;
 
-// Physical addresses: the kernel identity-maps the first 4 GiB, and every
-// descriptor, buffer and queue lives inside that range, so the kernel virtual
-// address is also the bus address.
+// Kernel identity-maps the first 4 GiB, so virtual == bus address.
 static uint32_t usb_phys(void* p) {
     return (uint32_t)(uintptr_t)p;
 }
 
-// Compiler barrier. The host controller and this code share one core, and x86
-// already orders stores, so the barrier only has to stop the compiler from
-// moving descriptor writes across the schedule update.
+// Compiler barrier only: the HC and this code share one core.
 static void usb_barrier(void) {
     __asm__ volatile("" ::: "memory");
 }
 
-// ----------------------------------------------------------------------------
-// Timing
-//
-// The UHCI frame counter advances once per 1 ms frame while the schedule runs,
-// which is a portable millisecond clock that needs no busy-loop calibration.
-// ----------------------------------------------------------------------------
+// --- Timing: the frame counter is a 1 ms clock ---
 
 static uint16_t uhci_frame(uint16_t io_base) {
     return inw(io_base + UHCI_FRNUM) & 0x3FF;
@@ -177,10 +128,8 @@ static uint16_t uhci_frame(uint16_t io_base) {
 static void uhci_wait_ms(uint16_t io_base, uint32_t ms) {
     for (uint32_t i = 0; i < ms; i++) {
         uint16_t start = uhci_frame(io_base);
-        // Spin until the counter leaves the frame it started in. Snapshots are
-        // compared, never accumulated, so the 1024-frame wrap is harmless. The
-        // iteration bound is what keeps a stopped schedule from spinning here
-        // forever: the counter never advances when the controller is halted.
+        // Compare snapshots (the 1024-frame wrap is harmless); the bound
+        // stops a controller that has been halted.
         uint16_t now = start;
         for (uint32_t spin = 0; now == start && spin < 200000; spin++) {
             now = uhci_frame(io_base);
@@ -188,16 +137,13 @@ static void uhci_wait_ms(uint16_t io_base, uint32_t ms) {
     }
 }
 
-// Bounded spin for the delays that happen before the schedule (and therefore the
-// frame counter) is running.
+// Bounded spin, for delays before the schedule (and frame counter) runs.
 static void uhci_wait_loops(uint32_t iterations) {
     for (volatile uint32_t i = 0; i < iterations; i++) {
         __asm__ volatile("pause");
     }
 }
 
-// Wait for a transfer descriptor to stop being active. Returns 1 on completion
-// and 0 on timeout.
 static int uhci_wait_td(uhci_td_t* td, uint16_t io_base, uint32_t timeout_ms) {
     for (uint32_t i = 0; i < timeout_ms; i++) {
         usb_barrier();
@@ -209,9 +155,7 @@ static int uhci_wait_td(uhci_td_t* td, uint16_t io_base, uint32_t timeout_ms) {
     return 0;
 }
 
-// ----------------------------------------------------------------------------
-// Host controller startup and port reset
-// ----------------------------------------------------------------------------
+// --- Host controller startup and port reset ---
 
 static int uhci_hc_init(uhci_hc_t* hc, pci_device_t* pci) {
     uint32_t bar4 = pci_get_bar(pci, 4);
@@ -227,9 +171,8 @@ static int uhci_hc_init(uhci_hc_t* hc, pci_device_t* pci) {
         hc->devices[i].present = 0;
     }
 
-    // Stop the controller before touching the schedule: it may be running a
-    // frame list left behind by the previous loader. Wait for it to report
-    // halted, otherwise the resets below can race with a frame still in flight.
+    // Stop the controller first: a previous loader may have left a schedule
+    // running.
     outw(io_base + UHCI_USBCMD, 0);
     for (int i = 0; i < 100000; i++) {
         if (inw(io_base + UHCI_USBSTS) & 0x0020) break;   // Host Controller Halted
@@ -238,9 +181,7 @@ static int uhci_hc_init(uhci_hc_t* hc, pci_device_t* pci) {
     outw(io_base + UHCI_USBINTR, 0);      // no interrupt line: input is polled
     outw(io_base + UHCI_USBSTS, 0xFFFF);
 
-    // Global reset of the root hubs, then a controller reset. Both take real
-    // time: the spec wants the global reset held for tens of milliseconds, and
-    // the controller reset bit clears itself when it completes.
+    // Global reset, then a controller reset; HCRESET self-clears on completion.
     outw(io_base + UHCI_USBCMD, UHCI_CMD_GRESET);
     uhci_wait_loops(500000);
     outw(io_base + UHCI_USBCMD, 0);
@@ -260,8 +201,7 @@ static int uhci_hc_init(uhci_hc_t* hc, pci_device_t* pci) {
         return 0;
     }
 
-    // Idle schedule: one control queue at the head. Its element pointer is
-    // terminated, so an idle frame is over as soon as the controller reaches it.
+    // Idle schedule: one control queue with a terminated element pointer.
     for (int i = 0; i < 1024; i++) {
         hc->frame_list[i] = usb_phys(&hc->control_qh) | LINK_QH;
     }
@@ -271,26 +211,21 @@ static int uhci_hc_init(uhci_hc_t* hc, pci_device_t* pci) {
     outw(io_base + UHCI_USBSTS, 0xFFFF);
     outl(io_base + UHCI_FRBASEADD, usb_phys(hc->frame_list));
     outw(io_base + UHCI_FRNUM, 0);
-    // Run, mark the schedule configured, and declare 64-byte maximum packets.
+    // Run, mark the schedule configured, declare 64-byte maximum packets.
     outw(io_base + UHCI_USBCMD, UHCI_CMD_RS | UHCI_CMD_CF | UHCI_CMD_MAXP);
 
     hc->initialized = 1;
     return 1;
 }
 
-// Acknowledge any latched change bits on a port without disturbing the bits
-// this driver configured. A port register write keeps only the read-only bits
-// of the current value, so writing a change mask alone would also clear the
-// enable and reset bits; a read-modify-write preserves them.
+// A port register write keeps only the read-only bits, so a change mask alone
+// would clear enable/reset: use read-modify-write.
 static void uhci_port_ack(uint16_t io_base, int port_index) {
     uint16_t reg = io_base + UHCI_PORTSC(port_index);
     uint16_t cur = inw(reg);
     outw(reg, cur | UHCI_PORT_CSC | UHCI_PORT_PEC);
 }
 
-// Reset and enable one root hub port. Returns 1 when a device is connected and
-// enabled, 0 when the port is empty or the device never enabled, and reports the
-// device speed through the out parameter.
 static int uhci_port_ready(uhci_hc_t* hc, int port_index, uint8_t* low_speed) {
     uint16_t io_base = hc->io_base;
     uint16_t reg = io_base + UHCI_PORTSC(port_index);
@@ -301,17 +236,12 @@ static int uhci_port_ready(uhci_hc_t* hc, int port_index, uint8_t* low_speed) {
         return 0;
     }
 
-    // Hold the reset for at least 10 ms (50 ms covers the devices that need the
-    // longer recovery window). The reset signal itself deasserts on hardware;
-    // the write that follows drops any state this driver added.
+    // Hold reset 50 ms to cover slow devices; hardware deasserts the signal.
     outw(reg, UHCI_PORT_PR);
     uhci_wait_ms(io_base, 50);
     outw(reg, 0);
 
-    // Enable the port explicitly. Some controllers re-enable it themselves once
-    // the reset completes, others never do, and a low-speed device needs it
-    // written by hand either way. Poll for the enable bit rather than trusting
-    // a fixed delay.
+    // Some controllers never re-enable a port after reset: poll for the bit.
     int enabled = 0;
     for (int i = 0; i < 100 && !enabled; i++) {
         outw(reg, UHCI_PORT_PE);
@@ -330,21 +260,14 @@ static int uhci_port_ready(uhci_hc_t* hc, int port_index, uint8_t* low_speed) {
     return enabled ? 1 : 0;
 }
 
-// ----------------------------------------------------------------------------
-// Transfers
-// ----------------------------------------------------------------------------
+// --- Transfers ---
 
-// Build and run a control transfer through the controller's control queue.
-// Returns the number of bytes an IN request actually transferred, 0 for a
-// no-data request, and -1 when the transfer failed.
 static int uhci_control(uhci_hc_t* hc, usb_hid_dev_t* dev,
                         uint8_t request_type, uint8_t request,
                         uint16_t value, uint16_t index, uint16_t length,
                         void* data) {
     if (!hc->initialized) return -1;
 
-    // The setup packet is a local because the transfer is fully waited for
-    // before this frame returns.
     uint8_t setup[8];
     setup[0] = request_type;
     setup[1] = request;
@@ -370,9 +293,7 @@ static int uhci_control(uhci_hc_t* hc, usb_hid_dev_t* dev,
     td[0].token = dest | USB_PID_SETUP | TD_TOKEN_MAXLEN(8);
     td[0].buffer = usb_phys(setup);
 
-    // The data stage travels in the request's direction and starts on DATA1. A
-    // short packet completes the stage, which lets a device that knows it has
-    // nothing more to send end the transfer early.
+    // The data stage starts on DATA1; a short packet ends the stage early.
     uint32_t data_status = status_flags;
     if (dir_in && length > 0) {
         data_status |= TD_CTRL_SPD;
@@ -403,8 +324,7 @@ static int uhci_control(uhci_hc_t* hc, usb_hid_dev_t* dev,
 
     int status_index = (length > 0) ? 2 : 1;
     if (!uhci_wait_td(&td[status_index], hc->io_base, 1000)) {
-        // Abort: the caller expects a finished chain, and leaving descriptors
-        // active under a queue the interrupt ring shares would corrupt it.
+        // Abort: leave no active descriptors under the shared control queue.
         for (int i = 0; i <= status_index; i++) {
             td[i].status = 0;
         }
@@ -427,10 +347,7 @@ static int uhci_control(uhci_hc_t* hc, usb_hid_dev_t* dev,
     return transferred;
 }
 
-// Arm the interrupt transfer descriptor. It is re-armed only after a report has
-// been consumed, which keeps exactly one request in flight: the controller moves
-// on to the next queue while this one is inactive, and watches for it to become
-// active again.
+// Only one request is in flight: re-armed after each report is consumed.
 static void hid_rearm(usb_hid_dev_t* dev) {
     uhci_td_t* td = &dev->td;
 
@@ -441,8 +358,7 @@ static void hid_rearm(usb_hid_dev_t* dev) {
     td->buffer = usb_phys(dev->buffer);
     usb_barrier();
 
-    // Data toggle alternates for every completed transfer, so the device's
-    // sequence stays in step with the host's request.
+    // The data toggle alternates on every completed transfer.
     dev->toggle = (uint8_t)(dev->toggle ^ 1);
 }
 
@@ -457,13 +373,9 @@ static void hid_start_interrupt(usb_hid_dev_t* dev) {
     usb_barrier();
 }
 
-// ----------------------------------------------------------------------------
-// HID report handling
-// ----------------------------------------------------------------------------
+// --- HID report handling ---
 
-// USB HID key usage -> character, unshifted. Usage IDs come from the HID Usage
-// Tables keyboard page: 0x04-0x1D are a-z, 0x1E-0x27 are 1-9 and 0, and the rest
-// of the printable keys follow the physical layout.
+// HID usage -> unshifted char: 0x04-0x1D are a-z, 0x1E-0x27 are 1-9 and 0.
 static char hid_usage_ascii(uint8_t usage) {
     if (usage >= 0x04 && usage <= 0x1D) {
         return (char)('a' + (usage - 0x04));
@@ -538,7 +450,6 @@ static char hid_usage_ascii_shifted(uint8_t usage) {
     return 0;
 }
 
-// USB HID key usage -> the special key codes the shell already understands.
 static char hid_usage_special(uint8_t usage) {
     switch (usage) {
         case 0x49: return KEY_INS;
@@ -568,7 +479,6 @@ static char hid_usage_to_char(uint8_t usage, uint8_t shift, uint8_t caps_lock) {
     return shift ? hid_usage_ascii_shifted(usage) : hid_usage_ascii(usage);
 }
 
-// Whether a usage code was already held in the previous boot protocol report.
 static int hid_report_has(const uint8_t* report, uint8_t usage) {
     if (usage == 0) return 1;
     for (int i = 2; i < USB_BOOT_KEYBOARD_REPORT; i++) {
@@ -604,7 +514,7 @@ static void hid_keyboard_report(usb_hid_dev_t* dev, const uint8_t* report) {
 static void hid_mouse_report(usb_hid_dev_t* dev, const uint8_t* report) {
     uint8_t buttons = (uint8_t)(report[0] & 0x07);
     int16_t dx = (int8_t)report[1];
-    // A boot protocol mouse reports Y in screen coordinates: positive is down.
+    // Boot mouse Y is screen-oriented: positive is down.
     int16_t dy = (int8_t)report[2];
 
     mouse_inject_relative(dx, dy, buttons);
@@ -626,8 +536,7 @@ static int usb_setup_device_on_port(uhci_hc_t* hc, usb_hid_dev_t* parent,
 
 static void hid_device_report(uhci_hc_t* hc, usb_hid_dev_t* dev, const uint8_t* report) {
     if (dev->is_hub) {
-        // A hub's change bitmap is not an input event, so it never reaches the
-        // shell: it is a request to re-read the hub's ports.
+        // A hub report is not input: it asks to re-read the hub's ports.
         usb_hub_changed(hc, dev, report);
         return;
     }
@@ -638,25 +547,16 @@ static void hid_device_report(uhci_hc_t* hc, usb_hid_dev_t* dev, const uint8_t* 
     }
 }
 
-// ----------------------------------------------------------------------------
-// Enumeration
-//
-// Devices are enumerated top-down: each port of the root hub, then each port of
-// any hub found on a port, recursively. The slot that comes back carries the
-// device, and its parent and port index say where it hangs. Everything below
-// talks to one device at a time through the shared control queue, so the walk
-// is blocking: a hub's ports are probed one after another.
-// ----------------------------------------------------------------------------
+// --- Enumeration ---
+// The walk is blocking: every device is driven through the control queue.
 
-// USB addresses are per controller, so the slot index is a valid address that
-// is unique, small and far from the 127-device limit.
+// Slot index + 1 is a unique, small address within the controller.
 static uint8_t usb_slot_address(int slot) {
     return (uint8_t)(slot + 1);
 }
 
-// Link a device's interrupt queue into the controller's chain, behind the
-// control queue. The head of the chain hangs off the control queue, which is
-// already in every frame of the schedule.
+// The head of the interrupt chain hangs off the control queue, which is
+// already present in every frame of the schedule.
 static void usb_append_queue(uhci_hc_t* hc, usb_hid_dev_t* dev) {
     usb_hid_dev_t* last = 0;
     for (int i = 0; i < USB_DEV_PER_HC; i++) {
@@ -699,8 +599,7 @@ static int usb_setup_device(uhci_hc_t* hc, usb_hid_dev_t* dev, int slot,
     dev->parent = (parent == 0) ? USB_PARENT_ROOT : (uint8_t)(parent - hc->devices);
     dev->port_index = port_index;
 
-    // The default address 0 control endpoint answers only the first 8 bytes of
-    // its descriptor, which is all that is needed to learn the packet size.
+    // Address 0 endpoint 0 answers only the first 8 descriptor bytes.
     memset(&dev_desc, 0, sizeof(dev_desc));
     if (uhci_control(hc, dev, 0x80, USB_REQ_GET_DESCRIPTOR,
                      (uint16_t)(USB_DESC_DEVICE << 8), 0, 8, &dev_desc) < 8) {
@@ -708,9 +607,8 @@ static int usb_setup_device(uhci_hc_t* hc, usb_hid_dev_t* dev, int slot,
     }
     dev->max_packet = dev_desc.max_packet_size0;
 
-    // Give the device a real address now that its packet size is known. The
-    // request itself is addressed to the default address 0, because the new
-    // address only takes effect once the device accepts it.
+    // SET_ADDRESS is sent to address 0: the new address takes effect only
+    // once the device accepts it.
     uint8_t new_address = usb_slot_address(slot);
     dev->address = 0;
     if (uhci_control(hc, dev, 0x00, USB_REQ_SET_ADDRESS, new_address, 0, 0, 0) < 0) {
@@ -726,8 +624,7 @@ static int usb_setup_device(uhci_hc_t* hc, usb_hid_dev_t* dev, int slot,
         return 0;
     }
 
-    // Read the configuration: every interface of the device lives in it, so the
-    // walk below can tell a boot protocol HID from a hub.
+    // The configuration holds every interface: the walk classifies it.
     memset(&config_desc, 0, sizeof(config_desc));
     if (uhci_control(hc, dev, 0x80, USB_REQ_GET_DESCRIPTOR,
                      (uint16_t)(USB_DESC_CONFIGURATION << 8), 0,
@@ -746,9 +643,7 @@ static int usb_setup_device(uhci_hc_t* hc, usb_hid_dev_t* dev, int slot,
         return 0;
     }
 
-    // Walk the interface descriptors, keeping the first appendable endpoint of
-    // the interface we care about. A boot protocol HID is class 3, subclass 1
-    // and protocol 1 (keyboard) or 2 (mouse); a hub is class 9.
+    // Boot HID is class 3, subclass 1, protocol 1 (keyboard) or 2 (mouse).
     int is_hub = 0;
     int is_keyboard = 0;
     int on_hid_interface = 0;
@@ -797,11 +692,7 @@ static int usb_setup_device(uhci_hc_t* hc, usb_hid_dev_t* dev, int slot,
     }
 
     if (is_hub && hub_endpoint != 0) {
-        // A hub reports on a status change endpoint, where the report is a
-        // bitmap with one bit per port; no protocol request is involved. The
-        // queue is armed only after its children, because the control queue
-        // and this queue share the controller's schedule and the walk below
-        // must finish first.
+        // Hub change endpoint: the report is a bitmap, one bit per port.
         uint8_t hub_desc[8];
         memset(hub_desc, 0, sizeof(hub_desc));
         if (uhci_control(hc, dev, 0xA0, USB_REQ_GET_DESCRIPTOR,
@@ -836,13 +727,11 @@ static int usb_setup_device(uhci_hc_t* hc, usb_hid_dev_t* dev, int slot,
         return 0;   // not a boot protocol HID with an interrupt endpoint
     }
 
-    // Boot protocol first: the fixed 8-byte keyboard and 4-byte mouse reports
-    // mean no report descriptor has to be parsed.
+    // Boot protocol: fixed 8-byte keyboard / 4-byte mouse reports.
     if (uhci_control(hc, dev, 0x21, USB_REQ_SET_PROTOCOL, 0, 0, 0, 0) < 0) {
         return 0;
     }
-    // Idle forever: a report only arrives when something changes, which is
-    // exactly what the poll loop wants.
+    // Idle forever: a report arrives only when something changes.
     if (uhci_control(hc, dev, 0x21, USB_REQ_SET_IDLE, 0, 0, 0, 0) < 0) {
         return 0;
     }
@@ -871,9 +760,7 @@ static int usb_setup_device(uhci_hc_t* hc, usb_hid_dev_t* dev, int slot,
 
 // --- hub port management ----------------------------------------------------
 
-// Read a hub port's status and change words. The request is addressed to the
-// port (recipient "other"), not the interface, so the direction and recipient
-// bits of the request type read 0xA3.
+// Recipient "other": the request type byte reads 0xA3.
 static int usb_hub_port_status(uhci_hc_t* hc, usb_hid_dev_t* hub,
                                uint8_t port, uint16_t* status,
                                uint16_t* changed) {
@@ -886,14 +773,12 @@ static int usb_hub_port_status(uhci_hc_t* hc, usb_hid_dev_t* hub,
     return r;
 }
 
-// Ask a hub to set a feature on one of its ports, such as power or reset.
 static int usb_hub_port_feature(uhci_hc_t* hc, usb_hid_dev_t* hub,
                                 uint8_t port, uint16_t feature) {
     return uhci_control(hc, hub, 0x23, USB_REQ_SET_FEATURE, feature,
                        (uint16_t)port, 0, 0);
 }
 
-// Find a free slot for a device that just appeared.
 static int usb_alloc_slot(uhci_hc_t* hc) {
     for (int i = 0; i < USB_DEV_PER_HC; i++) {
         if (!hc->devices[i].present) return i;
@@ -901,7 +786,6 @@ static int usb_alloc_slot(uhci_hc_t* hc) {
     return -1;
 }
 
-// Drop whatever was on a hub port: it went away.
 static void usb_hub_port_empty(uhci_hc_t* hc, usb_hid_dev_t* hub, uint8_t port) {
     for (int i = 0; i < USB_DEV_PER_HC; i++) {
         usb_hid_dev_t* d = &hc->devices[i];
@@ -912,8 +796,7 @@ static void usb_hub_port_empty(uhci_hc_t* hc, usb_hid_dev_t* hub, uint8_t port) 
     }
 }
 
-// Wait for the hub's first status change report so its initial state is known
-// before anything is powered up. The report also clears the change bits.
+// The first report also clears the hub's change bits.
 static void usb_hub_prime(uhci_hc_t* hc, usb_hid_dev_t* hub) {
     for (int i = 0; i < 200; i++) {
         usb_barrier();
@@ -926,7 +809,6 @@ static void usb_hub_prime(uhci_hc_t* hc, usb_hid_dev_t* hub) {
     hid_rearm(hub);
 }
 
-// Power, reset and enumerate whatever is on a hub port.
 static int usb_setup_device_on_port(uhci_hc_t* hc, usb_hid_dev_t* parent,
                                     uint8_t port_index, int slot) {
     uint8_t port = (uint8_t)(port_index + 1);
@@ -943,7 +825,7 @@ static int usb_setup_device_on_port(uhci_hc_t* hc, usb_hid_dev_t* parent,
     if (usb_hub_port_feature(hc, parent, port, USB_PORT_FEATURE_POWER) < 0) {
         return 0;
     }
-    // Port power settling: the spec asks for 10 ms of power good delay.
+    // Power settling: the spec asks for a 10 ms power-good delay.
     uhci_wait_ms(hc->io_base, 20);
 
     int rp = usb_hub_port_feature(hc, parent, port, USB_PORT_FEATURE_POWER);
@@ -953,9 +835,7 @@ static int usb_setup_device_on_port(uhci_hc_t* hc, usb_hid_dev_t* parent,
         return 0;
     }
 
-    // Wait for the reset to finish: the hub clears its reset bit and then
-    // enables the port, and only then does the device answer on address 0. The
-    // change bit reports completion; the status bit reports the port is live.
+    // Change bit reports reset completion, status bit means the port is live.
     uint16_t changed = 0;
     for (int i = 0; i < 100; i++) {
         if (usb_hub_port_status(hc, parent, port, &status, &changed) < 4) return 0;
@@ -968,9 +848,7 @@ static int usb_setup_device_on_port(uhci_hc_t* hc, usb_hid_dev_t* parent,
         return 0;   // the port never came up, so the device is unreachable
     }
 
-    // A port that is already carrying a live device must not be reset again:
-    // resetting it pulls the device back to the default address, and re-running
-    // enumeration would take a working keyboard or mouse off the bus.
+    // Never reset a live port: it would drop the device back to address 0.
     for (int i = 0; i < USB_DEV_PER_HC; i++) {
         usb_hid_dev_t* d = &hc->devices[i];
         if (d->present && d->parent == (uint8_t)(parent - hc->devices) &&
@@ -996,9 +874,7 @@ static int usb_setup_device_on_port(uhci_hc_t* hc, usb_hid_dev_t* parent,
 
 // --- hub change reports -----------------------------------------------------
 
-// A hub reports which of its ports changed, one bit per port, with port 1 at
-// bit 0 of byte 0. For every port that changed, a fresh read of the port says
-// whether a device appeared or disappeared.
+// Change report: one bit per port, port 1 at bit 0 of byte 0.
 static void usb_hub_changed(uhci_hc_t* hc, usb_hid_dev_t* hub,
                             const uint8_t* report) {
     for (uint8_t port = 0; port < hub->nports && port < 8 * USB_BOOT_KEYBOARD_REPORT; port++) {
@@ -1018,7 +894,6 @@ static void usb_hub_changed(uhci_hc_t* hc, usb_hid_dev_t* hub,
 
 // --- root hub ---------------------------------------------------------------
 
-// Power and reset one root hub port, then enumerate whatever answered.
 static int usb_root_probe_port(uhci_hc_t* hc, int port_index) {
     uint16_t reg = hc->io_base + UHCI_PORTSC(port_index);
     if (!(inw(reg) & UHCI_PORT_CCS)) return 0;
@@ -1057,9 +932,7 @@ static int usb_probe_controller(pci_device_t* pci, void* ctx) {
     return 0;
 }
 
-// ----------------------------------------------------------------------------
-// Public interface
-// ----------------------------------------------------------------------------
+// --- Public interface ---
 
 void usb_init(void) {
     serial_write_string("USB: probing UHCI controllers\n");

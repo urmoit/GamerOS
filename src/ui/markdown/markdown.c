@@ -6,8 +6,7 @@
 
 #include <markdown.h>
 
-// The renderer works in an 8px cell for body text and the 16px face for
-// headings, matching the two fonts the shell already ships.
+// Body text uses the 8px cell, headings the upscaled face.
 #define MD_CW 8
 #define MD_CH 8
 #define MD_HEAD_CH 16
@@ -33,10 +32,7 @@ static md_vrow_t md_vrows[MD_MAX_VROWS];
 static int md_vrow_count;
 static int md_total_height;
 
-// ---------------------------------------------------------------------------
-// Small string helpers. The kernel has no libc, and only a handful of these are
-// declared in the project's string.h, so the few needed here are local.
-// ---------------------------------------------------------------------------
+// --- Small string helpers ---
 
 static int md_str_len(const char* s) {
     int n = 0;
@@ -48,8 +44,6 @@ static int md_is_space(char c) { return c == ' ' || c == '\t'; }
 
 static int md_is_digit(char c) { return c >= '0' && c <= '9'; }
 
-// Copies src into dst, stopping at a space or the end, never splitting a word
-// and never writing past cap-1. Returns the number of characters copied.
 static int md_starts_with(const char* s, const char* prefix) {
     int i = 0;
     while (prefix[i]) {
@@ -59,14 +53,7 @@ static int md_starts_with(const char* s, const char* prefix) {
     return 1;
 }
 
-// ---------------------------------------------------------------------------
-// Inline parsing
-//
-// Emits marker-free text into `out->text` and records styled runs. Code spans
-// are resolved first so that emphasis markers inside backticks stay literal.
-// Underscore emphasis only opens at a word boundary, otherwise file names like
-// NOTEPAD.TXT would lose their underscores.
-// ---------------------------------------------------------------------------
+// --- Inline parsing ---
 
 static void md_span_push(md_line_t* out, int start, int len, int style) {
     if (len <= 0) return;
@@ -180,9 +167,7 @@ static void md_inline(const char* src, md_line_t* out) {
     out->text[n] = 0;
 }
 
-// ---------------------------------------------------------------------------
-// Line store
-// ---------------------------------------------------------------------------
+// --- Line store ---
 
 static md_line_t* md_line_new(md_kind_t kind) {
     if (md_count >= (int)(sizeof(md_lines) / sizeof(md_lines[0]))) {
@@ -209,8 +194,7 @@ static int md_is_rule(const char* s, int len) {
     return 1;
 }
 
-// Records where the roadmap section begins so the Settings view can split the
-// document. Accepts the usual spellings rather than only "Planned".
+// Records the roadmap section start (Planned/Roadmap/Upcoming).
 static void md_note_roadmap(const md_line_t* l) {
     if (md_roadmap >= 0 || l->kind != MD_K_H2) return;
     if (md_starts_with(l->text, "Planned") ||
@@ -220,9 +204,7 @@ static void md_note_roadmap(const md_line_t* l) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Block parsing
-// ---------------------------------------------------------------------------
+// --- Block parsing ---
 
 void md_parse(const char* text) {
     md_count = 0;
@@ -237,8 +219,7 @@ void md_parse(const char* text) {
     char line[MD_TEXT_MAX + 8];
 
     for (;;) {
-        // Accumulate one source line. `at_end` reports whether the terminator
-        // was the end of the document rather than a newline.
+        // Accumulate one source line; at_end marks end of document.
         int w = 0;
         int at_end = 0;
         while (1) {
@@ -246,8 +227,7 @@ void md_parse(const char* text) {
             if (ch == '\n' || ch == 0) {
                 line[w] = 0;
                 at_end = (ch == 0);
-                // Step over the newline. Without this the cursor stays parked on
-                // the terminator and the reader re-reads the same empty line forever.
+                // Step over the newline, or the cursor re-reads the terminator.
                 if (!at_end) src++;
                 break;
             }
@@ -388,13 +368,7 @@ int md_line_count(void) { return md_count; }
 int md_roadmap_start(void) { return md_roadmap; }
 int md_was_truncated(void) { return md_truncated; }
 
-// ---------------------------------------------------------------------------
-// Layout
-//
-// Lines are wrapped here rather than at parse time because the usable width is
-// only known once the window has been laid out. The result is cached per width so
-// the wheel handler and the renderer measure the same document.
-// ---------------------------------------------------------------------------
+// --- Layout ---
 
 static int md_kind_height(int kind) {
     switch (kind) {
@@ -435,8 +409,7 @@ static void md_view_range(int view, int* start, int* end) {
     if (*end < *start) *end = *start;
 }
 
-// Width available for text on a line, in characters. Headings use the upscaled
-// face, so they fit proportionally fewer characters per pixel.
+// Column width in characters; headings use the upscaled face, so fewer fit.
 static int md_line_chars(int w, int kind, int depth) {
     int used = MD_PAD_X + md_kind_indent(kind, depth) + MD_PAD_X;
     int cell = ((kind == MD_K_H1) || (kind == MD_K_H2)) ? MD_HEAD_CH : MD_CW;
@@ -445,8 +418,7 @@ static int md_line_chars(int w, int kind, int depth) {
     return chars;
 }
 
-// Draws text in the upscaled face. font_sample_pixel nearest-neighbour scales the
-// 8x8 glyph, so this is a blocky 2x of the same face rather than a distinct one.
+// Draws text in the upscaled face (nearest-neighbour scaled 8x8 glyph).
 static void md_draw_big(int x, int y, const char* s, int size, uint8_t colour) {
     uint8_t cw = 8, ch = 8;
     font_get_size((font_size_t)size, &cw, &ch);
@@ -462,8 +434,7 @@ static void md_draw_big(int x, int y, const char* s, int size, uint8_t colour) {
     }
 }
 
-// Wraps the document for a view at width w, filling md_vrows and returning the
-// total height in pixels. Returns the number of visual rows.
+// Wraps a view at width w; returns the visual row count.
 static int md_layout(int w, int view) {
     int start, end;
     md_view_range(view, &start, &end);
@@ -503,8 +474,7 @@ static int md_layout(int w, int view) {
             continue;
         }
 
-        // Word wrap. Words longer than the column are hard-split so a long token
-        // cannot push the rest of the line off screen.
+        // Word wrap; long tokens are hard-split at the column edge.
         int pos = 0;
         int first = 1;
         while (pos < len) {
@@ -563,13 +533,9 @@ int md_scroll_by(int w, int view, int scroll, int wheel_notches) {
     return scroll;
 }
 
-// ---------------------------------------------------------------------------
-// Drawing
-// ---------------------------------------------------------------------------
+// --- Drawing ---
 
-// Draws one 8x8 glyph. This goes through font_sample_pixel rather than reading
-// font_8x8 directly: the headings in this same module render correctly that way,
-// while a direct table read produced filled blocks for every character.
+// Draws one glyph via font_sample_pixel, not font_8x8.
 static void md_glyph(int x, int y, char c, uint8_t colour) {
     for (int r = 0; r < MD_CH; r++) {
         for (int col = 0; col < MD_CW; col++) {
@@ -585,19 +551,17 @@ static void md_draw_run(int x, int y, const char* text, int len, int style) {
     if (len <= 0) return;
 
     if (style == MD_S_CODE) {
-        // A chip behind the run, so inline code reads as code without relying on
-        // a colour shift alone.
+        // A chip behind the run, so inline code reads as code.
         fill_rect(x - 1, y - 1, (len * MD_CW) + 2, MD_CH + 2, XP_LGRAY);
     }
 
     for (int i = 0; i < len; i++) {
-        // The 8px face has no bold weight, so bold is faked by over-printing one
-        // pixel to the right. At this cell size it reads correctly.
+        // The 8px face has no bold, so bold over-prints one pixel to the right.
         md_glyph(x, y, text[i], style == MD_S_CODE ? XP_BLACK : XP_DGRAY);
         if (style == MD_S_BOLD) {
             md_glyph(x + 1, y, text[i], XP_DGRAY);
         }
-        x += MD_CW;   // step to the next cell
+        x += MD_CW;
     }
 
     if (style == MD_S_STRIKE) {
@@ -608,8 +572,7 @@ static void md_draw_run(int x, int y, const char* text, int len, int style) {
 // Draws the marker that sits in the gutter left of a list item or quote.
 static void md_draw_marker(int x, int y, const md_line_t* l, int kind) {
     if (kind == MD_K_BULLET) {
-        // A 2x2 dot rather than a glyph, because the 8px font's bullet cell is
-        // not guaranteed to hold one.
+        // A 2x2 dot, since the 8px font's bullet cell may not hold one.
         int cx = x + 4;
         int cy = y + 3;
         fill_rect(cx, cy, 3, 3, XP_DGRAY);
@@ -706,11 +669,7 @@ void md_draw(int x, int y, int w, int h, int view, int* scroll) {
                 }
                 default:
                 text_pass: {
-                    // Walk the row character by character in runs: plain text
-                    // between spans is emitted with MD_S_NONE, and each styled
-                    // run is drawn as one go. The old span-pair walk produced no
-                    // output at all for a line with no spans, which blanked every
-                    // paragraph.
+                    // Walk the row in runs; plain gaps use MD_S_NONE.
                     int pos = r->start;
                     int seg_end = r->start + r->len;
                     int cx2 = tx;

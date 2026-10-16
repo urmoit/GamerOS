@@ -14,7 +14,6 @@
 // Multiboot 1 handover magic, kept here so one caller can test both.
 #define MULTIBOOT1_INFO_MAGIC 0x2BADB002u
 
-// Tag types.
 #define MB2_TAG_END                0
 #define MB2_TAG_CMDLINE            1
 #define MB2_TAG_BOOT_LOADER_NAME   2
@@ -29,18 +28,13 @@
 #define MB2_TAG_ACPI_OLD          14
 #define MB2_TAG_ACPI_NEW          15
 
-// Framebuffer tag pixel format.
 #define MB2_FRAMEBUFFER_INDEXED  0
 #define MB2_FRAMEBUFFER_RGB      1
 #define MB2_FRAMEBUFFER_TEXT     2
 
-// Convertary entry point called from boot.asm with the raw handover registers.
-// Returns a pointer to a populated multiboot_info_t, or 0 when the magic is not
-// a known boot protocol magic.
+// Returns a multiboot_info_t*, or 0 for an unknown boot protocol magic.
 multiboot_info_t* multiboot2_build(uint32_t magic, void* info);
 
-// The protocol the last handover used, for the boot log: "Multiboot 2",
-// "Multiboot 1", or "unknown".
 const char* multiboot2_protocol_name(void);
 
 #endif

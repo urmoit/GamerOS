@@ -49,7 +49,7 @@ static int dequeue_event(ui_event_internal_t* ev) {
 
 // UI Framework functions
 void ui_framework_init(void) {
-    ui_init(); // Initialize existing UI system
+    ui_init();
     ui_initialized = 1;
     ui_has_focus_flag = 1;
     cursor_visible = 1;

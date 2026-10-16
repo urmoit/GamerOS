@@ -102,13 +102,8 @@ typedef struct {
     uint8_t interval;
 } __attribute__((packed)) usb_endpoint_descriptor_t;
 
-// Probe every UHCI host controller, enumerate the HID devices attached to it and
-// put them into boot protocol mode. Blocking: takes a few hundred milliseconds
-// because port resets and recovery delays dominate it.
 void usb_init(void);
 
-// Service every polled interrupt endpoint. Cheap enough to call once per frame
-// and does nothing while no report has arrived.
 void usb_poll(void);
 
 int usb_keyboard_connected(void);

@@ -32,14 +32,13 @@ static uint32_t get_user_permissions(uint32_t user_id) {
     return 0;
 }
 
-// Function declarations
+// Security subsystem
 void security_init_impl(void);
 void security_shutdown_impl(void);
 int security_authenticate_user(const char* username, const char* password);
 int security_check_access(uint32_t resource_id, uint32_t user_id, uint32_t access_type);
 void security_set_security_policy(uint32_t policy_id);
 
-// Security interface implementation
 static security_interface_t security_interface = {
     .init = security_init_impl,
     .shutdown = security_shutdown_impl,
@@ -49,7 +48,6 @@ static security_interface_t security_interface = {
 };
 
 void security_init_impl(void) {
-    // Initialize security components
     active_policy_id = 0;
     security_ready = 1;
 
@@ -57,7 +55,6 @@ void security_init_impl(void) {
 }
 
 void security_shutdown_impl(void) {
-    // Shutdown security components
     security_ready = 0;
     security = 0;
 }

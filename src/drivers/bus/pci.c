@@ -57,8 +57,7 @@ uint32_t pci_get_bar(pci_device_t* dev, int bar_index) {
     return pci_read_reg(dev, offset);
 }
 
-// Read the identity of one function and store it, or return 0 when the
-// function is absent (vendor 0xFFFF is how PCI reports "no device here").
+// Vendor 0xFFFF means the function is absent.
 static int pci_probe(pci_device_t* out, uint8_t bus, uint8_t device, uint8_t function) {
     uint32_t reg0 = pci_read_config(bus, device, function, 0);
     if ((reg0 & 0xFFFF) == 0xFFFF) {
@@ -91,7 +90,7 @@ int pci_find_class(uint8_t class_code, uint8_t subclass, int prog_if, pci_device
                 if (out) *out = found;
                 return 1;
             }
-            // Only walk the remaining functions of a multi-function device.
+            // Header type bit 7 marks a multi-function device.
             uint8_t header_type = (uint8_t)(pci_read_config((uint8_t)bus, (uint8_t)device, 0, PCI_HEADER_TYPE) >> 16);
             if (!(header_type & 0x80)) {
                 continue;
@@ -168,9 +167,3 @@ void pci_scan_class(uint8_t class_code, uint8_t subclass, int prog_if,
         }
     }
 }
-
-// Kept as the public entry point: the boot path needs the configuration space
-// helpers to work before anything scans, and pci_init() is where a future
-// driver table would register. Scanning is driven by the drivers that want a
-// device (see usb_init and the VMM mouse device) so no device is touched
-// before its driver exists.

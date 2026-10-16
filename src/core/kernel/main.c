@@ -2,8 +2,6 @@
 #include <mouse.h>
 #include <keyboard.h>
 #include <serial.h>
-// ports.h also declares the port I/O helpers and the device port constants;
-// including io.h as well would only duplicate those prototypes.
 #include <ports.h>
 #include <rtc.h>
 #include <timezone.h>
@@ -26,14 +24,13 @@
 #include <stdint.h>
 #include <string.h>
 
-// Window state kinds. These mirror the app_descriptor_t window_type values.
+// Window kinds, mirroring app_descriptor_t window_type values.
 #define APP_WINDOW_NOTEPAD 1
 #define APP_WINDOW_MYCOMP 2
 #define APP_WINDOW_ABOUT 3
 #define APP_WINDOW_SETTINGS 4
 #define APP_WINDOW_EXPLORER 5
 
-// Window states
 #define MAX_WINDOWS 6
 #define WIN_NONE    0
 #define WIN_NOTEPAD APP_WINDOW_NOTEPAD
@@ -42,18 +39,11 @@
 #define WIN_SETTINGS APP_WINDOW_SETTINGS
 #define WIN_EXPLORER APP_WINDOW_EXPLORER
 
-// Desktop shell sizing (compact XP-like layout for 320x200)
-// Compact UI text renders the canonical 8x8 font at its natural advance.
-// Cropping glyphs to 6 of 8 columns (the old behaviour) sheared letters into
-// vertical smears, so both the sample width and the advance are 8.
 #define START_BTN_X            4
-// Wide enough for the flag plus "Start" at the full 8px advance (5 * 8 = 40px).
 #define START_BTN_W            64
 #define START_BTN_H            16
 #define TASKBTN_W              70
 #define TASKBTN_H              16
-// The rail has to fit "Admin" at the full 8px advance (40px) plus padding,
-// otherwise the profile label bled into the content column.
 #define START_MENU_RAIL_W      56
 #define START_MENU_W           248
 #define START_MENU_H           176
@@ -93,14 +83,9 @@ static char error_popup_title[40];
 static char error_popup_message[160];
 static uint8_t warned_mouse_packet = 0;
 static uint8_t warned_mouse_bounds = 0;
-// Selected display profile. Owned by the shell because it drives the graphics
-// mode; the Settings app configures it through shell_set_display_profile().
 static int setting_display_profile = 0;
 
 #define EXPLORER_MAX_ENTRIES 14
-// "This PC" renders one block per volume in the style of a Windows drive list:
-// name, usage bar, and "X.X GB free of YYY GB". These rows are taller than the
-// single-line rows used for files and folders.
 #define EXPLORER_DRIVE_ROW_H 34
 #define EXPLORER_BAR_H       7
 static char explorer_path[MAX_FILENAME_LEN] = "C:/";
@@ -113,14 +98,13 @@ static char explorer_drive_paths[EXPLORER_MAX_ENTRIES][4];
 static char explorer_drive_labels[EXPLORER_MAX_ENTRIES][32];
 static int explorer_drive_count = 0;
 
-// Navigation history so Back/Forward are real rather than decorative.
 #define EXPLORER_HISTORY 16
 static char explorer_hist_path[EXPLORER_HISTORY][MAX_FILENAME_LEN];
 static uint8_t explorer_hist_thispc[EXPLORER_HISTORY];
 static int explorer_hist_count = 0;
 static int explorer_hist_pos = -1;
 
-// Hit boxes published by draw_window() for the Explorer chrome.
+// Hit boxes published by draw_window() for Explorer chrome.
 #define EXPLORER_TB_BUTTONS 4
 enum { EXPLORER_TB_BACK = 0, EXPLORER_TB_FWD, EXPLORER_TB_UP, EXPLORER_TB_REFRESH };
 static int explorer_tb_x[EXPLORER_TB_BUTTONS];
@@ -162,8 +146,7 @@ static int debug_overlay_resize_start_h = 0;
 static int debug_overlay_resize_start_mx = 0;
 static int debug_overlay_resize_start_my = 0;
 
-// Simple app lifecycle tracking so the shell has a notion of which
-// first-class apps are running or stopped.
+// App lifecycle state for first-class apps.
 typedef enum {
     APP_STATE_STOPPED = 0,
     APP_STATE_RUNNING = 1,
@@ -211,7 +194,7 @@ static void app_lifecycle_mark_launched(const app_descriptor_t* descriptor) {
 static void app_lifecycle_mark_closed_by_type(int win_type) {
     if (win_type == WIN_NONE) return;
 
-    // Find the app descriptor that owns this window type.
+    // Find the descriptor owning this window type.
     const app_descriptor_t* descriptor = 0;
     int app_count = apps_get_count();
     for (int i = 0; i < app_count; i++) {
@@ -228,15 +211,11 @@ static void app_lifecycle_mark_closed_by_type(int win_type) {
     entry->state = APP_STATE_STOPPED;
 }
 
-// High-level GamerOS virtual path helper for app and user storage.
-// Maps prefixes like:
-//   GOS:/User/...   -> C:/Users/Admin/...
-//   GOS:/System/... -> C:/GamerOS/System32/...
-//   GOS:/Apps/...   -> C:/GamerOS/Apps/...
+// Maps GOS:/User, GOS:/System and GOS:/Apps prefixes onto real paths.
 static int gos_path_resolve(const char* gos_path, char* out_fs_path, size_t out_cap) {
     if (!gos_path || !out_fs_path || out_cap == 0) return 0;
 
-    // If this is already a concrete path, just copy it through.
+    // Already a concrete path: copy it through.
     if (strncmp(gos_path, "GOS:/", 5) != 0) {
         strncpy(out_fs_path, gos_path, out_cap - 1);
         out_fs_path[out_cap - 1] = 0;
@@ -256,7 +235,7 @@ static int gos_path_resolve(const char* gos_path, char* out_fs_path, size_t out_
         base_fs = "C:/GamerOS/Apps/";
         rest += 5;
     } else {
-        // Fallback to the root of C: if the sub-prefix is unknown.
+        // Unknown sub-prefix: fall back to the C: root.
         base_fs = "C:/";
     }
 
@@ -264,7 +243,7 @@ static int gos_path_resolve(const char* gos_path, char* out_fs_path, size_t out_
     size_t rest_len = strlen(rest);
     if (base_len + rest_len + 1 > out_cap) {
         if (out_cap <= base_len + 1) {
-            // Not enough room even for the base path and terminator.
+            // Not even room for the base path plus terminator.
             return 0;
         }
         rest_len = out_cap - base_len - 1;
@@ -298,39 +277,27 @@ static int taskbar_clock_width(void) {
     return ((time_chars + 1 + date_chars) * FONT_CW) + 8;
 }
 
-// ---------------------------------------------------------------------------
-// Dock geometry
-//
-// The dock is a floating rounded panel centred on the bottom edge, sized to its
-// contents rather than to the screen. Both the renderer and the hit tester call
-// dock_compute_layout, so the clickable areas cannot drift away from the pixels:
-// when task buttons appear or vanish the dock re-centres and both sides agree.
-// ---------------------------------------------------------------------------
+// ---- Dock geometry ---------------------------------------------------------
+#define DOCK_PAD_X       8
+#define DOCK_PAD_Y       5
+#define DOCK_GAP_BOTTOM  7
+#define DOCK_GAP_ITEMS   6
+#define DOCK_RADIUS      8
+#define DOCK_SHADOW      3
 
-#define DOCK_PAD_X       8    // Inner padding left and right of the items.
-#define DOCK_PAD_Y       5    // Inner padding above and below the items.
-#define DOCK_GAP_BOTTOM  7    // Gap between the dock and the bottom of the screen.
-#define DOCK_GAP_ITEMS   6    // Gap between Start, the task run and the clock.
-#define DOCK_RADIUS      8    // Corner radius of the panel.
-#define DOCK_SHADOW      3    // Soft drop shadow depth, in whole pixels.
-
-// Vertical space the dock claims from the bottom edge, including the gap beneath
-// it. Window placement, the desktop context menu and the debug overlay all clamp
-// against this so nothing ends up hidden underneath the dock. Expressed in
-// terms of the same pieces dock_compute_layout uses, so the two cannot drift.
+// Vertical space the dock claims from the bottom edge.
 #define DOCK_INNER_H     ((TASKBTN_H > START_BTN_H) ? TASKBTN_H : START_BTN_H)
 #define DOCK_RESERVED_H  (DOCK_INNER_H + (DOCK_PAD_Y * 2) + DOCK_GAP_BOTTOM)
 
 typedef struct {
-    int x, y, w, h;         // Panel rectangle.
-    int start_x, start_y;   // Start button.
+    int x, y, w, h;
+    int start_x, start_y;
     int taskbtn_w, taskbtn_y;
-    int task_x, task_count; // Left edge of the task run, and how many fit.
+    int task_x, task_count;
     int clock_x, clock_y, clock_w;
 } dock_layout_t;
 
-// The taskbar's shape and density are user choices owned by the Settings app
-// (src/ui/apps/settings); the shell only reads them back through these helpers.
+// Taskbar shape and density come from the Settings app.
 static void dock_compute_layout(dock_layout_t* d) {
     if (!d) return;
 
@@ -340,8 +307,7 @@ static void dock_compute_layout(dock_layout_t* d) {
     int inner_h = (TASKBTN_H > START_BTN_H) ? TASKBTN_H : START_BTN_H;
     int h = inner_h + (DOCK_PAD_Y * 2);
 
-    // Start and the clock are always present, so they come off the top before
-    // deciding how many task buttons are allowed to claim space.
+    // Start and the clock are fixed width, so they claim space first.
     int fixed_w = (DOCK_PAD_X * 2) + START_BTN_W + clock_w;
     int max_w = (int)current_width - fixed_w - (DOCK_GAP_ITEMS * 2) - 8;
     if (max_w < 0) max_w = 0;
@@ -353,9 +319,7 @@ static void dock_compute_layout(dock_layout_t* d) {
     }
 
     if (settings_app_taskbar_style() == TASKBAR_STYLE_WINDOWS) {
-        // Classic taskbar: a full-width bar flush with the bottom edge instead
-        // of a centred panel. The items keep the same left-to-right order, so
-        // Start stays on the left and the clock stays in the tray area.
+        // Classic taskbar: full-width bar flush with the bottom edge.
         d->x = 0;
         d->y = (int)current_height - h;
         if (d->y < 0) d->y = 0;
@@ -406,9 +370,7 @@ typedef struct {
     int w;
     int h;
     int item_h;
-    // Layout shared by the renderer and the click handler. These used to be
-    // duplicated in both places, which is how the rail and the item rows
-    // drifted out of alignment.
+    // Shared by the renderer and the click handler.
     int rail_w;
     int panel_x;
     int panel_w;
@@ -468,12 +430,10 @@ static void explorer_refresh(void) {
     }
 }
 
-// Record the current location. `truncate_forward` drops the redo entries that
-// follow the current position, which is what navigating from a rewound history
-// should do.
+// truncate_forward drops redo entries after the current position.
 static void explorer_history_push(uint8_t truncate_forward) {
     if (explorer_hist_count > 0) {
-        // Don't record a duplicate of where we already are.
+        // Skip a duplicate of the current entry.
         if (explorer_hist_pos >= 0 && explorer_hist_pos < explorer_hist_count &&
             strcmp(explorer_hist_path[explorer_hist_pos], explorer_path) == 0 &&
             explorer_hist_thispc[explorer_hist_pos] == explorer_this_pc_view) {
@@ -487,7 +447,6 @@ static void explorer_history_push(uint8_t truncate_forward) {
         }
     }
     if (explorer_hist_count >= EXPLORER_HISTORY) {
-        // Shift out the oldest entry.
         for (int i = 1; i < EXPLORER_HISTORY; i++) {
             strncpy(explorer_hist_path[i - 1], explorer_hist_path[i], MAX_FILENAME_LEN);
             explorer_hist_thispc[i - 1] = explorer_hist_thispc[i];
@@ -528,8 +487,7 @@ static void explorer_open_this_pc(void) {
     explorer_entry_count = 0;
 }
 
-// Tenths of a GiB, computed with shifts only. The kernel links without libgcc,
-// so 64-bit division is unavailable here and must not be introduced.
+// Tenths of a GiB, shifts only: no libgcc means no 64-bit division.
 static uint64_t bytes_to_gb_tenths(uint64_t bytes) {
     return (bytes * 10) >> 30;
 }
@@ -552,9 +510,7 @@ void append_text(char* out, int out_size, int* pos, const char* s) {
     while (*s && *pos + 1 < out_size) out[(*pos)++] = *s++;
 }
 
-// "47.0 GB free of 474 GB", matching the Windows drive list. Volumes smaller
-// than 1 GiB are reported in MB, otherwise a RAM-backed fallback would render
-// as "0.0 GB free of 0 GB".
+// Volumes under 1 GiB are reported in MB, not "0.0 GB".
 static void format_capacity_line(char* out, int out_size, uint64_t free_bytes, uint64_t total_bytes) {
     int pos = 0;
     if (!out || out_size <= 1) return;
@@ -596,8 +552,6 @@ static void ensure_storage_initialized(void) {
     debug_present_boot_status();
     initialize_storage_layout();
 
-    // Report what the medium actually reported, so a boot log proves whether
-    // capacity detection worked rather than just asserting it did.
     {
         fs_space_info_t space;
         if (fs_get_space_info(&space)) {
@@ -744,14 +698,11 @@ int path_has_extension(const char* path, const char* ext) {
     return strcmp(path + (path_len - ext_len), ext) == 0;
 }
 
-// Details-view column widths. The Date modified column needs ~18 characters
-// for "10/10/2026 11:59 PM" at the 8px advance, so these are generous and the
-// Name column simply absorbs whatever is left.
+// Details-view column widths (px); Name absorbs the remainder.
 #define EXPL_COL_DATE_W 152
 #define EXPL_COL_TYPE_W 124
 #define EXPL_COL_SIZE_W 86
 
-// "10/10/2026 11:59 PM" - matches the Windows details view.
 static void format_mtime(char* out, int out_size, uint32_t unix_time) {
     int pos = 0;
     if (!out || out_size <= 1) return;
@@ -781,8 +732,6 @@ static void format_mtime(char* out, int out_size, uint32_t unix_time) {
     out[pos] = 0;
 }
 
-// Human-readable type label derived from the extension, the way Explorer shows
-// it. Unrecognised extensions fall back to the generic "File".
 static const char* file_type_label(const char* path, int is_dir) {
     if (is_dir) return "File folder";
     const char* base = path_basename(path);
@@ -799,7 +748,7 @@ static const char* file_type_label(const char* path, int is_dir) {
     return "File";
 }
 
-// "0 bytes", "1.2 KB", "3.4 MB". Shifts only, no 64-bit division.
+// Shifts only, no 64-bit division.
 static void format_file_size(char* out, int out_size, uint32_t bytes) {
     int pos = 0;
     if (!out || out_size <= 1) return;
@@ -841,8 +790,6 @@ static void explorer_build_this_pc_entries(void) {
         explorer_drive_paths[i][2] = '/';
         explorer_drive_paths[i][3] = 0;
 
-        // "<device label> (C:)" using whatever the medium reported, so a real
-        // disk shows its model rather than a generic placeholder.
         explorer_drive_labels[i][0] = 0;
         storage_device_info_t dev;
         const char* name = "Local Disk";
@@ -892,7 +839,6 @@ static void explorer_go_parent(void) {
     explorer_refresh();
 }
 
-// Navigate to a concrete path, recording it in history.
 static void explorer_navigate_to(const char* path) {
     if (!path) return;
     strncpy(explorer_path, path, sizeof(explorer_path) - 1);
@@ -903,7 +849,6 @@ static void explorer_navigate_to(const char* path) {
     explorer_refresh();
 }
 
-// Quick-access destinations shown in the sidebar.
 static const char* explorer_quick_path(int row) {
     switch (row) {
         case 0: return "C:/Users/Admin/Documents";
@@ -1040,7 +985,7 @@ static void shutdown_os(void) {
     outw(0x0604, 0x2000); // Alternate ACPI port forms
 }
 
-// Compact UI text uses the canonical 8x8 bitmap font at its natural 8px advance.
+// Compact UI text width in 8px units.
 int compact_text_width(const char* str) {
     if (!str) return 0;
     int n = 0;
@@ -1112,8 +1057,6 @@ static void draw_desktop_watermark(void) {
     const int pad_x = 8;
     const int gap = FONT_CW;
 
-    // The build badge is right-aligned on the lower row, so the card has to be
-    // as wide as (tag + gap + build) whenever that exceeds the brand line.
     int brand_row_w = brand_w;
     int meta_row_w = tag_w + gap + build_w;
     int inner_w = (brand_row_w > meta_row_w) ? brand_row_w : meta_row_w;
@@ -1121,11 +1064,6 @@ static void draw_desktop_watermark(void) {
     int card_w = inner_w + pad_x * 2 + accent_w;
     int card_h = 26;
     int x = (int)current_width - card_w - 10;
-    // Sit above whatever the taskbar actually is rather than above the space it
-    // might take: the Windows bar is flush with the bottom edge, so anchoring to
-    // the real dock geometry moves the card down with it and keeps the gap
-    // constant. The floating dock leaves room underneath it, so in that style
-    // the card can drop a little closer to the bottom edge.
     dock_layout_t wm_dock;
     dock_compute_layout(&wm_dock);
     int y = wm_dock.y - card_h - 10;
@@ -1182,16 +1120,13 @@ static int wallpaper_is_too_dark(void) {
 static void draw_desktop_wallpaper(int desktop_h) {
     if (desktop_h <= 0) return;
 
-    // The embedded wallpaper asset is essentially transparent/black. If it
-    // samples as too dark, brighten the generated gradient so the desktop is
-    // never painted near-black.
+    // The embedded wallpaper samples as near-black; brighten if so.
     int too_dark = wallpaper_is_too_dark();
 
     if (graphics_is_truecolor()) {
         uint32_t w = current_width;
         uint32_t h = (uint32_t)desktop_h;
 
-        // Faster row-by-row gradient using fill_rect
         for (uint32_t y = 0; y < h; y++) {
             uint32_t t = (y * 255) / (h > 1 ? h - 1 : 1);
             uint32_t r = 58 - ((40 * t) / 255);
@@ -1199,7 +1134,6 @@ static void draw_desktop_wallpaper(int desktop_h) {
             uint32_t b = 165 - ((30 * t) / 255);
             uint32_t rgb = (r << 16) | (g << 8) | b;
             if (too_dark) {
-                // Lift the gradient floor so the desktop stays readable.
                 r += 70; if (r > 255) r = 255;
                 g += 70; if (g > 255) g = 255;
                 b += 50; if (b > 255) b = 255;
@@ -1212,7 +1146,6 @@ static void draw_desktop_wallpaper(int desktop_h) {
             }
         }
 
-        // Subtle lighter band across the middle
         int band_y = (int)h * 2 / 5;
         int band_h = (int)h / 6;
         for (int y = band_y; y < band_y + band_h && y < (int)h; y++) {
@@ -1230,7 +1163,6 @@ static void draw_desktop_wallpaper(int desktop_h) {
             }
         }
 
-        // GamerOS brand watermark - subtle corner decoration
         int logo_x = 16;
         int logo_y = h - 68;
         if (logo_y < 16) logo_y = 16;
@@ -1253,7 +1185,6 @@ static void draw_desktop_wallpaper(int desktop_h) {
         return;
     }
 
-    // Indexed mode - smooth gradient
     {
         for (int y = 0; y < desktop_h; y++) {
             uint8_t c;
@@ -1266,7 +1197,6 @@ static void draw_desktop_wallpaper(int desktop_h) {
             }
             fill_rect(0, y, (int)current_width, 1, c);
         }
-        // Accent stripe
         fill_rect(0, desktop_h * 2 / 5, (int)current_width, 3, XP_WHITE);
     }
 }
@@ -1316,8 +1246,6 @@ static void get_start_menu_metrics(start_menu_metrics_t* m) {
     dock_layout_t dock;
     dock_compute_layout(&dock);
 
-    // The menu hangs off the dock's left edge so the two read as one control,
-    // then gets nudged back on screen if the centred dock would push it off.
     int menu_x = dock.x;
     if (menu_x + menu_w > (int)current_width - 4) menu_x = (int)current_width - 4 - menu_w;
     if (menu_x < 4) menu_x = 4;
@@ -1531,7 +1459,6 @@ static void launch_application_exe(const char* exe_name, int fallback_x, int fal
 
 static void launch_settings_tab(int tab_idx) {
     launch_application_exe("SETTINGS.EXE", -1, -1);
-    // The page index belongs to the Settings app; the shell only asks for it.
     settings_app_select_tab(tab_idx);
 }
 
@@ -1555,14 +1482,9 @@ static void startup_animation(void) {
     int panel_inner_w = panel_w - rail_w - 24;
     if (panel_inner_w < 8) panel_inner_w = 8;
 
-    // Title and subtitle hang off the panel's content column. The old code
-    // centred the title on the *screen*, which pushed it out past the panel
-    // edge on anything wider than the panel.
     int title_x = panel_inner_x;
     int title_y = panel_y + 12;
 
-    // Spinner sits on its own row with the label beneath it; previously the
-    // label was drawn across the ring at the same y and overwrote the dots.
     int loader_cx = panel_x + (panel_w / 2);
     int loader_cy = panel_y + 88;
     int loading_w = compact_text_width(loading_label);
@@ -1572,11 +1494,9 @@ static void startup_animation(void) {
     int bg_h = (int)current_height;
     int frames = 48;
 
-    // Draw background once (static)
     if (graphics_is_truecolor()) {
         uint32_t w = current_width;
         uint32_t h = (uint32_t)bg_h;
-        // Deep blue gradient
         for (uint32_t y = 0; y < h; y++) {
             uint32_t t = (y * 255) / (h > 1 ? h - 1 : 1);
             uint32_t r = 20 + ((10 * t) / 255);
@@ -1597,20 +1517,17 @@ static void startup_animation(void) {
         }
     }
 
-    // Pre-draw panel background (static part)
     fill_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_WHITE);
     draw_chamfer_rect(panel_x, panel_y, panel_w, panel_h, XP_LGRAY);
     draw_chamfer_rect(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, XP_DGRAY);
     fill_chamfer_rect(panel_x + 4, panel_y + 4, rail_w, panel_h - 8, XP_LGRAY);
     fill_rect(panel_x + 5, panel_y + 5, rail_w - 2, 2, XP_WHITE);
 
-    // Avatar chip, centred in the rail.
     int chip_w = 24;
     int chip_x = panel_x + 4 + ((rail_w - chip_w) / 2);
     fill_chamfer_rect(chip_x, panel_y + 12, chip_w, 14, XP_LBLUE);
     draw_compact_string(chip_x + ((chip_w - FONT_CW) / 2), panel_y + 15, "G", XP_BLACK);
 
-    // Brand line inside the content column.
     fill_chamfer_rect(panel_inner_x, panel_y + 8, panel_inner_w, 18, XP_WHITE);
     fill_rect(panel_inner_x + 1, panel_y + 9, panel_inner_w - 2, 2, XP_LBLUE);
     draw_compact_string(title_x, title_y, title, XP_BLACK);
@@ -1620,10 +1537,8 @@ static void startup_animation(void) {
     draw_compact_string_clipped(panel_inner_x + 6, panel_y + 36,
                                 (panel_inner_w - 10) / FONT_CW, subtitle, XP_BLACK);
 
-    // Loading label sits below the ring, centred under it.
     draw_compact_string(loading_x, loading_y, loading_label, XP_DGRAY);
 
-    // Pre-compute ring positions
     static const int8_t ring_dx[24] = {
          0,  5,  9, 13, 15, 17, 18, 17, 15, 13,  9,  5,
          0, -5, -9,-13,-15,-17,-18,-17,-15,-13, -9, -5
@@ -1639,20 +1554,17 @@ static void startup_animation(void) {
         if (lit < 1) lit = 1;
         if (lit > 24) lit = 24;
 
-        // Only redraw dots that changed
         if (lit > prev_lit) {
             for (int i = prev_lit; i < lit; i++) {
                 int px = loader_cx + ring_dx[i];
                 int py = loader_cy + ring_dy[i];
                 fill_rect(px - 2, py - 2, 5, 5, XP_BLUE);
             }
-            // Highlight current dot
             if (lit > 0 && lit <= 24) {
                 int px = loader_cx + ring_dx[lit - 1];
                 int py = loader_cy + ring_dy[lit - 1];
                 fill_rect(px - 2, py - 2, 5, 5, XP_LBLUE);
             }
-            // Unlit dots
             for (int i = lit; i < 24; i++) {
                 int px = loader_cx + ring_dx[i];
                 int py = loader_cy + ring_dy[i];
@@ -1662,7 +1574,6 @@ static void startup_animation(void) {
         prev_lit = lit;
 
         swap_buffers();
-        // Short delay - no busy loop
         for (volatile int d = 0; d < 40000; d++) {
             __asm__ volatile ("nop");
         }
@@ -1687,7 +1598,6 @@ static void bring_window_to_front(int idx) {
     active_window = target;
 }
 
-// Initialize windows
 void init_windows(void) {
     for (int i = 0; i < MAX_WINDOWS; i++) {
         windows[i].active = 0;
@@ -1695,7 +1605,6 @@ void init_windows(void) {
     notepad_app_init();
 }
 
-// Open a window
 void open_window(int type, int x, int y) {
     for (int i = 0; i < MAX_WINDOWS; i++) {
         if (!windows[i].active) {
@@ -1733,7 +1642,7 @@ void open_window(int type, int x, int y) {
                 windows[i].x = 8;
                 windows[i].y = 6;
                 explorer_open_this_pc();
-                // Start the history at "This PC" so Back is available immediately.
+                // Seed history at "This PC" so Back works immediately.
                 explorer_history_reset();
                 explorer_history_push(0);
             } else if (type == WIN_MYCOMP) {
@@ -1757,13 +1666,11 @@ void open_window(int type, int x, int y) {
     }
 }
 
-// Close window
 void close_window(int idx) {
     if (idx >= 0 && idx < MAX_WINDOWS && windows[idx].active) {
         if (windows[idx].type == WIN_NOTEPAD && notepad_app_is_dirty() && shell_storage_ready()) {
             notepad_app_save();
         }
-        // Update simple app lifecycle state when a top-level app window closes.
         app_lifecycle_mark_closed_by_type(windows[idx].type);
         (void)process_terminate_by_window_type(windows[idx].type);
         windows[idx].active = 0;
@@ -1778,7 +1685,6 @@ void close_window(int idx) {
     }
 }
 
-// Draw a small toolbar button with an optional enabled/disabled state.
 void draw_tool_button(int x, int y, int w, int h, const char* label, int enabled) {
     uint8_t bg = enabled ? XP_WHITE : XP_LGRAY;
     uint8_t txt = enabled ? XP_BLACK : XP_DGRAY;
@@ -1790,14 +1696,12 @@ void draw_tool_button(int x, int y, int w, int h, const char* label, int enabled
 }
 
 
-// Draw window
 void draw_window(window_t* win) {
     int x = win->x;
     int y = win->y;
     int w = win->w;
     int h = win->h;
 
-    // Defensive geometry clamp for VM stability.
     if (w < 24 || h < 24) return;
     if (x < 0) x = 0;
     if (y < 0) y = 0;
@@ -1820,11 +1724,9 @@ void draw_window(window_t* win) {
     fill_rect(x + 8, y + 20, w - 36, 1, is_active_window ? XP_WHITE : XP_DGRAY);
     draw_string(x + 14, y + 8, win->title, title_text);
     
-    // Close button (slightly larger for easier clicking)
     fill_chamfer_rect(x + w - 26, y + 4, 20, 16, is_active_window ? XP_WHITE : XP_LGRAY);
     draw_chamfer_rect(x + w - 26, y + 4, 20, 16, XP_DGRAY);
     draw_compact_string(x + w - 19, y + 8, "X", XP_BLACK);
-    // Bottom-right resize grip.
     for (int g = 0; g < 4; g++) {
         int gx = x + w - 3 - (g * 3);
         int gy = y + h - 2;
@@ -1832,10 +1734,8 @@ void draw_window(window_t* win) {
     }
     
     if (win->type == WIN_NOTEPAD) {
-        // Notepad renders itself; the shell only supplies the client rect.
         notepad_app_draw_content(x + 2, y + 2, w - 4, h - 4, is_active_window);
     } else if (win->type == WIN_SETTINGS) {
-        // Settings renders its own navigation rail and pages.
         settings_app_draw_content(x + 4, y + 28, w - 8, h - 32, is_active_window);
     } else if (win->type == WIN_ABOUT) {
         fill_chamfer_rect(x + 4, y + 28, w - 8, h - 32, XP_WHITE);
@@ -1867,7 +1767,7 @@ void draw_window(window_t* win) {
         draw_compact_string_clipped(content_x, content_y + 108, content_chars, "Apps: *.EXE (NOTEPAD/SETTINGS/EXPLORER/ABOUT)", XP_BLACK);
         draw_compact_string_clipped(content_x, content_y + 120, content_chars, "Author: Chosentechies", XP_BLACK);
     } else if (win->type == WIN_EXPLORER) {
-        // ---- Layout ----------------------------------------------------------
+        // ---- Layout ----
         const int TB_H = 14;
         const int BTN_W = 26;
         const int BTN_GAP = 3;
@@ -1883,11 +1783,11 @@ void draw_window(window_t* win) {
         int body_h = status_y - body_y - 3;
         if (body_h < ROW_H) body_h = ROW_H;
 
-        // ---- Client background ----------------------------------------------
+        // ---- Client background ----
         fill_chamfer_rect(x + 4, cy, w - 8, cb - cy, XP_LGRAY);
         draw_chamfer_rect(x + 4, cy, w - 8, cb - cy, XP_DGRAY);
 
-        // ---- Toolbar ----------------------------------------------------------
+        // ---- Toolbar ----
         int bx = x + 7;
         static const char* tb_labels[EXPLORER_TB_BUTTONS] = { "<", ">", "^", "R" };
         explorer_tb_y = tb_y;
@@ -1905,7 +1805,7 @@ void draw_window(window_t* win) {
             bx += BTN_W + BTN_GAP;
         }
 
-        // ---- Breadcrumb ------------------------------------------------------
+        // ---- Breadcrumb ----
         {
             int bc_x = bx + 4;
             int bc_w = (x + w - 6) - bc_x;
@@ -1918,7 +1818,7 @@ void draw_window(window_t* win) {
             draw_compact_string_clipped(bc_x + 4, tb_y + 3, cc, crumb, XP_BLACK);
         }
 
-        // ---- Sidebar ---------------------------------------------------------
+        // ---- Sidebar ----
         int sb_x = x + 7;
         int sb_h = body_h;
         fill_chamfer_rect(sb_x, body_y, SIDEBAR_W, sb_h, XP_WHITE);
@@ -1955,17 +1855,14 @@ void draw_window(window_t* win) {
                                         explorer_quick_label(i), XP_BLACK);
         }
 
-        // ---- Entry list ------------------------------------------------------
+        // ---- Entry list ----
         int list_x = sb_x + SIDEBAR_W + 5;
         int list_w = (x + w - 6) - list_x;
         if (list_w < 20) list_w = 20;
         fill_chamfer_rect(list_x, body_y, list_w, body_h, XP_WHITE);
         draw_chamfer_rect(list_x, body_y, list_w, body_h, XP_DGRAY);
 
-        // ---- Details view columns: Name | Date modified | Type | Size ----------
-        // Columns are laid out from the right edge inward so Name always absorbs
-        // the remainder, and the whole group collapses to Name + Size when the
-        // window is too narrow to hold the date and type columns legibly.
+        // ---- Details view columns ----
         int show_wide_cols = 1;
         int col_size_x = list_x + list_w - EXPL_COL_SIZE_W - 4;
         int col_type_x = col_size_x - EXPL_COL_TYPE_W;
@@ -2021,14 +1918,12 @@ void draw_window(window_t* win) {
                     fill_chamfer_rect(list_x + 2, ry, list_w - 4, EXPLORER_DRIVE_ROW_H - 2, XP_LBLUE);
                 }
 
-                // Drive badge.
                 fill_rect(list_x + 6, ry + 3, 7, 6, XP_DGRAY);
                 fill_rect(list_x + 6, ry + 3, 7, 2, XP_WHITE);
 
                 draw_compact_string_clipped(list_x + 18, ry + 2, name_chars,
                                             explorer_drive_labels[i], XP_BLACK);
 
-                // Usage bar: filled portion = used, remainder = free.
                 fs_space_info_t space;
                 storage_device_info_t dev;
                 int bar_x = list_x + 18;
@@ -2108,7 +2003,7 @@ void draw_window(window_t* win) {
             }
         }
 
-        // ---- Status bar ------------------------------------------------------
+        // ---- Status bar ----
         fill_rect(x + 7, status_y, w - 14, STATUS_H - 1, XP_LGRAY);
         fill_rect(x + 8, status_y + 1, w - 16, 1, XP_WHITE);
         {
@@ -2126,7 +2021,6 @@ void draw_window(window_t* win) {
     }
 }
 
-// Desktop icons
 typedef struct {
     int x, y;
     const char* label;
@@ -2186,13 +2080,10 @@ static void draw_start_menu(void) {
     int panel_w = sm.panel_w;
     int items_top = sm.items_top;
 
-    // Modern light panel style (wider, cleaner spacing, larger action rows).
     fill_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_WHITE);
     draw_chamfer_rect(menu_x, menu_y, menu_w, menu_h, XP_LGRAY);
     draw_chamfer_rect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, XP_DGRAY);
 
-    // Left profile rail + avatar chip. The chip and both labels are centred on
-    // the rail's own centre line rather than at fixed offsets.
     fill_chamfer_rect(menu_x + 4, menu_y + 4, rail_w, menu_h - 8, XP_LGRAY);
     fill_rect(menu_x + 5, menu_y + 5, rail_w - 2, 2, XP_LBLUE);
 
@@ -2209,11 +2100,9 @@ static void draw_start_menu(void) {
     draw_compact_string_clipped(rail_cx - (compact_text_width("Profile") / 2), menu_y + 47,
                                 rail_label_chars, "Profile", XP_DGRAY);
 
-    // Header + search strip.
     fill_chamfer_rect(panel_x, menu_y + 4, panel_w, 20, XP_WHITE);
     fill_rect(panel_x + 1, menu_y + 5, panel_w - 2, 2, XP_LBLUE);
     draw_compact_string(panel_x + 6, menu_y + 10, "GamerOS", XP_BLACK);
-    // Place "Launchpad" after the brand with a real gap instead of a magic x.
     int header_chars = (panel_w - 12) / FONT_CW;
     draw_compact_string_clipped(panel_x + 6 + (compact_text_width("GamerOS") + FONT_CW),
                                 menu_y + 11, header_chars, "Launchpad", XP_DGRAY);
@@ -2222,7 +2111,6 @@ static void draw_start_menu(void) {
     draw_chamfer_rect(panel_x, menu_y + 28, panel_w, 14, XP_DGRAY);
     draw_compact_string_clipped(panel_x + 6, menu_y + 32, header_chars, "Search apps", XP_DGRAY);
 
-    // Menu items
     static const char* items[] = {
         "Notepad",
         "Settings",
@@ -2296,9 +2184,6 @@ static void draw_error_popup(void) {
 
 void draw_desktop(void) {
     layout_desktop_icons();
-    // The wallpaper covers the whole screen, including the band the dock floats
-    // over and the gap beneath it. Stopping it above the dock would leave a hard
-    // horizontal seam that gives away the dock as a bar in disguise.
     draw_desktop_wallpaper((int)current_height);
     draw_desktop_watermark();
     
@@ -2319,22 +2204,14 @@ void draw_desktop(void) {
         }
     }
     
-    // Dock: a floating rounded panel centred on the bottom edge and drawn over
-    // the wallpaper, so it reads as its own surface rather than a bar glued to
-    // the screen edge. The Windows style swaps this for a square full-width bar
-    // flush with the bottom edge; the items keep the positions
-    // dock_compute_layout published, so both styles share one item pass below.
     dock_layout_t dock;
     dock_compute_layout(&dock);
 
     if (settings_app_taskbar_style() == TASKBAR_STYLE_WINDOWS) {
         fill_chamfer_rect(dock.x, dock.y, dock.w, dock.h, XP_LGRAY);
         draw_chamfer_rect(dock.x, dock.y, dock.w, dock.h, XP_DGRAY);
-        // Flat bevel along the top edge in place of the dock's rounded one.
         fill_rect(dock.x + 1, dock.y + 1, dock.w - 2, 1, XP_WHITE);
     } else {
-        // Soft drop shadow, built from concentric outlines so it fades with
-        // distance instead of reading as a hard second border.
         for (int s = DOCK_SHADOW; s >= 1; s--) {
             vga_draw_rounded_rect(dock.x - s, dock.y + s, (uint32_t)(dock.w + (s * 2)),
                                   (uint32_t)dock.h, (uint8_t)(DOCK_RADIUS + s), XP_SHADOW);
@@ -2343,12 +2220,9 @@ void draw_desktop(void) {
                               (uint8_t)DOCK_RADIUS, XP_LGRAY);
         vga_draw_rounded_rect(dock.x, dock.y, (uint32_t)dock.w, (uint32_t)dock.h,
                               (uint8_t)DOCK_RADIUS, XP_DGRAY);
-        // Bevel highlight along the top edge, inset past the corners.
         fill_rect(dock.x + DOCK_RADIUS, dock.y + 1, dock.w - (DOCK_RADIUS * 2), 1, XP_WHITE);
     }
 
-    // Start button. The flag sits in its own gutter and the label is centred
-    // in the space that remains, so the text cannot spill past the border.
     const char* start_label = "Start";
     const int start_flag_w = 12;
     fill_chamfer_rect(dock.start_x, dock.start_y, START_BTN_W, START_BTN_H,
@@ -2374,13 +2248,10 @@ void draw_desktop(void) {
     draw_error_popup();
     draw_debug_overlay();
 
-    // Task buttons, laid out left to right inside the dock. The run width was
-    // already reserved by dock_compute_layout, so this loop never overflows.
     int taskbtn_w = dock.taskbtn_w;
     int taskbtn_y = dock.taskbtn_y;
     int task_x = dock.task_x;
 
-    // Longest label that fits inside a task button, minus its side padding.
     int task_chars = (taskbtn_w - 8) / FONT_CW;
     if (task_chars < 1) task_chars = 1;
     if (task_chars > 12) task_chars = 12;
@@ -2413,7 +2284,6 @@ void draw_desktop(void) {
         }
     }
     
-    // Clock
     uint8_t hour = 0, minute = 0, second = 0;
     uint8_t day = 0, month = 0;
   uint16_t year = 0;
@@ -2473,7 +2343,7 @@ static int find_top_window_at(int32_t mx, int32_t my) {
 static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
     if (!win) return 0;
 
-    // ---- Toolbar buttons (Back / Forward / Up / Refresh) ------------------
+    // ---- Toolbar buttons ----
     if (explorer_tb_h > 0 && my >= explorer_tb_y && my < explorer_tb_y + explorer_tb_h) {
         for (int i = 0; i < EXPLORER_TB_BUTTONS; i++) {
             if (mx < explorer_tb_x[i] || mx >= explorer_tb_x[i] + explorer_tb_w) continue;
@@ -2486,7 +2356,7 @@ static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
         }
     }
 
-    // ---- Quick access sidebar ---------------------------------------------
+    // ---- Quick access sidebar ----
     if (explorer_sb_hit_h > 0 &&
         mx >= explorer_sb_x && mx < explorer_sb_x + explorer_sb_w) {
         for (int i = 0; i < EXPLORER_SIDEBAR_ROWS; i++) {
@@ -2508,7 +2378,7 @@ static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
         }
     }
 
-    // ---- Entry list --------------------------------------------------------
+    // ---- Entry list ----
     if (explorer_list_hit_h > 0 &&
         mx >= explorer_list_x && mx < explorer_list_x + explorer_list_w) {
         for (int i = 0; i < explorer_list_hit_count; i++) {
@@ -2545,7 +2415,6 @@ static int handle_explorer_click(window_t* win, int32_t mx, int32_t my) {
     return 0;
 }
 
-// Process mouse input
 void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) {
 #define RETURN_MOUSE() do { last_buttons = buttons; return; } while (0)
     if (mx < 0) mx = 0;
@@ -2556,7 +2425,7 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
 
     buttons &= (uint8_t)(MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT);
     if ((buttons & (MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT)) == (MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT)) {
-        // Ignore ambiguous dual-button packets quietly to avoid unstable VM popup paths.
+        // Ignore ambiguous dual-button packets (unstable VM popup paths).
         if (!warned_mouse_packet) {
             serial_write_string("Input warning: ambiguous mouse packet detected (L+R together)\n");
             warned_mouse_packet = 1;
@@ -2635,11 +2504,9 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             RETURN_MOUSE();
         }
 
-        // Dock: same layout the renderer used, so the hit boxes match the pixels.
         dock_layout_t dock;
         dock_compute_layout(&dock);
 
-        // Start button
         if (mx >= dock.start_x && mx < dock.start_x + START_BTN_W &&
             my >= dock.start_y && my < dock.start_y + START_BTN_H) {
             start_menu_open = !start_menu_open;
@@ -2647,7 +2514,6 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             RETURN_MOUSE();
         }
 
-        // Start menu items
         if (start_menu_open) {
             start_menu_metrics_t sm = {0};
             get_start_menu_metrics(&sm);
@@ -2734,7 +2600,6 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             RETURN_MOUSE();
         }
         
-        // Check desktop icons
         for (int i = 0; i < (int)NUM_ICONS; i++) {
             int ix = desktop_icons[i].x;
             int iy = desktop_icons[i].y;
@@ -2745,7 +2610,6 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
             }
         }
         
-        // Task buttons
         {
             int taskbtn_y = dock.taskbtn_y;
             int taskbtn_w = dock.taskbtn_w;
@@ -2766,7 +2630,6 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
         }
     }
     
-    // Handle dragging
     if (buttons & MOUSE_BTN_LEFT) {
         if (debug_overlay_enabled && debug_overlay_dragging) {
             debug_overlay_x = mx - debug_overlay_drag_x;
@@ -2817,7 +2680,6 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
         }
     }
     
-    // Stop dragging
     if ((~buttons & last_buttons) & MOUSE_BTN_LEFT) {
         debug_overlay_dragging = 0;
         debug_overlay_resizing = 0;
@@ -2843,7 +2705,6 @@ void process_mouse(int32_t mx, int32_t my, uint8_t buttons, int8_t wheel_delta) 
 #undef RETURN_MOUSE
 }
 
-// Process keyboard input
 int process_keyboard(void) {
     if (active_window < 0 || !windows[active_window].active) return 0;
     
@@ -2854,7 +2715,6 @@ int process_keyboard(void) {
         char c = keyboard_getchar();
         if (!c) break;
 
-        // Notepad owns its own editing keys.
         if (win->type == WIN_NOTEPAD) {
             changed |= notepad_app_handle_key(c);
             continue;
@@ -2900,14 +2760,7 @@ static void cursor_compose_on_backbuffer(int32_t x, int32_t y) {
     cursor_drawn_valid = 1;
 }
 
-// Main kernel entry
-// ============================================================================
-// Shell API implementations
-//
-// These are the only entry points standalone apps have into the shell. They stay
-// deliberately thin: the shell owns storage bring-up and GOS:/ path translation,
-// so an app never needs to know whether the volume is on ATA or in RAM.
-// ============================================================================
+// ---- Shell API ------------------------------------------------------------
 
 void shell_ensure_storage_initialized(void) {
     ensure_storage_initialized();
@@ -2931,9 +2784,7 @@ void shell_raise_error(const char* title, const char* message) {
     raise_runtime_error(title, message);
 }
 
-// --- Shell state an app configures ------------------------------------------
-// The Settings app owns the preferences; the shell owns the surfaces they drive,
-// so each side reads the other through an accessor rather than a shared static.
+// ---- App configuration state ----
 
 int shell_debug_overlay_enabled(void) {
     return debug_overlay_enabled ? 1 : 0;
@@ -2980,7 +2831,7 @@ void kernel_main(multiboot_info_t* mb_info) {
         debug_log_message(boot_line);
     }
     
-    // Prefer safe-validated multiboot framebuffer path; fallback to stable VGA renderer.
+    // Prefer the multiboot framebuffer; fall back to VGA.
     if (!graphics_use_multiboot_framebuffer(mb_info)) {
         set_video_mode(MODE_VESA_640x480);
         debug_log_message("Boot: using VGA fallback");
@@ -2998,19 +2849,14 @@ void kernel_main(multiboot_info_t* mb_info) {
         debug_log_message(gfx_boot_line);
     }
     
-    // Initialize subsystems
     keyboard_init();
     debug_log_message("Boot: keyboard init ok");
     mouse_init();
     debug_log_message("Boot: mouse init ok");
-    // USB HID keyboards and mice, then the hypervisor absolute pointers. Each
-    // of these replaces the PS/2 devices on a machine where they are the only
-    // pointer, and reports into the same input state below.
     usb_init();
     xhci_init();
     vmware_mouse_init();
     vboxguest_init();
-    // Seed desktop state before storage comes online.
     explorer_drive_count = 1;
     explorer_drive_paths[0][0] = 'C';
     explorer_drive_paths[0][1] = ':';
@@ -3023,23 +2869,18 @@ void kernel_main(multiboot_info_t* mb_info) {
     startup_animation();
     debug_log_message("Boot: startup animation done");
       debug_present_boot_status();
-      // Mount the volume during boot. Deferring this until the first app launch
-      // meant a boot log could not tell you whether the medium was detected at
-      // all, and made persistence impossible to verify headlessly.
       ensure_storage_initialized();
       debug_log_message("Boot: entering main loop");
     debug_present_boot_status();
 
-    // VMware stability mode: use polling-only input in the main loop.
-    // IRQ-driven mouse/keyboard paths can still trigger fault storms while dragging.
+    // VMware: polling-only input; IRQ paths can still fault while dragging.
     __asm__ volatile ("cli");
-    
+
     // Main loop
     int32_t last_mx = -1, last_my = -1;
     uint8_t scene_dirty = 0;
 
-    // Paint one desktop frame before the first input poll so a noisy PS/2
-    // controller cannot trap the VM on a black handoff screen.
+    // Paint one frame first so a noisy PS/2 controller cannot trap the VM on black.
     {
         int32_t boot_mx = mouse_get_x();
         int32_t boot_my = mouse_get_y();
@@ -3064,14 +2905,10 @@ void kernel_main(multiboot_info_t* mb_info) {
             }
         }
 
-        // Keyboard first: both devices share the PS/2 output buffer, and the
-        // mouse drain must never be allowed to consume a keystroke.
+        // Keyboard first: both devices share the PS/2 output buffer.
         keyboard_poll();
         mouse_poll();
-        // Non-PS/2 input sources. These run after the PS/2 drains because a
-        // hypervisor absolute pointer carries the position and the buttons as
-        // one synchronous read, so it has to win over whatever the 8042 left
-        // in the shared state.
+        // Non-PS/2 sources run after the PS/2 drains (they read position+buttons at once).
         usb_poll();
         xhci_poll();
         vmware_mouse_poll();
@@ -3093,7 +2930,7 @@ void kernel_main(multiboot_info_t* mb_info) {
         if (mx >= (int32_t)current_width) mx = (int32_t)current_width - 1;
         if (my >= (int32_t)current_height) my = (int32_t)current_height - 1;
         uint8_t buttons = mouse_get_buttons();
-        // Normalize wheel direction so wheel-up scrolls content up in UI lists/editors.
+        // Normalize wheel direction so wheel-up scrolls content up.
         int8_t wheel_delta = (int8_t)(-mouse_get_wheel_delta());
         uint8_t prev_buttons = last_buttons;
         
@@ -3147,9 +2984,7 @@ void kernel_main(multiboot_info_t* mb_info) {
 // TODO: Replace polling-only desktop loop with timer-driven frame pacing to reduce idle CPU usage.
 // TODO: Derive scene_dirty from centralized event queue instead of scattered state checks.
 
-// ============================================================================
-// App Management Stubs (to satisfy linker requirements)
-// ============================================================================
+// ---- App management stubs -------------------------------------------------
 
 static const app_descriptor_t g_app_descriptors[] = {
     {"NOTEPAD.EXE",  "C:/GamerOS/System32/NOTEPAD.EXE",  "Notepad",

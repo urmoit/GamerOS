@@ -1,7 +1,6 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
-// Special key codes
 #define KEY_LEFT    0x80
 #define KEY_RIGHT   0x81
 #define KEY_UP      0x82

@@ -100,7 +100,6 @@ extern void msdos_shutdown_impl(void);
 void user_mode_init(void) {
     user_mode_reset_process_table();
 
-    // Initialize integral subsystems
     workstation_init_impl();
     server_service_init_impl();
     security_init_impl();
@@ -114,7 +113,7 @@ void user_mode_init(void) {
         }
     }
 
-    // Establish isolated process contexts for core user-mode subsystems.
+    // Isolated process contexts for core subsystems.
     int ws_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_SYSTEM);
     int ss_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_SERVICE);
     int sec_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_SYSTEM);
@@ -122,7 +121,6 @@ void user_mode_init(void) {
     (void)ss_pid;
     (void)sec_pid;
 
-    // Initialize environment subsystems
     int win32_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_USER);
     int posix_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_USER);
     int os2_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_USER);
@@ -130,13 +128,12 @@ void user_mode_init(void) {
     if (posix_pid >= 0) posix_init_impl();
     if (os2_pid >= 0) os2_init_impl();
 
-    // Initialize compatibility layers
     int win9x_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_USER);
     int dos_pid = user_mode_create_isolated_process(admin_uid, USER_MODE_SEC_USER);
     if (win9x_pid >= 0) windows9x_init_impl();
     if (dos_pid >= 0) msdos_init_impl();
 
-    // Basic isolation validation between subsystem processes.
+    // Validate isolation between subsystem processes.
     if (ws_pid >= 0 && win32_pid >= 0) {
         (void)user_mode_validate_process_access((uint32_t)win32_pid, (uint32_t)ws_pid);
     }
@@ -144,7 +141,6 @@ void user_mode_init(void) {
 
 // User Mode API functions
 void user_mode_shutdown(void) {
-    // Shutdown all subsystems in reverse order
     msdos_shutdown_impl();
     windows9x_shutdown_impl();
     os2_shutdown_impl();

@@ -17,16 +17,13 @@
 #define RTC_B_DM     0x04  // data mode: 0=BCD, 1=binary
 
 static uint8_t read_rtc_register(uint8_t reg) {
-    // Preserve the NMI enable/disable bit (bit 7) when selecting CMOS register.
-    // Writing directly to 0x70 without preserving bit 7 can unintentionally
-    // unmask NMIs and cause spurious "Non Maskable Interrupt" exceptions.
+    // Preserve NMI-disable bit 7 or writes to 0x70 can unmask NMIs.
     uint8_t prev = inb(CMOS_ADDRESS);
     outb(CMOS_ADDRESS, (prev & 0x80) | reg);
     return inb(CMOS_DATA);
 }
 
-// Wait for the RTC to finish an in-progress update, otherwise the registers
-// can be read mid-update and yield inconsistent values.
+// Wait for the update-in-progress bit to clear before reading registers.
 static void rtc_wait_update(void) {
     for (int guard = 0; guard < 100000; guard++) {
         if (!(read_rtc_register(RTC_STATUS_A) & RTC_A_UIP)) return;
@@ -38,10 +35,9 @@ static uint8_t bcd_to_bin(uint8_t v) {
 }
 
 void get_time(uint8_t* hour, uint8_t* minute, uint8_t* second) {
-    if (!hour || !minute || !second) return; // NULL check
+    if (!hour || !minute || !second) return;
 
     uint8_t s = 0, m = 0, h = 0;
-    // Retry a bounded number of times if the values shift between reads.
     for (int attempt = 0; attempt < 4; attempt++) {
         rtc_wait_update();
         uint8_t status_b = read_rtc_register(RTC_STATUS_B);
@@ -57,7 +53,6 @@ void get_time(uint8_t* hour, uint8_t* minute, uint8_t* second) {
             h = (uint8_t)((((h & 0x70) >> 4) * 10 + (h & 0x0F)) | (h & 0x80));
         }
 
-        // Confirm the values settled; if not, sample again.
         if (s == read_rtc_register(RTC_SECONDS) &&
             m == read_rtc_register(RTC_MINUTES) &&
             h == read_rtc_register(RTC_HOURS)) {
@@ -95,8 +90,6 @@ void get_date(uint8_t* day, uint8_t* month, uint16_t* year, uint8_t* weekday) {
     *year = (uint16_t)(2000 + raw_year);
 }
 
-// Days since 1970-01-01 for a proleptic Gregorian date. Closed-form
-// (no loop, no division by a runtime value) so it is safe without libgcc.
 static int32_t days_from_civil(int32_t y, int32_t m, int32_t d) {
     y -= (m <= 2) ? 1 : 0;
     const int32_t era = (y >= 0 ? y : y - 399) / 400;

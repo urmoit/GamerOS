@@ -2,26 +2,11 @@
 #include <string.h>
 
 // Multiboot 2 information parsing.
-//
-// GRUB2 hands over a different structure for Multiboot 2 than it does for
-// Multiboot 1: a flat array of self-describing tags instead of the fixed
-// multiboot_info layout. Everything the kernel actually reads out of the boot
-// information lives in the Multiboot 1 layout (the framebuffer descriptor that
-// graphics_use_multiboot_framebuffer() validates), so this module walks the
-// Multiboot 2 tags once and copies the corresponding fields into a static
-// multiboot_info_t. The rest of the kernel keeps using one layout and never
-// learns which protocol booted it.
-//
-// The Multiboot 2 block is mapped by the loader into memory that stays valid
-// for the life of the kernel (same guarantee Multiboot 1 made), and the kernel
-// identity-maps it, so tags are read in place.
 
 static multiboot_info_t mb2_info;
 static const char* mb2_protocol = "unknown";
 
-// Read the little-endian 32-bit tag header fields. Tags are aligned to 4 bytes
-// and x86 tolerates the unaligned access, but keep it explicit so the intent
-// is not left to the compiler.
+// Tag headers are little-endian; x86 tolerates unaligned reads.
 static uint32_t mb2_read32(const uint8_t* p) {
     return (uint32_t)p[0] |
            ((uint32_t)p[1] << 8) |
@@ -34,8 +19,6 @@ static uint64_t mb2_read64(const uint8_t* p) {
 }
 
 multiboot_info_t* multiboot2_build(uint32_t magic, void* info) {
-    // Multiboot 1 handover: the pointer already is the structure the kernel
-    // expects, so pass it straight through.
     if (magic == MULTIBOOT1_INFO_MAGIC) {
         mb2_protocol = "Multiboot 1";
         return (multiboot_info_t*)info;
@@ -50,9 +33,6 @@ multiboot_info_t* multiboot2_build(uint32_t magic, void* info) {
 
     const uint8_t* block = (const uint8_t*)info;
     uint32_t total_size = mb2_read32(block);
-    // The tag list must follow the 8-byte fixed header. A block smaller than
-    // that is malformed: report "no information" rather than walking off the
-    // end of the structure the loader gave us.
     if (total_size < 8) {
         return 0;
     }
@@ -64,14 +44,13 @@ multiboot_info_t* multiboot2_build(uint32_t magic, void* info) {
         uint32_t type = mb2_read32(tag);
         uint32_t size = mb2_read32(tag + 4);
         if (size < 8 || (tag + size) > end) {
-            break;  // Malformed tag: stop rather than run past the block.
+            break;
         }
         const uint8_t* data = tag + 8;
 
         switch (type) {
             case MB2_TAG_CMDLINE:
-                // The Multiboot 1 field is a pointer to a NUL-terminated
-                // string, and so is the tag payload.
+                // MB1 field is a pointer to a NUL-terminated string.
                 mb2_info.flags |= MULTIBOOT_FLAG_CMDLINE;
                 mb2_info.cmdline = (uint32_t)(uintptr_t)data;
                 break;
@@ -88,18 +67,14 @@ multiboot_info_t* multiboot2_build(uint32_t magic, void* info) {
                 break;
 
             case MB2_TAG_MMAP:
-                // Multiboot 2 entries are 20-byte (base, length, type) records,
-                // not the 20-byte Multiboot 1 records the legacy fields
-                // describe, so only the extent is reported. Nothing in the
-                // kernel walks the Multiboot 1 map today.
+                // MB2 entries are 20-byte records; only extent reported.
                 mb2_info.flags |= MULTIBOOT_FLAG_MMAP;
                 mb2_info.mmap_length = size - 8;
                 mb2_info.mmap_addr = (uint32_t)(uintptr_t)data;
                 break;
 
             case MB2_TAG_ELF_SECTIONS:
-                // Multiboot 1 stores this as a table of four words; record the
-                // section table pointer in that slot. It is informational.
+                // MB1 stores sections as four words; pointer in syms[3].
                 mb2_info.flags |= MULTIBOOT_FLAG_ELF;
                 mb2_info.syms[0] = 0;
                 mb2_info.syms[1] = 0;
@@ -114,8 +89,7 @@ multiboot_info_t* multiboot2_build(uint32_t magic, void* info) {
                 uint32_t height = mb2_read32(data + 16);
                 uint8_t bpp = data[20];
                 uint8_t type_id = data[21];
-                // Tag payload has at least 22 bytes; guard against a truncated
-                // one so the framebuffer descriptor is never half-filled.
+                // Framebuffer tag payload is at least 22 bytes.
                 if (size < 8 + 22) {
                     break;
                 }

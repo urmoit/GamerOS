@@ -2,7 +2,7 @@
 #define IO_MANAGER_H
 
 #include <stdint.h>
-#include "../object_manager/object_manager.h"  // For object_handle_t
+#include "../object_manager/object_manager.h"
 
 // I/O request types
 typedef enum {

@@ -54,10 +54,7 @@ int process_spawn_from_exe(const char* exe_path, int fallback_window_type) {
     fs_read_file(exe, g_loader_buffer, exe->size);
     g_loader_buffer[exe->size] = 0;
 
-    // Loader format:
-    // GOSAPP\n
-    // Name=...\n
-    // Entry=WIN_...\n
+    // Loader format: "GOSAPP\n" header, Name=..., Entry=WIN_...
     serial_write_string("Loader: validate header\n");
     if (strncmp((const char*)g_loader_buffer, "GOSAPP\n", 7) != 0) return -1;
 

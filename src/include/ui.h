@@ -21,21 +21,18 @@
 #define COLOR_YELLOW 14
 #define COLOR_WHITE 15
 
-// Custom UI colors
-#define COLOR_HEADER_BG 8      // Dark grey
-#define COLOR_TAB_ACTIVE 9     // Light blue
-#define COLOR_TAB_INACTIVE 7   // Light grey
-#define COLOR_TAB_TEXT 0        // Black
-#define COLOR_BORDER 15         // White
-#define COLOR_SETUP_BG 2        // Green
+#define COLOR_HEADER_BG 8
+#define COLOR_TAB_ACTIVE 9
+#define COLOR_TAB_INACTIVE 7
+#define COLOR_TAB_TEXT 0
+#define COLOR_BORDER 15
+#define COLOR_SETUP_BG 2
 
-// Header dimensions
 #define HEADER_HEIGHT 30
 #define TAB_WIDTH 100
 #define TAB_HEIGHT 25
 #define TAB_SPACING 2
 
-// Tab structure
 typedef struct {
     uint32_t x;
     uint32_t y;
@@ -44,22 +41,12 @@ typedef struct {
     uint8_t is_active;
 } tab_t;
 
-// Initialize UI system
 void ui_init(void);
-
-// Draw header with tabs
 void ui_draw_header(void);
-
-// Draw a tab button
 void ui_draw_tab(uint32_t x, uint32_t y, const char* text, uint8_t is_active);
-
-// Draw setup screen
 void ui_draw_setup_screen(void);
-
-// Handle setup input
 void ui_handle_setup(void);
 
-// Start Menu
 #define START_MENU_WIDTH 120
 #define START_MENU_HEIGHT 150
 #define COLOR_START_MENU_BG COLOR_DARK_GREY
@@ -67,20 +54,16 @@ void ui_handle_setup(void);
 void ui_draw_start_menu(void);
 void ui_toggle_start_menu(void);
 int ui_is_start_menu_open(void);
-
-// XP-style desktop
 void ui_draw_desktop_background(void);
 void ui_draw_desktop_icons(void);
 
-// Taskbar
 #define TASKBAR_HEIGHT 30
 #define COLOR_TASKBAR_BG COLOR_DARK_GREY
 
 void ui_draw_taskbar(void);
 void ui_draw_clock(void);
 
-// draw_string is implemented in graphics.c and declared there with int
-// coordinates; do not redeclare it here with a different signature.
+// draw_string is declared in graphics.c with int coordinates; do not redeclare.
 
 // TODO: Add support for multiple UI themes and skins
 // TODO: Implement internationalization (i18n) for UI strings

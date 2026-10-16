@@ -10,7 +10,7 @@ uint32_t current_height = 480;
 uint8_t* framebuffer = (uint8_t*)0xA0000;
 int graphics_mode = 1;
 
-// Back buffers (max 1920x1080). Keep indexed and RGB paths for compatibility.
+// Back buffers (max 1920x1080), indexed and RGB paths.
 #define MAX_RENDER_WIDTH 1920
 #define MAX_RENDER_HEIGHT 1080
 #define MAX_RENDER_PIXELS (MAX_RENDER_WIDTH * MAX_RENDER_HEIGHT)
@@ -153,7 +153,7 @@ static void vga_prepare_mode12_planar_writes(void) {
     outb(0x3C4, 0x04);
     outb(0x3C5, 0x06);
 
-    // Graphics controller: deterministic write mode 0 state for planar memory writes.
+    // Graphics controller: write mode 0 state for planar writes.
     outb(0x3CE, 0x00); // Set/Reset
     outb(0x3CF, 0x00);
     outb(0x3CE, 0x01); // Enable Set/Reset
@@ -210,7 +210,6 @@ void vga_set_palette(void) {
     outb(0x3C9, 30);
 }
 
-// Set standard VGA 320x200 mode
 void vga_set_mode_13h(void) {
     // BIOS interrupts are not valid in long mode. Program VGA mode 12h directly.
     vga_set_mode_12h_runtime();
@@ -228,7 +227,6 @@ void vga_set_mode_13h(void) {
     vga_set_palette();
 }
 
-// Set VESA mode
 int vesa_set_mode(uint16_t mode) {
     // Reuse pre-set VGA mode 12h as the high-res runtime mode in long mode.
     if (mode == 0x101) {
@@ -264,8 +262,7 @@ int graphics_use_multiboot_framebuffer(const struct multiboot_info* mb_info) {
     uint32_t min_pitch = mb_info->framebuffer_width * bytes_per_pixel;
     if (mb_info->framebuffer_pitch < min_pitch) return 0;
 
-    // Kernel currently identity-maps only the first 4GB of physical memory.
-    // Reject framebuffers that are outside this range to avoid page faults/triple faults.
+    // Kernel identity-maps only the first 4GB; reject framebuffers outside it.
     uint64_t fb_addr = mb_info->framebuffer_addr;
     uint64_t fb_size = (uint64_t)mb_info->framebuffer_pitch * (uint64_t)mb_info->framebuffer_height;
     if (fb_addr > 0xFFFFFFFFULL) return 0;
@@ -293,8 +290,7 @@ uint32_t graphics_get_pixel_rgb(int x, int y) {
     return back_buffer_rgb[(y * (int)current_width) + x] & 0x00FFFFFF;
 }
 
-// Direct access to one back-buffer scanline of the RGB path.
-// Callers must not retain the pointer past a resolution change.
+// Direct RGB back-buffer scanline; do not retain across resolution changes.
 uint32_t* graphics_get_rgb_row(int y) {
     if (y < 0 || y >= (int)current_height) return 0;
     return &back_buffer_rgb[(uint32_t)y * current_width];
@@ -304,8 +300,7 @@ uint8_t graphics_get_bpp(void) {
     if (framebuffer_truecolor && (framebuffer_bpp == 24 || framebuffer_bpp == 32)) {
         return framebuffer_bpp;
     }
-    // The indexed fallback path programs VGA mode 12h: 640x480x16 planar,
-    // i.e. 4 bits per pixel, not 16.
+    // Indexed fallback is mode 12h planar: 4 bits per pixel, not 16.
     return 4;
 }
 
@@ -338,7 +333,6 @@ int graphics_set_resolution(uint32_t width, uint32_t height) {
     return 1;
 }
 
-// Set video mode
 void set_video_mode(video_mode_t mode) {
     switch (mode) {
         case MODE_VGA_320x200:
@@ -346,17 +340,16 @@ void set_video_mode(video_mode_t mode) {
             break;
         case MODE_VESA_640x480:
             if (!vesa_set_mode(0x101)) {
-                vga_set_mode_13h(); // Fallback
+                vga_set_mode_13h();
             }
             break;
         case MODE_VESA_800x600:
             if (!vesa_set_mode(0x103)) {
-                vga_set_mode_13h(); // Fallback
+                vga_set_mode_13h();
             }
             break;
         case MODE_VESA_1920x1080:
-            // True 1080p is provided via multiboot framebuffer path.
-            // Keep this mode token as an explicit fallback target.
+            // 1080p comes from the multiboot framebuffer path; this token falls back.
             if (!vesa_set_mode(0x101)) {
                 vga_set_mode_13h();
             }
@@ -364,7 +357,6 @@ void set_video_mode(video_mode_t mode) {
     }
 }
 
-// Clear back buffer
 void clear_screen(uint8_t color) {
     ensure_palette_ready();
     uint32_t pixel_count = current_width * current_height;
@@ -380,7 +372,6 @@ void clear_screen(uint8_t color) {
     for (uint32_t i = 0; i < count; i++) dst[i] = rgb;
 }
 
-// Draw pixel to back buffer
 void draw_pixel(int x, int y, uint8_t color) {
     ensure_palette_ready();
     if (x < 0 || x >= (int)current_width || y < 0 || y >= (int)current_height) return;
@@ -408,7 +399,6 @@ void clear_screen_rgb(uint32_t rgb) {
     for (uint32_t i = 0; i < count; i++) dst[i] = color;
 }
 
-// Fill rectangle
 void fill_rect(int x, int y, int w, int h, uint8_t color) {
     if (w <= 0 || h <= 0) return;
     if (x < 0) { w += x; x = 0; }
@@ -436,7 +426,6 @@ void fill_rect(int x, int y, int w, int h, uint8_t color) {
     }
 }
 
-// Draw rectangle outline
 void draw_rect(int x, int y, int w, int h, uint8_t color) {
     for (int xx = x; xx < x + w && xx < (int)current_width; xx++) {
         if (xx >= 0 && y >= 0 && y < (int)current_height) {
@@ -460,7 +449,6 @@ void draw_rect(int x, int y, int w, int h, uint8_t color) {
     }
 }
 
-// Draw line
 void draw_line(int x1, int y1, int x2, int y2, uint8_t color) {
     int dx = (x2 > x1) ? (x2 - x1) : (x1 - x2);
     int dy = (y2 > y1) ? (y2 - y1) : (y1 - y2);
@@ -477,7 +465,6 @@ void draw_line(int x1, int y1, int x2, int y2, uint8_t color) {
     }
 }
 
-// Draw character
 void draw_char(int x, int y, char c, uint8_t color) {
     uint8_t uc = (uint8_t)c;
     if (uc < 32 || uc > 127) uc = (uint8_t)' ';
@@ -492,7 +479,6 @@ void draw_char(int x, int y, char c, uint8_t color) {
     }
 }
 
-// Draw string
 void draw_string(int x, int y, const char* str, uint8_t color) {
     int orig_x = x;
     while (*str) {
@@ -507,7 +493,6 @@ void draw_string(int x, int y, const char* str, uint8_t color) {
     }
 }
 
-// Swap back buffer to screen
 void swap_buffers(void) {
     volatile uint8_t* target = framebuffer ? (volatile uint8_t*)framebuffer : (volatile uint8_t*)0xA0000;
     if (graphics_mode == 1 && current_width == 640 && current_height == 480) {
@@ -555,8 +540,7 @@ void swap_buffers(void) {
                 uint32_t sy = (y * current_height) / dst_h;
                 uint32_t src_off = sy * current_width;
                 uint32_t* row32 = fb32 + ((uint32_t)y * (framebuffer_pitch_bytes / 4));
-                // The logical row may be narrower than the native row, so scale
-                // horizontally instead of assuming a 1:1 width.
+                // Scale horizontally when the logical row is narrower than native.
                 if (current_width == dst_w) {
                     memcpy(row32, &back_buffer_rgb[src_off], (size_t)dst_w * 4);
                 } else {
@@ -772,25 +756,16 @@ void vga_draw_shadow(int x, int y, uint32_t w, uint32_t h, uint32_t color, uint8
     fill_rect(x + offset, y + offset, (int)w, (int)h, (uint8_t)color);
 }
 
-// ---------------------------------------------------------------------------
 // Rounded rectangles
-//
-// A rounded rectangle is a rectangle whose four corners are quarter circles of
-// `radius`. Only the corner squares need the circle test; every other pixel is a
-// plain span, so each row is computed once as a left/right inset and then filled
-// as a run. That keeps this cheap enough to run on every repaint.
-// ---------------------------------------------------------------------------
 
-// Integer square root. Only ever called with small values (radius^2), so a
-// simple incremental scan is cheaper than any floating-point setup.
+// Integer sqrt; only ever called with radius^2.
 static int rr_isqrt(uint32_t v) {
     int r = 0;
     while ((uint32_t)((r + 1) * (r + 1)) <= v) r++;
     return r;
 }
 
-// How far the filled span is pulled in from the left edge on row `yy` of a
-// rounded rect `w` x `h`. Zero on rows that clear the corner circles.
+// Left inset on row yy of a w x h rounded rect; 0 outside the corner arcs.
 static int rr_row_inset(int w, int h, int radius, int yy) {
     if (radius <= 0) return 0;
     int r = radius;

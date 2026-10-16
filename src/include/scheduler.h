@@ -15,8 +15,8 @@ enum process_state {
 
 typedef struct {
     uint32_t pid;
-    uint64_t rsp; // Stack pointer
-    uint64_t rbp; // Base pointer
+    uint64_t rsp;
+    uint64_t rbp;
     enum process_state state;
     uint8_t stack[STACK_SIZE];
 } pcb_t;

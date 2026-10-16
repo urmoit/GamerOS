@@ -29,13 +29,11 @@ object_handle_t gdi_create_context(vga_mode_t mode) {
         return INVALID_HANDLE;
     }
 
-    // Set the VGA mode
     if (vga_set_mode(mode) != 1) {
         gdi_last_error = GDI_ERR_MODE_SET_FAILED;
         return INVALID_HANDLE;
     }
 
-    // Create context object
     gdi_context_t* context = (gdi_context_t*)kmalloc(sizeof(gdi_context_t));
     if (!context) {
         return INVALID_HANDLE;
@@ -48,7 +46,7 @@ object_handle_t gdi_create_context(vga_mode_t mode) {
     context->framebuffer = vga_framebuffer;
 
     object_attributes_t attrs = {
-        .type = OBJECT_TYPE_DEVICE,  // Use device type for graphics context
+        .type = OBJECT_TYPE_DEVICE,
         .context = context
     };
 

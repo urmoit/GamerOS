@@ -4,24 +4,7 @@
 #include <mouse.h>
 #include <serial.h>
 
-// ============================================================================
-// VMware absolute pointer driver.
-//
-// Without it, a VMware guest only ever sees the PS/2 mouse in relative mode:
-// the host captures the pointer when the window is clicked and the cursor is
-// stuck inside the guest. The backdoor absolute pointer protocol removes the
-// capture, and it also carries position even when there is no PS/2 port to talk
-// to.
-//
-// Enable sequence (per the protocol): enable the feature, drain the queue so no
-// stale report is left behind, then switch the device to absolute reporting.
-// After that, one report is queued per motion event, and this driver consumes
-// every queued report on each poll.
-//
-// Buttons and wheel come from the same report. VMware keeps its own encoding of
-// the button bits, so they are translated into the shell's encoding instead of
-// being passed through.
-// ============================================================================
+// VMware absolute pointer (backdoor) driver.
 
 typedef struct {
     uint32_t eax;
@@ -51,9 +34,7 @@ static void vmware_command(uint32_t command, uint32_t ebx_value, vmware_regs_t* 
 static int vmware_detect(void) {
     vmware_regs_t regs;
 
-    // A plain "get version" request: a machine that is not running VMware never
-    // answers, so the registers keep whatever this sent. The real backdoor
-    // reports its version in EBX and echoes the magic in EAX.
+    // Non-VMware never answers: EBX holds the version, EAX echoes the magic.
     vmware_command(CMD_GET_VERSION, ~VMWARE_MAGIC, &regs);
     if (regs.ebx != VMWARE_MAGIC || (regs.eax & 0xFFFFFFFFu) != VMWARE_MAGIC) {
         return 0;
@@ -65,8 +46,7 @@ static int vmware_enable_absolute(void) {
     vmware_regs_t regs;
 
     vmware_command(CMD_ABS_POINTER_COMMAND, ABS_POINTER_ENABLE, &regs);
-    // The command is only honoured when the low half of EAX reads back as the
-    // feature that was sent; anything else means the backdoor did not act.
+    // EAX must echo the command, or the backdoor did not act.
     if (regs.eax != ABS_POINTER_ENABLE) {
         return 0;
     }
@@ -112,8 +92,7 @@ int vmware_mouse_poll(void) {
         return 0;   // a full report needs four words
     }
 
-    // Reading four words at once is what the protocol specifies: they come back
-    // as the status word in EAX and X/Y/Z in EBX/ECX/EDX.
+    // Four words at once: status in EAX, X/Y/Z in EBX/ECX/EDX.
     vmware_command(CMD_ABS_POINTER_DATA, 4, &regs);
 
     uint16_t buttons = (uint16_t)(regs.eax & 0xFFFFu);
@@ -138,8 +117,6 @@ int vmware_mouse_poll(void) {
     return 1;
 }
 
-// Whether the absolute pointer is live: distinguishes "not running under
-// VMware" from "VMware with an empty report queue".
 int vmware_mouse_active(void) {
     return vmware_active;
 }

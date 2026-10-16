@@ -4,16 +4,14 @@
 #include "stdint.h"
 struct multiboot_info;
 
-// Video modes
 #define VGA_MODE_13H_WIDTH 320
 #define VGA_MODE_13H_HEIGHT 200
 #define VGA_MODE_12H_WIDTH 640
 #define VGA_MODE_12H_HEIGHT 480
 
-// VESA Modes
-#define VESA_MODE_640x480 0x101  // 640x480x256
-#define VESA_MODE_800x600 0x103  // 800x600x256
-#define VESA_MODE_1024x768 0x105 // 1024x768x256
+#define VESA_MODE_640x480 0x101
+#define VESA_MODE_800x600 0x103
+#define VESA_MODE_1024x768 0x105
 
 typedef struct {
     uint32_t framebuffer_addr;
@@ -23,13 +21,11 @@ typedef struct {
     uint8_t framebuffer_bpp;
 } vesa_info_t;
 
-// Current mode info
 extern uint32_t current_width;
 extern uint32_t current_height;
 extern uint8_t* framebuffer;
 extern int graphics_mode;
 
-// Mode types
 typedef enum {
     MODE_VGA_320x200,
     MODE_VESA_640x480,
@@ -42,7 +38,6 @@ typedef video_mode_t vga_mode_t;
 #define VGA_MODE_13H MODE_VGA_320x200
 #define VGA_MODE_12H MODE_VESA_640x480
 
-// Functions
 void vga_set_mode_13h(void);
 int vesa_set_mode(uint16_t mode);
 void init_graphics(void);
@@ -68,7 +63,6 @@ uint32_t graphics_get_native_height(void);
 void draw_pixel_rgb(int x, int y, uint32_t rgb);
 void clear_screen_rgb(uint32_t rgb);
 
-// Text
 void draw_char(int x, int y, char c, uint8_t color);
 void draw_string(int x, int y, const char* str, uint8_t color);
 
@@ -93,7 +87,6 @@ void vga_draw_rounded_rect(int x, int y, uint32_t w, uint32_t h, uint8_t radius,
 #define current_vga_height current_height
 #define vga_framebuffer framebuffer
 
-// XP Colors
 #define XP_BLACK      0x00
 #define XP_BLUE       0x01
 #define XP_GREEN      0x02

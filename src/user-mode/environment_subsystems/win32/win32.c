@@ -1,6 +1,6 @@
 #include "../../interfaces/subsystem_interfaces.h"
 
-// Function declarations
+// Win32 environment subsystem
 void win32_init_impl(void);
 void win32_shutdown_impl(void);
 int win32_load_application(const char* app_path);
@@ -13,7 +13,6 @@ static void* win32_api_table[] = {
     0
 };
 
-// Win32 environment interface implementation
 static environment_interface_t win32_interface = {
     .init = win32_init_impl,
     .shutdown = win32_shutdown_impl,
@@ -23,14 +22,12 @@ static environment_interface_t win32_interface = {
 };
 
 void win32_init_impl(void) {
-    // Initialize Win32 environment
     // TODO: Set up Win32 API compatibility layer
 
     win32_env = &win32_interface;
 }
 
 void win32_shutdown_impl(void) {
-    // Shutdown Win32 environment
     // TODO: Cleanup Win32 resources
 }
 

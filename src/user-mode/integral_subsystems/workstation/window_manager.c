@@ -1,6 +1,6 @@
 #include "window_manager.h"
 
-// Forward declarations for window system functions
+// Window system functions
 extern void init_windowing(void);
 extern window_t* create_window(int x, int y, int width, int height, char* title);
 extern window_t* windows[MAX_WINDOWS];
@@ -29,7 +29,7 @@ static int find_slot_by_id(uint32_t window_id) {
 
 // Window manager functions
 void window_manager_init(void) {
-    init_windowing(); // Initialize the existing windowing system
+    init_windowing();
     next_window_id = 1;
     active_window_id = 0;
     for (int i = 0; i < MAX_WINDOWS; i++) {
@@ -44,7 +44,6 @@ void window_manager_init(void) {
 }
 
 void window_manager_shutdown(void) {
-    // Cleanup windows
     for (int i = 0; i < MAX_WINDOWS; i++) {
         if (windows[i]) {
             windows[i] = 0;
@@ -60,7 +59,6 @@ uint32_t window_create(int x, int y, uint32_t width, uint32_t height, const char
         return 0; // Failed to create window
     }
 
-    // Find the window index
     for (int i = 0; i < MAX_WINDOWS; i++) {
         if (windows[i] == win) {
             uint32_t window_id = next_window_id++;

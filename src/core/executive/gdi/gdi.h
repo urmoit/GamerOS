@@ -2,7 +2,7 @@
 #define GDI_H
 
 #include <stdint.h>
-#include <graphics.h>  // Include existing graphics interfaces
+#include <graphics.h>
 #include "../object_manager/object_manager.h"
 
 // GDI Context

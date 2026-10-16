@@ -35,7 +35,6 @@ int io_register_driver(device_driver_t* driver) {
         return -1;
     }
 
-    // Check if driver already registered
     for (uint32_t i = 0; i < driver_count; i++) {
         if (strcmp(registered_drivers[i]->name, driver->name) == 0) {
             return -2;  // Already registered
@@ -44,7 +43,6 @@ int io_register_driver(device_driver_t* driver) {
 
     registered_drivers[driver_count++] = driver;
 
-    // Initialize the driver
     if (driver->init) {
         return driver->init();
     }
@@ -55,12 +53,10 @@ int io_register_driver(device_driver_t* driver) {
 int io_unregister_driver(const char* name) {
     for (uint32_t i = 0; i < driver_count; i++) {
         if (strcmp(registered_drivers[i]->name, name) == 0) {
-            // Shutdown driver
             if (registered_drivers[i]->shutdown) {
                 registered_drivers[i]->shutdown();
             }
 
-            // Remove from array
             for (uint32_t j = i; j < driver_count - 1; j++) {
                 registered_drivers[j] = registered_drivers[j + 1];
             }
@@ -74,7 +70,6 @@ int io_unregister_driver(const char* name) {
 object_handle_t io_open_device(const char* name) {
     for (uint32_t i = 0; i < driver_count; i++) {
         if (strcmp(registered_drivers[i]->name, name) == 0) {
-            // Create device object
             object_attributes_t attrs = {
                 .type = OBJECT_TYPE_DEVICE,
                 .context = registered_drivers[i]

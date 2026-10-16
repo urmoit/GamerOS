@@ -6,16 +6,14 @@
 #define NULL ((void*)0)
 #endif
 
-// Simple disk storage simulation (in reality, this would be on disk)
 #define DISK_SECTOR_SIZE 512
 #define MAX_DISK_SECTORS 1024
 static uint8_t disk_storage[MAX_DISK_SECTORS * DISK_SECTOR_SIZE];
 
 static file_t files[MAX_FILES];
-static uint32_t next_disk_sector = 0; // Track allocated disk sectors
+static uint32_t next_disk_sector = 0;
 
 void filesystem_manager_init() {
-    // Initialize in-memory file table
     for (size_t i = 0; i < MAX_FILES; i++) {
         files[i].in_use = 0;
         files[i].size = 0;
@@ -24,7 +22,6 @@ void filesystem_manager_init() {
         memset(files[i].data, 0, MAX_FILE_SIZE);
     }
 
-    // Initialize disk storage (in a real system, this would load from disk)
     memset(disk_storage, 0, sizeof(disk_storage));
     next_disk_sector = 1; // Reserve sector 0 for filesystem metadata
 }
@@ -48,7 +45,7 @@ static file_t* allocate_file_slot() {
 }
 
 object_handle_t exec_fs_open_file(const char* name, uint32_t flags) {
-    (void)flags;  // For now, ignore flags
+    (void)flags;
     // TODO: Implement file open flags (read-only, write-only, append, create, etc.)
 
     file_t* file = find_file_by_name(name);
@@ -56,7 +53,6 @@ object_handle_t exec_fs_open_file(const char* name, uint32_t flags) {
         return INVALID_HANDLE;
     }
 
-    // Create file object
     object_attributes_t attrs = {
         .type = OBJECT_TYPE_FILE,
         .context = file
@@ -86,7 +82,6 @@ int exec_fs_read_file(object_handle_t file_handle, void* buffer, uint32_t size) 
         uint32_t bytes_to_read = (size < file->size) ? size : file->size;
         if (bytes_to_read <= DISK_SECTOR_SIZE) {
             memcpy(buffer, &disk_storage[file->disk_sector * DISK_SECTOR_SIZE], bytes_to_read);
-            // Zero out remaining buffer space if requested size > file size
             if (size > bytes_to_read) {
                 memset((uint8_t*)buffer + bytes_to_read, 0, size - bytes_to_read);
             }
@@ -94,10 +89,8 @@ int exec_fs_read_file(object_handle_t file_handle, void* buffer, uint32_t size) 
         }
     }
 
-    // Fall back to memory cache
     uint32_t bytes_to_read = (size < file->size) ? size : file->size;
     memcpy(buffer, file->data, bytes_to_read);
-    // Zero out remaining buffer space if requested size > file size
     if (size > bytes_to_read) {
         memset((uint8_t*)buffer + bytes_to_read, 0, size - bytes_to_read);
     }
@@ -114,11 +107,9 @@ int exec_fs_write_file(object_handle_t file_handle, const void* buffer, uint32_t
         return -1;
     }
 
-    // Write to both memory cache and disk storage
     memcpy(file->data, buffer, size);
     file->size = size;
 
-    // Write to disk sector (simulate persistence)
     if (file->disk_sector < MAX_DISK_SECTORS && size <= DISK_SECTOR_SIZE) {
         memcpy(&disk_storage[file->disk_sector * DISK_SECTOR_SIZE], buffer, size);
     }
@@ -129,7 +120,6 @@ int exec_fs_write_file(object_handle_t file_handle, const void* buffer, uint32_t
 int exec_fs_create_file(const char* name) {
     if (!name) return -1;
 
-    // Check if file already exists
     if (find_file_by_name(name)) {
         return -2; // File already exists
     }
@@ -145,7 +135,6 @@ int exec_fs_create_file(const char* name) {
     file->size = 0;
     file->disk_sector = next_disk_sector++;
 
-    // Initialize disk sector
     if (file->disk_sector < MAX_DISK_SECTORS) {
         memset(&disk_storage[file->disk_sector * DISK_SECTOR_SIZE], 0, DISK_SECTOR_SIZE);
     }
@@ -174,14 +163,12 @@ int exec_fs_delete_file(const char* name) {
 
 int exec_fs_create_directory(const char* path) {
     (void)path;
-    // Basic implementation - directories not fully supported yet
     // TODO: Implement directory creation with path parsing, validation, and parent directory checks
     return -1;
 }
 
 int exec_fs_remove_directory(const char* path) {
     (void)path;
-    // Basic implementation - directories not fully supported yet
     // TODO: Implement directory removal with checks for empty directories and recursive options
     return -1;
 }

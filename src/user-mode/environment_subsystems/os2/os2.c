@@ -1,6 +1,6 @@
 #include "../../interfaces/subsystem_interfaces.h"
 
-// Function declarations
+// OS/2 environment subsystem
 void os2_init_impl(void);
 void os2_shutdown_impl(void);
 int os2_load_application(const char* app_path);
@@ -13,7 +13,6 @@ static void* os2_api_table[] = {
     0
 };
 
-// OS/2 environment interface implementation
 static environment_interface_t os2_interface = {
     .init = os2_init_impl,
     .shutdown = os2_shutdown_impl,
@@ -23,14 +22,12 @@ static environment_interface_t os2_interface = {
 };
 
 void os2_init_impl(void) {
-    // Initialize OS/2 environment
     // TODO: Set up OS/2 API compatibility layer
 
     os2_env = &os2_interface;
 }
 
 void os2_shutdown_impl(void) {
-    // Shutdown OS/2 environment
     // TODO: Cleanup OS/2 resources
 }
 

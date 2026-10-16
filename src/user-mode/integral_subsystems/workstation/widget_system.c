@@ -1,6 +1,6 @@
 #include "widget_system.h"
 
-// Forward declarations for UI widget functions
+// Widget system wrappers
 extern void ui_widgets_init(void);
 extern ui_widget_t* ui_create_button(int32_t x, int32_t y, uint32_t width, uint32_t height, const char* text);
 extern ui_widget_t* ui_create_label(int32_t x, int32_t y, uint32_t width, uint32_t height, const char* text);
@@ -20,7 +20,7 @@ extern void ui_process_keyboard_event(ui_widget_t* widget, ui_event_t* event);
 
 // Widget System functions
 void widget_system_init(void) {
-    ui_widgets_init(); // Initialize existing widget system
+    ui_widgets_init();
 }
 
 void widget_system_shutdown(void) {

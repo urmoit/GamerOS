@@ -48,7 +48,6 @@ typedef struct multiboot_info {
     uint32_t boot_loader_name;
     uint32_t apm_table;
     
-    // VBE info
     uint32_t vbe_control_info;
     uint32_t vbe_mode_info;
     uint16_t vbe_mode;
@@ -56,7 +55,6 @@ typedef struct multiboot_info {
     uint16_t vbe_interface_off;
     uint16_t vbe_interface_len;
     
-    // Framebuffer info (Multiboot 1 extension)
     uint64_t framebuffer_addr;
     uint32_t framebuffer_pitch;
     uint32_t framebuffer_width;

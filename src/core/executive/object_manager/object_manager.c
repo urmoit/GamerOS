@@ -1,7 +1,7 @@
 #include "object_manager.h"
 #include "object_types.h"
-#include <mm.h>      // For kmalloc/kfree
-#include <string.h>  // For memset
+#include <mm.h>
+#include <string.h>
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -19,7 +19,6 @@ void object_manager_init(void) {
 
 static object_handle_t allocate_handle(void) {
     if (next_handle >= MAX_OBJECTS) {
-        // Handle wraparound or find free slot
         for (uint32_t i = 1; i < MAX_OBJECTS; i++) {
             if (object_table[i] == NULL) {
                 return i;
@@ -31,8 +30,7 @@ static object_handle_t allocate_handle(void) {
 }
 
 static object_t* get_object(object_handle_t handle) {
-    // INVALID_HANDLE is 0xFFFFFFFF, which is >= MAX_OBJECTS, so the range check
-    // alone rejects it; spell both out so intent is clear.
+    // INVALID_HANDLE (0xFFFFFFFF) is >= MAX_OBJECTS, so the range check covers it
     if (handle == INVALID_HANDLE || handle >= MAX_OBJECTS) {
         return NULL;
     }
@@ -40,7 +38,6 @@ static object_t* get_object(object_handle_t handle) {
 }
 
 object_handle_t object_create(object_type_t type, object_attributes_t* attributes) {
-    // Allocate object based on type
     object_t* obj = NULL;
     size_t size = 0;
 
@@ -91,7 +88,6 @@ object_handle_t object_create(object_type_t type, object_attributes_t* attribute
     obj->context = attributes ? attributes->context : NULL;
     obj->security_descriptor = attributes ? attributes->security_descriptor : NULL;
 
-    // Allocate handle
     object_handle_t handle = allocate_handle();
     if (handle == INVALID_HANDLE) {
         kfree(obj);
@@ -141,7 +137,6 @@ int object_dereference(object_handle_t handle) {
 
     obj->reference_count--;
     if (obj->reference_count == 0) {
-        // Auto-destroy when reference count reaches zero
         return object_destroy(handle);
     }
 

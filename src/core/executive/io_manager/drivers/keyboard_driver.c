@@ -55,7 +55,6 @@ static char kbd_us[128] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 // All other keys are null for now
 };
 
-// Keyboard input buffer for proper input handling
 static char keyboard_buffer[KEYBOARD_BUFFER_SIZE];
 static volatile size_t buffer_head = 0;
 static volatile size_t buffer_tail = 0;
@@ -66,13 +65,11 @@ void keyboard_handler() {
     uint8_t status;
     uint8_t scancode;
 
-    // Read keyboard status
     status = inb(KBD_STATUS_PORT);
     // If the lowest bit is set, it means there is data in the output buffer
     if (status & KBD_STATUS_OUTPUT_BUFFER) {
         scancode = inb(KBD_DATA_PORT);
 
-        // Handle extended key prefix
         if (scancode == KBD_EXTENDED_PREFIX) {
             is_extended = 1;
             pic_eoi(KBD_IRQ);
@@ -86,11 +83,9 @@ void keyboard_handler() {
             return;
         }
 
-        // Process key press
         char key_to_buffer = 0;
 
         if (is_extended) {
-            // Handle extended keys (arrow keys, etc.)
             switch (scancode) {
                 case 0x4B:  // Left arrow
                     key_to_buffer = KEY_LEFT_ARROW;
@@ -125,14 +120,12 @@ void keyboard_handler() {
             }
             is_extended = 0;
         } else {
-            // Regular key - convert scancode to ASCII
             uint8_t scancode_index = scancode & KBD_SCANCODE_MASK;
             if (scancode_index < sizeof(kbd_us)) {
                 key_to_buffer = kbd_us[scancode_index];
             }
         }
 
-        // Buffer the key if valid
         if (key_to_buffer != 0) {
             if (buffer_count < KEYBOARD_BUFFER_SIZE) {
                 keyboard_buffer[buffer_head] = key_to_buffer;
@@ -142,15 +135,10 @@ void keyboard_handler() {
         }
     }
 
-    pic_eoi(KBD_IRQ); // End of interrupt for keyboard
+    pic_eoi(KBD_IRQ);
 }
 
 int keyboard_driver_init(void) {
-    // Enable keyboard interrupts (IRQ1)
-    // This involves setting up the PIC and IDT
-    // For now, we assume IDT and PIC are set up to handle IRQ1
-
-    // Initialize keyboard buffer
     buffer_head = 0;
     buffer_tail = 0;
     buffer_count = 0;
@@ -159,8 +147,8 @@ int keyboard_driver_init(void) {
 }
 
 int keyboard_driver_read(object_handle_t device, void* buffer, uint32_t size, uint32_t offset) {
-    (void)device;  // Not used for keyboard
-    (void)offset;  // Not used for keyboard
+    (void)device;
+    (void)offset;
 
     if (size == 0 || !buffer) {
         return -1;
@@ -210,7 +198,6 @@ int keyboard_driver_ioctl(object_handle_t device, uint32_t code, void* data) {
 }
 
 int keyboard_driver_shutdown(void) {
-    // Disable keyboard interrupts if needed
     return 0;
 }
 

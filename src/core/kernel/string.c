@@ -1,10 +1,9 @@
 #include <string.h>
 
 void* memcpy(void* dest, const void* src, size_t count) {
-    if (!dest || !src || count == 0) return dest; // NULL and zero checks
+    if (!dest || !src || count == 0) return dest;
     char* dst8 = (char*)dest;
     char* src8 = (char*)src;
-    // Use size_t for loop counter to avoid signed/unsigned comparison warnings
     size_t i = 0;
     while (i < count) {
         dst8[i] = src8[i];
@@ -14,9 +13,8 @@ void* memcpy(void* dest, const void* src, size_t count) {
 }
 
 void* memset(void* dest, int val, size_t count) {
-    if (!dest || count == 0) return dest; // NULL and zero checks
+    if (!dest || count == 0) return dest;
     char* temp = (char*)dest;
-    // Use size_t for loop counter to avoid signed/unsigned comparison warnings
     size_t i = 0;
     while (i < count) {
         temp[i] = (char)val;
@@ -26,7 +24,7 @@ void* memset(void* dest, int val, size_t count) {
 }
 
 size_t strlen(const char* str) {
-    if (!str) return 0; // NULL check
+    if (!str) return 0;
     size_t len = 0;
     while (str[len] != '\0') {
         len++;
@@ -35,14 +33,14 @@ size_t strlen(const char* str) {
 }
 
 char* strcpy(char* dest, const char* src) {
-    if (!dest || !src) return dest; // NULL checks
+    if (!dest || !src) return dest;
     char* d = dest;
     while ((*d++ = *src++));
     return dest;
 }
 
 int strcmp(const char* str1, const char* str2) {
-    if (!str1 || !str2) return str1 ? 1 : (str2 ? -1 : 0); // NULL checks
+    if (!str1 || !str2) return str1 ? 1 : (str2 ? -1 : 0);
     while (*str1 && (*str1 == *str2)) {
         str1++;
         str2++;
@@ -51,10 +49,9 @@ int strcmp(const char* str1, const char* str2) {
 }
 
 char* strncpy(char* dest, const char* src, size_t count) {
-    if (!dest || !src || count == 0) return dest; // NULL and zero checks
+    if (!dest || !src || count == 0) return dest;
     char* d = dest;
     const char* s = src;
-    // Use size_t for loop counter to avoid signed/unsigned comparison warnings
     size_t i = 0;
     while (i < count && *s != '\0') {
         *d++ = *s++;
@@ -129,9 +126,6 @@ static int append_uint(char** out, uint32_t v, uint32_t base, int uppercase,
         }
     }
 
-    // Left-pad to the requested width. Zero padding is only meaningful for
-    // numbers; without it a caller asking for "%6s"-style spacing still gets
-    // plain spaces rather than nothing.
     int len = idx;
     while (len < min_width) {
         **out = zero_pad ? '0' : ' ';
@@ -164,9 +158,6 @@ int sprintf(char* dest, const char* fmt, ...) {
         fmt++;
         if (*fmt == '\0') break;
 
-        // Field width and zero padding, e.g. %02d or %8s. These were not
-        // handled at all before, so "%02u" fell through to the default branch
-        // and emitted the specifier text literally.
         int zero_pad = 0;
         int width = 0;
         while (*fmt == '0') { zero_pad = 1; fmt++; }

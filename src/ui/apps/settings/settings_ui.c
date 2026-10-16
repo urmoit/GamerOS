@@ -10,14 +10,7 @@
 #include <markdown.h>
 #include <shell_api.h>
 
-// ---------------------------------------------------------------------------
-// State
-//
-// Every setting the app exposes lives here. The shell reads what it needs
-// through the accessors at the bottom of this file (settings_app_show_seconds,
-// settings_app_taskbar_*), so the taskbar and the clock follow these choices
-// without either side reaching into the other's statics.
-// ---------------------------------------------------------------------------
+// --- State ---
 
 static uint8_t setting_show_seconds = 0;
 static uint8_t setting_compact_mode = 1;
@@ -41,9 +34,6 @@ typedef enum {
 
 static int settings_update_view = SETTINGS_UPDATE_VIEW_CHANGELOG;
 
-// Hit-box state published by settings_app_draw_content() so the click handler
-// tests the exact rectangles that were rendered, instead of duplicating the
-// layout constants.
 #define SETTINGS_MAX_TOGGLES 8
 
 typedef enum {
@@ -80,8 +70,7 @@ static int settings_view_hit_w = 0;
 static int settings_view_hit_h = 0;
 static int settings_view_hit_gap = 0;
 
-// Hit boxes for the Customization page's rows, which open another page the way
-// the Windows Settings sub-pages do.
+// Hit boxes for the Customization page's rows.
 #define SETTINGS_MAX_NAV_ROWS 4
 static int settings_nav_hit_x = 0;
 static int settings_nav_hit_w = 0;
@@ -89,8 +78,7 @@ static int settings_nav_hit_y[SETTINGS_MAX_NAV_ROWS];
 static int settings_nav_hit_tab[SETTINGS_MAX_NAV_ROWS];
 static int settings_nav_hit_count = 0;
 
-// Geometry of the pane and its two columns, recorded by the renderer so the
-// click and wheel handlers test the rectangles that are actually on screen.
+// Pane and column geometry, recorded by the renderer.
 static int settings_pane_x = 0;
 static int settings_pane_y = 0;
 static int settings_pane_w = 0;
@@ -136,9 +124,6 @@ static const char* settings_ui_tab_name(int tab_idx) {
 // ---------------------------------------------------------------------------
 
 // Draw a horizontal on/off switch.
-//
-// Renders a chamfered pill with a sliding knob: the track turns accent blue when
-// enabled, and the knob moves from the left (off) to the right (on).
 static void draw_toggle_switch(int x, int y, int is_on) {
     const int tw = 20;
     const int th = 9;
@@ -161,8 +146,7 @@ static void draw_toggle_switch(int x, int y, int is_on) {
     draw_chamfer_rect(knob_x, knob_y, knob_w, knob_h, XP_DGRAY);
 }
 
-// Draw one labelled settings toggle row: label on the left, state text and a
-// right-aligned switch on the right. Returns the height consumed.
+// Label on the left, state text and a right-aligned switch.
 static int draw_settings_toggle(int content_x, int content_w, int row_y,
                                 const char* label, int is_on, int max_chars) {
     const int toggle_w = 20;
@@ -183,8 +167,7 @@ static int draw_settings_toggle(int content_x, int content_w, int row_y,
     return 12;
 }
 
-// Section heading: coloured label plus a short accent tick and a faint rule.
-// Returns the Y at which the section body may start.
+// Section heading: label, accent tick and faint rule.
 static int draw_settings_section(int content_x, int content_w, int y, const char* title) {
     if (y < 0) return y;
     draw_compact_string_clipped(content_x + 6, y, (content_w - 12) / FONT_CW, title, XP_BLUE);
@@ -234,9 +217,7 @@ static void draw_settings_card(int content_x, int content_w, int y, int height) 
 // Height of one Customization navigation row.
 #define SETTINGS_NAV_ROW_H 16
 
-// A row that opens another Settings page: label on the left, a chevron on the
-// right. The clickable rectangle is published for settings_app_handle_click()
-// the same way the toggles publish theirs. Returns the height consumed.
+// A row that opens another Settings page; publishes its hit box.
 static int draw_settings_nav_row(int content_x, int content_w, int y,
                                  const char* label, int target_tab) {
     int rx = content_x + 4;
@@ -277,7 +258,6 @@ static void settings_register_toggle(int x, int w, int y, int id) {
 }
 
 // Render a group of toggles inside a card, registering each hit box.
-// Returns the vertical space consumed.
 static int draw_settings_toggle_group(int content_x, int content_w, int y,
                                       const settings_toggle_desc_t* items, int count) {
     const int ROW_H = 12;
@@ -300,8 +280,7 @@ static int draw_settings_toggle_group(int content_x, int content_w, int y,
     return card_h + 8;
 }
 
-// Apply a toggle by id. The debug overlay lives in the shell, so that one goes
-// through the shell service rather than a shared static.
+// Apply a toggle by id; debug goes through the shell service.
 static void settings_apply_toggle(int id) {
     switch (id) {
         case SETTINGS_TOG_COMPACT:    setting_compact_mode = (uint8_t)!setting_compact_mode; break;
@@ -315,10 +294,7 @@ static void settings_apply_toggle(int id) {
     }
 }
 
-// Row pitch for the navigation rail, derived from the pane height so every page
-// stays on screen and clickable. A fixed 20px pitch let the later rows fall past
-// the bottom of the rail, where they still consumed a nav index the click
-// handler could no longer reach.
+// Row pitch for the navigation rail, derived from the pane height.
 static int settings_nav_row_h(int pane_h) {
     int usable = (pane_h - 4) - 32;   // Rail height minus header and padding.
     int row_h = 20;
@@ -330,15 +306,7 @@ static int settings_nav_row_h(int pane_h) {
     return row_h;
 }
 
-// ---------------------------------------------------------------------------
-// Time zone dropdown
-//
-// A combo box: one row showing the current selection with a drop arrow, which
-// expands to a scrolling list on click. The list is longer than the pane, so the
-// mouse wheel scrolls it. Row geometry is published for the click and wheel
-// handlers rather than recomputed there, which is how the other Settings
-// controls stay aligned.
-// ---------------------------------------------------------------------------
+// --- Time zone dropdown ---
 
 #define TZ_LIST_VISIBLE 8
 #define TZ_ROW_H       11
@@ -369,8 +337,7 @@ static const char* settings_tz_selected_label(int index) {
     return n;
 }
 
-// Solid triangle used for the drop arrow and the scroll buttons. The 8x8 font has
-// no such glyph, so it is drawn rather than printed.
+// Solid triangle for the drop arrow and the scroll buttons.
 static void draw_tz_chevron_down(int x, int y, uint8_t color) {
     for (int row = 0; row < 4; row++) {
         int w = row * 2 + 1;
@@ -549,12 +516,7 @@ static int handle_settings_tz_click(int mx, int my) {
     return 1;
 }
 
-// ---------------------------------------------------------------------------
-// Taskbar style combo box
-//
-// Two entries, so the list needs no scroll buttons: it follows the time zone
-// combo's published-geometry pattern instead of inventing a second one.
-// ---------------------------------------------------------------------------
+// --- Taskbar style combo box ---
 
 #define TASKBAR_STYLE_COUNT 2
 #define TASKBAR_STYLE_ROW_H 12
@@ -639,8 +601,7 @@ static int handle_taskbar_style_click(int mx, int my) {
 // Page rendering
 // ---------------------------------------------------------------------------
 
-// Defined with the changelog section below; forward-declared because the
-// GamerOS Update page draws it.
+// Defined with the changelog section below.
 static void settings_md_ensure_loaded(void);
 
 void settings_app_draw_icon(int x, int y) {
@@ -657,8 +618,7 @@ void settings_app_draw_content(int x, int y, int w, int h, int is_active) {
     (void)is_active;
     if (w < 24 || h < 24) return;
 
-    // Pane background, then the two columns: a navigation rail on the left and
-    // the page body on the right.
+    // Pane background, then the two columns.
     fill_chamfer_rect(x + 0, y + 0, w, h, XP_WHITE);
     draw_chamfer_rect(x + 0, y + 0, w, h, XP_DGRAY);
 
@@ -714,8 +674,7 @@ void settings_app_draw_content(int x, int y, int w, int h, int is_active) {
                                     (nav_w - 24) / FONT_CW, settings_ui_tab_name(i), XP_BLACK);
     }
 
-    // Reset per-frame hit-box registries. Only the active page renders, so
-    // whatever registers below is exactly what is clickable this frame.
+    // Reset per-frame hit-box registries.
     settings_tog_count = 0;
     settings_res_hit_count = 0;
     settings_nav_hit_count = 0;
@@ -880,8 +839,7 @@ void settings_app_draw_content(int x, int y, int w, int h, int is_active) {
         ry += draw_settings_kv(content_x, content_w, ry, "Security level", "System");
         ry += draw_settings_kv(content_x, content_w, ry, "Isolation", "Active");
     } else if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
-        // Time section first, then language. Local time comes from the
-        // selected time zone rather than straight off the RTC.
+        // Time section first, then language; local time uses the zone.
         uint32_t now_utc = get_unix_time();
         int tz_idx = tz_current_index();
         int tz_dst = (tz_offset_minutes_at(tz_idx, now_utc) !=
@@ -902,10 +860,7 @@ void settings_app_draw_content(int x, int y, int w, int h, int is_active) {
         ry += draw_settings_kv(content_x, content_w, ry, "UTC offset", tzline);
         ry += draw_settings_kv(content_x, content_w, ry, "Daylight saving",
                                tz_dst ? "In effect" : "Inactive");
-        // The dropdown: combo row, expanding to a scrolling list.
-        // Advance from the published bottom edge rather than the helper's
-        // return value, so the sections below can never sit underneath the
-        // expanded list.
+        // Dropdown: advance past the published bottom edge of the list.
         {
             int tz_top = ry;
             draw_settings_timezone_list(content_x, content_w, ry);
@@ -987,8 +942,7 @@ void settings_app_draw_content(int x, int y, int w, int h, int is_active) {
             }
         }
 
-        // Markdown viewer body. The module owns wrapping, block styling and
-        // the scroll clamp, so the shell only supplies the box.
+        // Markdown viewer body; the module owns wrapping and clamping.
         int view_y = sub_y + sub_h + 5;
         int view_h = content_y + content_h - view_y - 12;
         if (view_h < 20) view_h = 20;
@@ -1004,8 +958,7 @@ void settings_app_draw_content(int x, int y, int w, int h, int is_active) {
         settings_scroll_top[SETTINGS_TAB_GAMEROS_UPDATE] = scroll;
 
         if (!has_roadmap && settings_update_view == MD_VIEW_ROADMAP) {
-            // No roadmap section in this changelog. Say so rather than
-            // duplicating the changelog, which made the toggle look broken.
+            // No roadmap section: say so rather than duplicating the changelog.
             draw_compact_string_clipped(content_x + 12, text_top + 2,
                                         (content_w - 24) / FONT_CW,
                                         "No roadmap in this changelog.", XP_DGRAY);
@@ -1031,8 +984,7 @@ int settings_app_handle_click(int mx, int my) {
     // Time zone dropdown, only meaningful on the Time & Language page.
     if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
         if (handle_settings_tz_click(mx, my)) return 1;
-        // A click anywhere else in the content pane dismisses the list, the
-        // way a combo box behaves.
+        // A click elsewhere dismisses the list, the way a combo box behaves.
         settings_tz_close();
     }
 
@@ -1042,8 +994,7 @@ int settings_app_handle_click(int mx, int my) {
         taskbar_style_close();
     }
 
-    // Navigation rail. Must match the renderer: the first row sits at
-    // nav_y + 28, on the same height-derived pitch.
+    // Navigation rail; must match the renderer geometry.
     int nav_row_h = settings_nav_row_h(settings_pane_h);
     int nav_start_y = settings_nav_y + 28;
     if (mx >= settings_nav_x + 5 && mx < settings_nav_x + settings_nav_w - 5 &&
@@ -1055,9 +1006,7 @@ int settings_app_handle_click(int mx, int my) {
         }
     }
 
-    // Toggles are registered by whichever page is on screen, so a single loop
-    // covers System, Devices, Network, Taskbar and Accessibility without
-    // per-page geometry duplicated here.
+    // Toggles are registered per page, so one loop covers them all.
     for (int i = 0; i < settings_tog_count; i++) {
         int ty = settings_tog_hit_y[i];
         if (mx >= settings_tog_hit_x && mx < settings_tog_hit_x + settings_tog_hit_w &&
@@ -1067,8 +1016,7 @@ int settings_app_handle_click(int mx, int my) {
         }
     }
 
-    // Customization's rows jump to another page, using the rectangles the
-    // renderer published.
+    // Customization's rows jump to another page, using the published rectangles.
     for (int i = 0; i < settings_nav_hit_count; i++) {
         if (mx >= settings_nav_hit_x && mx < settings_nav_hit_x + settings_nav_hit_w &&
             my >= settings_nav_hit_y[i] && my < settings_nav_hit_y[i] + SETTINGS_NAV_ROW_H) {
@@ -1119,8 +1067,7 @@ int settings_app_handle_wheel(int mx, int my, int8_t wheel_delta) {
         return 0;
     }
 
-    // The time zone combo scrolls under the wheel before the page tries
-    // anything else, so the list moves instead of the page.
+    // The time zone combo scrolls under the wheel before the page.
     if (settings_tab == SETTINGS_TAB_TIME_LANGUAGE) {
         if (handle_settings_tz_wheel(mx, my, wheel_delta)) return 1;
     }

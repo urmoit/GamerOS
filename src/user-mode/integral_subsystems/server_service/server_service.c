@@ -1,13 +1,12 @@
 #include "../../interfaces/subsystem_interfaces.h"
 
-// Function declarations
+// Server Service subsystem
 void server_service_init_impl(void);
 void server_service_shutdown_impl(void);
 int server_service_start_service(const char* service_name);
 int server_service_stop_service(const char* service_name);
 int server_service_get_service_status(const char* service_name);
 
-// Server Service interface implementation
 static server_service_interface_t server_service_interface = {
     .init = server_service_init_impl,
     .shutdown = server_service_shutdown_impl,
@@ -17,7 +16,6 @@ static server_service_interface_t server_service_interface = {
 };
 
 void server_service_init_impl(void) {
-    // Initialize network server components
     // TODO: Initialize network stack
     // TODO: Start core services
 
@@ -25,7 +23,6 @@ void server_service_init_impl(void) {
 }
 
 void server_service_shutdown_impl(void) {
-    // Shutdown network services
     // TODO: Stop all services
     // TODO: Cleanup network resources
 }

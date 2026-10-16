@@ -4,7 +4,7 @@
 #include "ui_framework.h"
 #include "widget_system.h"
 
-// Function declarations
+// Workstation subsystem
 void workstation_init_impl(void);
 void workstation_shutdown_impl(void);
 void workstation_create_desktop(void);
@@ -13,7 +13,6 @@ void workstation_hide_window(uint32_t window_id);
 void workstation_move_window(uint32_t window_id, int x, int y);
 void workstation_resize_window(uint32_t window_id, uint32_t width, uint32_t height);
 
-// Workstation interface implementation
 static workstation_interface_t workstation_interface = {
     .init = workstation_init_impl,
     .shutdown = workstation_shutdown_impl,
@@ -25,13 +24,11 @@ static workstation_interface_t workstation_interface = {
 };
 
 void workstation_init_impl(void) {
-    // Initialize all workstation components
     desktop_manager_init();
     window_manager_init();
     ui_framework_init();
     widget_system_init();
 
-    // Set the global workstation interface
     workstation = &workstation_interface;
 }
 

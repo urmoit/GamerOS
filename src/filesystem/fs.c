@@ -6,17 +6,12 @@
 
 #define DISK_SECTOR_SIZE ATA_SECTOR_SIZE
 
-// LBA 0 holds the MBR and 1..3 the primary partition table; some layouts also
-// keep a backup GPT in the first sectors. The filesystem starts after the first
-// 64 sectors (one legacy track) and never writes below it, so an existing
-// partition table on the medium survives.
+// First 64 sectors (one legacy track) stay untouched so any MBR/GPT survives.
 #define FS_RESERVED_SECTORS 64
 
 #define FS_FILE_RESERVED_SECTORS ((MAX_FILE_SIZE + DISK_SECTOR_SIZE - 1) / DISK_SECTOR_SIZE)
 
-// RAM fallback when no ATA device answers: 2 MiB. This buffer is statically
-// allocated, so it costs BSS on every boot even when a real disk is present;
-// keep it small and treat the reported capacity as honest-but-tiny.
+// RAM fallback when no ATA device answers: 2 MiB of BSS.
 #define FS_RAM_TOTAL_SECTORS 4096
 
 #define FS_SUPERBLOCK_SECTOR FS_RESERVED_SECTORS
@@ -26,8 +21,7 @@
 #define FS_DIR_TABLE_SECTORS 24
 #define FS_DATA_START_SECTOR (FS_DIR_TABLE_START + FS_DIR_TABLE_SECTORS)
 
-// File record is 88 bytes with the 64-char name field, so 5 fit per sector and
-// 256 files need 52; dir record is 72 bytes, 7 per sector, 128 dirs need 19.
+// File record is 88 bytes (5 per sector), dir record 72 bytes (7 per sector).
 #define FS_MAGIC "GFS3PIO"
 #define FS_VERSION 3
 
@@ -51,8 +45,7 @@ typedef struct {
     uint32_t sector_count;
     uint64_t lba;
     uint8_t in_use;
-    // mtime reuses what was padding, so the record stays 88 bytes and images
-    // written before this field existed still load (mtime reads as 0).
+    // mtime reuses former padding, so the record stays 88 bytes (old images read 0).
     uint8_t reserved[3];
     uint32_t mtime;
 } fs_disk_file_record_t;
@@ -85,8 +78,6 @@ static int fs_disk_write_sector(uint64_t lba, const uint8_t* in) {
     return 1;
 }
 
-// Sectors are appended at the end of the data region, so the data area starts
-// at FS_DATA_START_SECTOR and grows upward.
 static uint64_t fs_used_sectors(void) {
     if (next_disk_sector <= FS_DATA_START_SECTOR) return 0;
     return next_disk_sector - FS_DATA_START_SECTOR;
@@ -288,11 +279,8 @@ void fs_init() {
 
 file_t* fs_create_file(const char* name) {
     if (!name || !name[0]) return 0;
-    // Refuse rather than truncate. A silently shortened name would not match
-    // the original path on the next boot, and the file would be recreated
-    // forever.
     if (strlen(name) >= MAX_FILENAME_LEN) return 0;
-    if (fs_open_file(name)) return 0;   // already exists
+    if (fs_open_file(name)) return 0;
 
     for (size_t i = 0; i < MAX_FILES; i++) {
         if (files[i].in_use) continue;
@@ -319,14 +307,11 @@ file_t* fs_open_file(const char* name) {
     return 0;
 }
 
-// Append-only allocator: a file's sectors are taken from the end of the data
-// area. Growing a file therefore moves it to a fresh run and abandons the old
-// one, so freed space is not reused until the volume is reformatted. That
-// fragmentation is a known limitation of this stage.
+// Append-only allocator: freed space is not reused until the volume is reformatted.
 static int fs_alloc_run(uint32_t needed, uint64_t* out_lba) {
     if (needed == 0) { *out_lba = 0; return 1; }
     if (needed > FS_FILE_RESERVED_SECTORS) return 0;
-    if (next_disk_sector + needed > g_fs_total_sectors) return 0;   // volume full
+    if (next_disk_sector + needed > g_fs_total_sectors) return 0;
     *out_lba = next_disk_sector;
     next_disk_sector += needed;
     return 1;
@@ -340,7 +325,7 @@ void fs_write_file(file_t* file, const uint8_t* data, uint32_t size) {
 
     if (needed > file->sector_count) {
         uint64_t lba = 0;
-        if (!fs_alloc_run(needed, &lba)) return;   // out of space: leave file untouched
+        if (!fs_alloc_run(needed, &lba)) return;
         file->lba = lba;
         file->disk_sector = (uint32_t)lba;
         file->sector_count = needed;
@@ -356,7 +341,6 @@ void fs_write_file(file_t* file, const uint8_t* data, uint32_t size) {
         (void)fs_disk_write_sector(file->lba + si, sector);
     }
 
-    // Release any tail sectors the file no longer needs after a shrink.
     for (uint32_t si = needed; si < file->sector_count; si++) {
         memset(sector, 0, sizeof(sector));
         (void)fs_disk_write_sector(file->lba + si, sector);
@@ -411,7 +395,6 @@ int fs_delete_file(const char* path) {
         if (!files[i].in_use) continue;
         if (!paths_equal(files[i].name, path)) continue;
 
-        // Zero the payload so a later allocation cannot expose stale bytes.
         uint8_t sector[DISK_SECTOR_SIZE];
         for (uint32_t si = 0; si < files[i].sector_count; si++) {
             memset(sector, 0, sizeof(sector));
@@ -470,8 +453,7 @@ uint32_t fs_get_file_mtime(const char* path) {
 int fs_get_entry_info(const char* path, int is_dir, uint32_t* out_size, uint32_t* out_mtime) {
     if (!path) return 0;
     if (is_dir) {
-        // Folders have no payload; stamp them with the current clock so the
-        // column is never blank.
+        // Folders have no payload; stamp mtime with the current clock.
         if (out_size) *out_size = 0;
         if (out_mtime) *out_mtime = get_unix_time();
         return 1;
