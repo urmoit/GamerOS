@@ -105,6 +105,7 @@ void ui_render_frame(void) {
 void ui_handle_mouse_event(int x, int y, uint8_t button, uint8_t pressed) {
     (void)button;
     (void)pressed;
+    // TODO: route mouse button/pressed state to widgets under the cursor
     cursor_x = x;
     cursor_y = y;
 }

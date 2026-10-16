@@ -24,7 +24,7 @@ void widget_system_init(void) {
 }
 
 void widget_system_shutdown(void) {
-    // Cleanup widgets
+    // TODO: Destroy all widgets and release widget resources
 }
 
 // Widget creation (wrappers)

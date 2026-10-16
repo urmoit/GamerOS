@@ -21,6 +21,7 @@ void desktop_manager_init(void) {
 }
 
 void desktop_manager_shutdown(void) {
+    // TODO: Clean up desktop resources (icons, wallpaper buffers)
 }
 
 void desktop_create(void) {
@@ -37,7 +38,7 @@ void desktop_create(void) {
 }
 
 void desktop_set_wallpaper(const char* wallpaper_path) {
-    // Ignores path; always uses the XP desktop background.
+    // FIXME: wallpaper_path is ignored; XP desktop background is hardcoded.
     (void)wallpaper_path;
     ui_draw_desktop_background();
 }

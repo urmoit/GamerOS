@@ -26,6 +26,7 @@ char serial_read(void) {
             return inb(SERIAL_PORT);
         }
     }
+    // FIXME: No real UART present; serial_read returns 0 on timeout.
     return 0;
 }
 
