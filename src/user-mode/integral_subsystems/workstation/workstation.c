@@ -5,6 +5,9 @@
 #include "widget_system.h"
 
 // Workstation subsystem
+//
+// TODO: Add workstation window decorations (title bar, borders, close button)
+// FIXME: shutdown order tears down the widget system before desktop resources are released
 void workstation_init_impl(void);
 void workstation_shutdown_impl(void);
 void workstation_create_desktop(void);

@@ -54,6 +54,7 @@ static char kbd_us[128] = {
     0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 // All other keys are null for now
 };
+// TODO: Fill in the remaining PS/2 scan codes in kbd_us (currently all null above).
 
 static char keyboard_buffer[KEYBOARD_BUFFER_SIZE];
 static volatile size_t buffer_head = 0;

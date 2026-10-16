@@ -143,7 +143,7 @@ int mouse_driver_write(object_handle_t device, const void* buffer, uint32_t size
     (void)buffer;
     (void)size;
     (void)offset;
-    // Mouse is read-only
+    // FIXME: mouse_driver_write is read-only; no write path exists for the mouse device.
     return -1;
 }
 

@@ -2985,7 +2985,9 @@ void kernel_main(multiboot_info_t* mb_info) {
 // TODO: Derive scene_dirty from centralized event queue instead of scattered state checks.
 
 // ---- App management stubs -------------------------------------------------
-
+//
+// TODO: Implement real app launch: load the GOSAPP binary, map it into memory,
+// and create its window instead of only listing descriptors.
 static const app_descriptor_t g_app_descriptors[] = {
     {"NOTEPAD.EXE",  "C:/GamerOS/System32/NOTEPAD.EXE",  "Notepad",
      "C:/GamerOS/Apps/Manifests/Notepad.gosapp",  "C:/GamerOS/Apps/Notepad",

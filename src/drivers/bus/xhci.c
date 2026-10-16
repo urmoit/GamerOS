@@ -701,6 +701,8 @@ static int xhci_control_transfer(xhci_hc_t* hc, xhci_slot_t* slot,
 
     if (!xhci_wait_ep(hc, slot)) {
         slot->ep_pending = 0;
+        // FIXME: ADDRESS_DEVICE wait never completes in QEMU; slot is allocated
+        // but the device is left unusable (CC_TRB_ERROR on completion).
         return -1;
     }
 
